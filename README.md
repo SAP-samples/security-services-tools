@@ -17,6 +17,9 @@ see blog [Report ZSM04000_SNC – Show SNC status of current user sessions](http
 Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/Basis/ZCLEANUP_PASSWORD_HASH_VALUESX.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
 
+Report [`ZSHOW_INSTALLED_COMPS](/ABAP/Basis/ZSHOW_INSTALLED_COMPS.abap)  
+Show installed software components and verify the age of the support packages 
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
