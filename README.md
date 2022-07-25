@@ -15,16 +15,17 @@ Show installed software components and verify the age of the support packages
 
 Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/Basis/ZRFC_STATRECS_SUMMARY.abap)  
 Show Workload Statistic of RFC calls  
-see blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
+See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
 Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://launchpad.support.sap.com/#/notes/2080378))  
 
 Report [`ZSM04000_SNC`](/ABAP/Basis/ZSM04000_SNC.abap)  
 Show SNC status of active users on current application server  
-see blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
+See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
 You can use the Z-reports from note [748424](https://launchpad.support.sap.com/#/notes/748424) - Evaluation of SAP GUI versions and patches
 
 Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/Basis/ZCLEANUP_PASSWORD_HASH_VALUESX.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
+See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/report-zcleanup_password_hash_valuesx-remove-weak-password-hash-values/)  
 
 ## SAP Solution Manager (SolMan)
 
@@ -32,13 +33,13 @@ Remove all weak password hash values in user master data, change documents and p
 
 Report [`ZSOS_OVERVIEW`](/ABAP/SolMan/ZSOS_OVERVIEW.abap)  
 Show overview about results from the Security Optimization Service  
-see blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
+See blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
 
 ### System Recommendations
 
 Report [`ZSYSREC_NOTELIST_72_SP08`](/ABAP/SolMan/ZSYSREC_NOTELIST_72_SP08.abap)  
 Show results from application System Recommendations  
-see blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/)  
+See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/)  
 
 ### Configuration Validation
 
@@ -47,11 +48,11 @@ Show Store Customization of CCDB
 
 Report [`ZDIAGCV_TSCUS_HDR`](/ABAP/SolMan/ZDIAGCV_TSCUS_HDR.abap)  
 Maintain descriptions of Target Systems of application Configuration Validation  
-see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
+See ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
 
 Report [`ZDSH_BUILDER_SHOW`](/ABAP/SolMan/ZDSH_BUILDER_SHOW.abap)  
 Show Dashboard Builder definitions  
-see see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
+See see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
 
 Report [`ZDIAGST_GET_STORES`](/ABAP/SolMan/ZDIAGST_GET_STORES.abap)  
 Show Configuration Stores  
