@@ -10,10 +10,10 @@ You are using security relates services and tools like the EWA, SOS, System Reco
 Report [`ZSHOW_BG_JOB_USER`](/ABAP/Basis/ZSHOW_BG_JOB_USER.abap)  
 Show user type of background job steps  
 
-Report [`ZSHOW_INSTALLED_COMPS](/ABAP/Basis/ZSHOW_INSTALLED_COMPS.abap)  
+Report [`ZSHOW_INSTALLED_COMPS`](/ABAP/Basis/ZSHOW_INSTALLED_COMPS.abap)  
 Show installed software components and verify the age of the support packages  
 
-Report [`ZRFC_STATRECS_SUMMARY](/ABAP/Basis/ZRFC_STATRECS_SUMMARY.abap)  
+Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/Basis/ZRFC_STATRECS_SUMMARY.abap)  
 Show Workload Statistic of RFC calls  
 see blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
 Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://launchpad.support.sap.com/#/notes/2080378))  
@@ -21,7 +21,7 @@ Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](
 Report [`ZSM04000_SNC`](/ABAP/Basis/ZSM04000_SNC.abap)  
 Show SNC status of active users on current application server  
 see blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
-You can use the Z-reports from note [748424}(https://launchpad.support.sap.com/#/notes/748424) - Evaluation of SAP GUI versions and patches
+You can use the Z-reports from note [748424](https://launchpad.support.sap.com/#/notes/748424) - Evaluation of SAP GUI versions and patches
 
 Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/Basis/ZCLEANUP_PASSWORD_HASH_VALUESX.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
