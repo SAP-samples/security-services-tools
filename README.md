@@ -56,7 +56,7 @@ Show ABAP release, Kernel patch level and version of the CommonCryptoLib using t
 None
 
 ## Download and Installation
-Copy & Paste the source code of the reports into a custom program. (You do not need [abapGit](https://github.com/abapGit/abapGit).)
+Use the raw view to copy & paste the source code of the reports into a custom program. (You do not need any tool like [abapGit](https://github.com/abapGit/abapGit).)
 
 ## Known Issues
 No known issues.
