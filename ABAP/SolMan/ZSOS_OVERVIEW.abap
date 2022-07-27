@@ -7,11 +7,17 @@
 *& 24.08.2021 Initial version
 *& 25.08.2021 Show SOS Check ID
 *& 30.08.2021 Show count
+*& 20.01.2022 Option to choose ALV layout
+*&            Default selection for change datum
+*&            Turn count field into integer for easy filtering (but no differentiation between empty and zero anymore)
+*&            Value help for rating
+*& 27.01.2022 Support for icon @0S@ 'information'
+*& 01.02.2022 Correction to show the lastest SOS per system
 *&---------------------------------------------------------------------*
 REPORT zsos_overview
   MESSAGE-ID dsvas.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '30.08.2021'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '01.02.2022'.
 
 *&---------------------------------------------------------------------*
 
@@ -31,7 +37,7 @@ TYPES:
     sos_check_id  TYPE string,
     rating        TYPE string,                  " column 4 Icon for rating
     rating_text   TYPE string,                  "          Text for rating
-    count         TYPE string,
+    count         TYPE i,                       " type string would be required to distinguish between space and zero
     check_group   TYPE dsvasdcheckgrp,          " column 5 Check group in DSA
     check_id      TYPE dsvasdcheckid,           " column 6 Check ID in DSA
     con           TYPE dsvasdcontext,           " column 7 Context
@@ -118,13 +124,21 @@ SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END OF BLOCK chap.
 
 SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS p_new AS CHECKBOX.
+PARAMETERS p_new AS CHECKBOX DEFAULT 'X'.
 SELECTION-SCREEN COMMENT 3(40) ss_new FOR FIELD p_new.
 SELECTION-SCREEN END OF LINE.
 
+* Layout of ALV output
+selection-screen begin of line.
+selection-screen comment 1(30) PS_LOUT for field P_LAYOUT.
+parameters       P_LAYOUT type DISVARIANT-VARIANT.
+selection-screen end of line.
+
 SELECTION-SCREEN COMMENT 1(60) ss_vers.
 
-*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*  AT SELECTION-SCREEN ON VALUE-REQUEST FOR sessno
+*----------------------------------------------------------------------*
 
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR sessno-low.
   PERFORM f4_sessno USING 'SESSNO-LOW'.
@@ -153,7 +167,7 @@ FORM f4_sessno
       description TYPE dsvassessadmin-description,
     END OF value_tab.
 
-  DATA(min_change_date) = sy-datum - 180. " Skip old sessions
+  DATA(min_change_date) = sy-datum - 365. " Skip old sessions
   SELECT
       "h~sessitype
       h~sessno h~change_user h~change_date
@@ -164,19 +178,20 @@ FORM f4_sessno
       ON  a~sessno = h~sessno
     JOIN dsvasresultsgen  AS r       " Only sessions having results
       ON  r~relid      = 'CT'        " Check tables
-      AND r~sessitype  = 'GS'        " Session
+      AND r~sessitype  = h~sessitype
       AND r~sessno     = h~sessno
       AND r~grp        = 'SC_FINISH' " Rating overview
       AND r~id         = '00013'     " Rating overview, get it either from check 00013 or from check 00011
       AND r~srtf2      = 0           " first entry
     INTO CORRESPONDING FIELDS OF value_tab
-    WHERE a~change_date >= min_change_date
-      AND a~bundle_id   =  'GSS_SEC'
+										  
+    WHERE a~bundle_id   =  'GSS_SEC'
       AND h~sessitype   =  'GS'
-    ORDER BY a~change_date DESCENDING a~dbid ASCENDING.
+      and a~change_date >= min_change_date
+    ORDER BY a~dbid ASCENDING a~change_date DESCENDING.
     APPEND value_tab.
   ENDSELECT.
-  "SORT value_tab BY change_date DESCENDING dbid ASCENDING.
+  SORT value_tab BY dbid ASCENDING change_date DESCENDING.
 
   retfield = l_dynprofield.
   CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
@@ -198,40 +213,175 @@ FORM f4_sessno
   ENDIF.
 ENDFORM. "F4_SESSNO
 
+*----------------------------------------------------------------------*
+*  AT SELECTION-SCREEN ON p_layout
+*----------------------------------------------------------------------*
+
+data: GS_ALV_LOUT_VARIANT type DISVARIANT.
+
+at selection-screen on P_LAYOUT.
+  check not P_LAYOUT is initial.
+  perform HANDLE_AT_SELSCR_ON_P_LAYOUT using P_LAYOUT SY-REPID 'A'.
+*
+form HANDLE_AT_SELSCR_ON_P_LAYOUT
+   using ID_VARNAME type DISVARIANT-VARIANT
+         ID_REPID   type SY-REPID
+         ID_SAVE    type C.
+
+  data: LS_VARIANT type DISVARIANT.
+
+  LS_VARIANT-REPORT  = ID_REPID.
+  LS_VARIANT-VARIANT = ID_VARNAME.
+
+  call function 'REUSE_ALV_VARIANT_EXISTENCE'
+    exporting
+      I_SAVE        = ID_SAVE
+    changing
+      CS_VARIANT    = LS_VARIANT
+    exceptions
+      WRONG_INPUT   = 1
+      NOT_FOUND     = 2
+      PROGRAM_ERROR = 3
+      others        = 4.
+
+  if SY-SUBRC <> 0.
+*   Selected layout variant is not found
+    message E204(0K).
+  endif.
+
+  GS_ALV_LOUT_VARIANT-REPORT  = ID_REPID.
+  GS_ALV_LOUT_VARIANT-VARIANT = ID_VARNAME.
+
+endform.                    " handle_at_selscr_on_p_layout
+
+*----------------------------------------------------------------------*
+*  AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout
+*----------------------------------------------------------------------*
+at selection-screen on value-request for P_LAYOUT.  " ( Note 890141 )
+  perform HANDLE_AT_SELSCR_F4_P_LAYOUT using    SY-REPID 'A'
+                                       changing P_LAYOUT.
+*
+form HANDLE_AT_SELSCR_F4_P_LAYOUT
+  using    ID_REPID   type SY-REPID
+           ID_SAVE    type C
+  changing ED_VARNAME type DISVARIANT-VARIANT.
+
+  GS_ALV_LOUT_VARIANT-REPORT = ID_REPID.
+
+  call function 'REUSE_ALV_VARIANT_F4'
+    exporting
+      IS_VARIANT    = GS_ALV_LOUT_VARIANT
+      I_SAVE        = ID_SAVE
+    importing
+      ES_VARIANT    = GS_ALV_LOUT_VARIANT
+    exceptions
+      NOT_FOUND     = 1
+      PROGRAM_ERROR = 2
+      others        = 3.
+
+  if SY-SUBRC = 0.
+    ED_VARNAME = GS_ALV_LOUT_VARIANT-VARIANT.
+  else.
+    message S073(0K).
+*   Keine Anzeigevariante(n) vorhanden
+  endif.
+
+endform.                               " handle_at_selscr_f4_p_layout
+
+
+*----------------------------------------------------------------------*
+*  AT SELECTION-SCREEN ON VALUE-REQUEST FOR rating
+*----------------------------------------------------------------------*
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR rating-low.
+  PERFORM f4_rating USING 'RATING-LOW'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR rating-high.
+  PERFORM f4_rating USING 'RATING-HIGH'.
+
+FORM f4_rating
+  USING
+    l_dynprofield  TYPE help_info-dynprofld.
+
+  DATA:
+    retfield      TYPE dfies-fieldname,
+    "dynpro_values   TYPE TABLE OF dynpread,
+    "field_value     LIKE LINE OF dynpro_values,
+    "field_tab       TYPE TABLE OF dfies  WITH HEADER LINE,
+    field_mapping TYPE STANDARD TABLE OF dselc,
+    BEGIN OF value_tab OCCURS 0,
+      rating TYPE text15,
+    END OF value_tab.
+
+  value_tab-rating = 'red'(R01).          append value_tab. " @AG@
+  value_tab-rating = 'yellow'(R02).       append value_tab. " @AH@
+  value_tab-rating = 'green'(R03).        append value_tab. " @01@
+  value_tab-rating = 'information'(R04).  append value_tab. " @0S@
+  value_tab-rating = 'not rated'(R05).    append value_tab. " @BZ@
+  value_tab-rating = 'unknown'(R06).      append value_tab. " others
+
+  retfield = l_dynprofield.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'RATING' "retfield "(i do not know why this works better)
+      dynpprog        = sy-cprog
+      dynpnr          = sy-dynnr
+      dynprofield     = l_dynprofield
+      value_org       = 'S'
+    TABLES
+*     field_tab       = field_tab
+      value_tab       = value_tab
+      "dynpfld_mapping = field_mapping
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM. "F4_SESSNO
+
 *&---------------------------------------------------------------------*
 
 INITIALIZATION.
 
-  s_sess   = 'Select session'.
-  ss_inst  = 'Installation number'.
+  s_sess   = 'Select session'(001).
+  ss_inst  = 'Installation number'(002).
   ss_dbid  = 'System ID'(m09).
-  ss_udate = 'Change date'.
-  ss_cdate = 'Create date'.
+  ss_udate = 'Change date'(003).
+  ss_cdate = 'Create date'(004).
   ss_sess  = 'Session number'(m10).
 
-  s_chap   = 'Filter chapter'.
+  s_chap   = 'Filter chapter'(005).
   ss_main  = 'Main chapter'(m01).
   ss_chap  = 'Chapter'(m02).
   ss_chk   = 'Check'(m03).
   ss_sosid = 'SOS Check ID'(m12).
-  ss_chkgp = 'Check group'.
-  "ss_chkid = 'Check ID'.
+  ss_chkgp = 'Check group'(006).
+  "ss_chkid = 'Check ID'(007).
   ss_rat   = 'Rating'(m04).
 
-  ss_new   = 'Newest result per system only'.
+  PS_LOUT     = 'Layout'(008).
+
+  ss_new   = 'Newest result per system only'(009).
 
   CONCATENATE 'Program version:'(VER) c_program_version INTO ss_vers
     SEPARATED BY space.
 
 * Default values
 
-  CASE sy-sysid.
-    WHEN 'X3A'.
-      sessno = VALUE #( low = '0010000002582' ).
-      APPEND sessno.
-  ENDCASE.
+				
+			   
+												
+					
+		  
   GET PARAMETER ID:
       'DSVAS_SESSNO'    FIELD sessno.
+
+  clear chgdate.
+  chgdate-option = 'GE'.
+  chgdate-sign   = 'I'.
+  chgdate-low    = sy-datum - 365. " Omit old sessions
+  append chgdate.
 
 *&---------------------------------------------------------------------*
 
@@ -270,14 +420,40 @@ START-OF-SELECTION.
 FORM get_sessions.
 
   " load sessions
-  SELECT * FROM dsvassessadmin INTO TABLE @DATA(lt_dsvassessadmin)
-    WHERE bundle_id     =  'GSS_SEC'
-      AND sessno        IN @sessno
-      AND instno        IN @instno
-      AND dbid          IN @dbid
-      AND change_date   IN @chgdate
-      AND creation_date IN @credate
-    ORDER BY instno, dbid, change_date DESCENDING, creation_date DESCENDING.
+  DATA lt_dsvassessadmin type table of dsvassessadmin.
+  SELECT
+      "h~sessitype,
+      "h~sessno,
+      "h~change_user,
+      "h~change_date,
+      "a~bundle_id,
+      "a~bundle_versnr,
+      a~sessno,
+      a~instno,
+      a~dbid,
+      a~change_date,
+      a~creation_date,
+      a~description
+    FROM dsvassessionhead AS h
+    JOIN dsvassessadmin   AS a
+      ON  a~sessno = h~sessno
+    JOIN dsvasresultsgen  AS r       " Only sessions having results
+      ON  r~relid         =  'CT'        " Check tables
+      AND r~sessitype     =  h~sessitype " Session type
+      AND r~sessno        =  h~sessno    " Session number
+      AND r~grp           =  'SC_FINISH' " Rating overview
+      AND r~id            =  '00013'     " Rating overview, get it either from check 00013 or from check 00011
+      AND r~srtf2         =  0           " first entry
+    INTO CORRESPONDING FIELDS OF table @lt_dsvassessadmin
+    WHERE a~bundle_id     =  'GSS_SEC'
+      AND h~sessitype     =  'GS'
+      AND a~sessno        IN @sessno
+      AND a~instno        IN @instno
+      AND a~dbid          IN @dbid
+      AND a~change_date   IN @chgdate
+      AND a~creation_date IN @credate
+    ORDER BY a~dbid, a~instno, a~change_date DESCENDING  " allow filtering for latest session per system
+    .
 
   " process sessions
   LOOP AT lt_dsvassessadmin INTO DATA(ls_dsvassessadmin).
@@ -461,11 +637,12 @@ FORM get_check_table
             ls_outtab-rating       = ls_rating_column-field.
             " Get rating text
             CASE ls_outtab-rating.
-              WHEN '@AG@'. ls_outtab-rating_text = 'red'.
-              WHEN '@AH@'. ls_outtab-rating_text = 'yellow'.
-              WHEN '@01@'. ls_outtab-rating_text = 'green'.
-              WHEN '@BZ@'. ls_outtab-rating_text = 'not rated'.
-              WHEN OTHERS. ls_outtab-rating_text = 'unknown'.
+              WHEN '@AG@'. ls_outtab-rating_text = 'red'(R01).
+              WHEN '@AH@'. ls_outtab-rating_text = 'yellow'(R02).
+              WHEN '@01@'. ls_outtab-rating_text = 'green'(R03).
+              WHEN '@0S@'. ls_outtab-rating_text = 'information'(R04).
+              WHEN '@BZ@'. ls_outtab-rating_text = 'not rated'(R05).
+              WHEN OTHERS. ls_outtab-rating_text = 'unknown'(R06).
             ENDCASE.
           WHEN 5. " Check group in DSA
             ls_outtab-check_group  = ls_rating_column-field.
@@ -678,7 +855,7 @@ FORM show_alv.
       lr_column ?= lr_columns->get_column( 'CHAPTER' ).
       lr_column->set_long_text( 'Chapter'(l02) ).
       lr_column->set_medium_text( 'Chapter'(m02) ).
-      lr_column->set_short_text( 'Chapter'(s03) ).
+      lr_column->set_short_text( 'Chapter'(s02) ).
 
       lr_column ?= lr_columns->get_column( 'CHECK' ).
       lr_column->set_long_text( 'Check'(l03) ).
@@ -704,6 +881,7 @@ FORM show_alv.
       lr_column->set_long_text( 'Count'(l14) ).
       lr_column->set_medium_text( 'Count'(m14) ).
       lr_column->set_short_text( 'Count'(s14) ).
+      lr_column->set_zero( if_salv_c_bool_sap=>false ).
 
       lr_column ?= lr_columns->get_column( 'CHECK_GROUP' ).
       lr_column->set_visible( if_salv_c_bool_sap=>false ).
@@ -744,6 +922,7 @@ FORM show_alv.
   DATA ls_layout_key TYPE salv_s_layout_key.
   ls_layout_key-report = sy-repid.
   lr_layout->set_key( ls_layout_key ).
+  LR_LAYOUT->SET_INITIAL_LAYOUT( P_LAYOUT ).
   AUTHORITY-CHECK OBJECT 'S_ALV_LAYO'
                       ID 'ACTVT' FIELD '23'.
   IF sy-subrc = 0.
