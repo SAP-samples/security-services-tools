@@ -33,6 +33,7 @@ See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/rep
 
 Report [`ZSOS_OVERVIEW`](/ABAP/SolMan/ZSOS_OVERVIEW.abap)  
 Show overview about results from the Security Optimization Service  
+Update from 27.07.2022: You can now use the same report to view the rating overview tables of the EarlyWatch Alert (EWA).  
 See blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
 
 ### System Recommendations
