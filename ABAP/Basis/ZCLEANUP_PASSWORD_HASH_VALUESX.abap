@@ -8,6 +8,7 @@
 *& 20.07.2022 Initial version
 *& 28.07.2022 Typos corrected
 *&            Interpret BCODE and PASSCODE with code versions space, A, D, X as redundant
+*&            Correction: only selected entries for USH02 and USRPWDHISTORY are deleted (not all of that selected user)
 *&---------------------------------------------------------------------*
 
 REPORT     zcleanup_password_hash_valuesx
@@ -44,6 +45,7 @@ TYPES:
     xpwdsaltedhash TYPE icon_d,     " PWDSALTEDHASH
     comment        TYPE text132,    " Comment
     t_color        TYPE lvc_t_scol, " ALV color of row
+    timestamp      type TIMESTAMP,  " Time stamp in USRPWDHISTORY (hidden, converted to MODDA, MODTI)
   END OF ts_result.
 
 DATA:
@@ -339,7 +341,7 @@ START-OF-SELECTION.
 *------------------------------------------------------------------------*
 
 FORM check_table_authorization USING name TYPE string CHANGING flag_ok TYPE abap_bool.
-  DATA: l_name         LIKE dd25v-viewname,
+  DATA: l_name         TYPE dd25v-viewname,
         l_errormessage TYPE string.
 
   l_name = name.
@@ -481,8 +483,8 @@ FORM load_data.
       APPEND ls_color TO lt_color.
       ls_result-t_color = lt_color.
 
-      IF   ( s_lvl1 = 'X' AND ( ls_result-codvn ca ' ADGIX' ) )
-        OR ( s_lvl2 = 'X' AND ( ls_result-codvn ca ' ADGIX' OR ls_result-user_status IS NOT INITIAL ) )
+      IF   ( s_lvl1 = 'X' AND ( ls_result-codvn CA ' ADGIX' ) )
+        OR ( s_lvl2 = 'X' AND ( ls_result-codvn CA ' ADGIX' OR ls_result-user_status IS NOT INITIAL ) )
         OR ( s_lvl3 = 'X' ).
         APPEND ls_result TO lt_result.
       ENDIF.
@@ -766,8 +768,6 @@ CLASS lcl_handle_events IMPLEMENTATION.
           READ TABLE lt_result INTO ls_result INDEX ls_cell-row.
           IF sy-subrc = 0.
             "...
-            BREAK-POINT.
-
           ENDIF.
         ENDIF.
 
@@ -903,7 +903,9 @@ CLASS lcl_handle_events IMPLEMENTATION.
                 SET bcode = empty_bcode
                     passcode = empty_passcode
                 WHERE mandt = <fs_result>-mandt
-                  AND bname = <fs_result>-bname.
+                  AND bname = <fs_result>-bname
+                  AND modda = <fs_result>-modda
+                  AND modti = <fs_result>-modti.
 
             WHEN 'USRPWDHISTORY'.
 
@@ -913,7 +915,8 @@ CLASS lcl_handle_events IMPLEMENTATION.
                 SET bcode = empty_bcode
                     passcode = empty_passcode
                 WHERE mandt = <fs_result>-mandt
-                  AND bname = <fs_result>-bname.
+                  AND bname = <fs_result>-bname
+                  AND timestamp = <fs_result>-timestamp.
 
           ENDCASE.
         ENDLOOP.
@@ -1236,6 +1239,10 @@ FORM show_result.
       lr_column->set_short_text( 'Comment' ).
       lr_column->set_medium_text( 'Comment' ).
       lr_column->set_long_text( 'Comment' ).
+
+*     Time stamp in USRPWDHISTORY (hidden, converted to MODDA, MODTI)
+      lr_column ?= lr_columns->get_column( 'TIMESTAMP' ).
+      lr_column->SET_TECHNICAL( if_salv_c_bool_sap=>true ).
 
     CATCH cx_salv_not_found
       INTO lr_exception.
