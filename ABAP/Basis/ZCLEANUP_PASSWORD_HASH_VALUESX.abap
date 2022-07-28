@@ -4,12 +4,16 @@
 *&---------------------------------------------------------------------*
 *& Extended version of the program to remove all weak password hash values in user master data, change documents and password history
 *& Use it on your own risk!
+*&
+*& 20.07.2022 Initial version
+*& 28.07.2022 Typos corrected
+*&            Interpret BCODE and PASSCODE with code versions space, A, D, X as redundant
 *&---------------------------------------------------------------------*
 
 REPORT     zcleanup_password_hash_valuesx
            LINE-SIZE 132.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '20.07.2022 OQL'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '28.07.2022 OQL'.
 
 
 "INCLUDE <color>.
@@ -445,11 +449,11 @@ FORM load_data.
           ls_color-color-col = col_total.
 
         WHEN 'E'. " Code Version E (Corrected Code Version D)
-          ls_result-comment = 'weakl password hash'.
+          ls_result-comment = 'weak password hash'.
           ls_color-color-col = col_negative.
 
         WHEN 'F'. " Code Version F (SHA1, 40 Characters, Case-Sensitive, UTF-8)
-          ls_result-comment = '´weak password hash'.
+          ls_result-comment = 'weak password hash'.
           ls_color-color-col = col_negative.
 
         WHEN 'G'. " Code Version G = Code Vers. F + Code Vers. B (2 Hash Values)
@@ -477,8 +481,8 @@ FORM load_data.
       APPEND ls_color TO lt_color.
       ls_result-t_color = lt_color.
 
-      IF   ( s_lvl1 = 'X' AND ( ls_result-codvn = 'G' OR  ls_result-codvn = 'I' ) )
-        OR ( s_lvl2 = 'X' AND ( ls_result-codvn = 'G' OR  ls_result-codvn = 'I' OR ls_result-user_status IS NOT INITIAL ) )
+      IF   ( s_lvl1 = 'X' AND ( ls_result-codvn ca ' ADGIX' ) )
+        OR ( s_lvl2 = 'X' AND ( ls_result-codvn ca ' ADGIX' OR ls_result-user_status IS NOT INITIAL ) )
         OR ( s_lvl3 = 'X' ).
         APPEND ls_result TO lt_result.
       ENDIF.
@@ -498,7 +502,6 @@ FORM load_data.
     SELECT
         h~mandt
         h~bname
-        h~class
         h~modda
         h~modti
         h~modbe
@@ -657,7 +660,7 @@ FORM load_data.
           ls_color-color-col = col_total.
 
         WHEN 'D'. " Code Version D (MD5-Based, 8 Characters, Upper-Case, UTF-8)
-          ls_result-comment = 'weakl password hash'.
+          ls_result-comment = 'weak password hash'.
           ls_color-color-col = col_total.
 
         WHEN 'E'. " Code Version E (Corrected Code Version D)
@@ -856,8 +859,8 @@ CLASS lcl_handle_events IMPLEMENTATION.
           CASE <fs_result>-tabname.
             WHEN 'USR02'.
 
-              IF     ( s_lvl1 = 'X' AND ( <fs_result>-codvn = 'I' ) )
-                  OR ( s_lvl2 = 'X' AND ( <fs_result>-codvn = 'I' OR <fs_result>-user_status IS NOT INITIAL ) )
+              IF     ( s_lvl1 = 'X' AND ( <fs_result>-codvn CA ' ADIX' ) )
+                  OR ( s_lvl2 = 'X' AND ( <fs_result>-codvn CA ' ADIX' OR <fs_result>-user_status IS NOT INITIAL ) )
                   OR ( s_lvl3 = 'X' ).
 
                 " remove BCODE and PASSCODE
@@ -874,9 +877,7 @@ CLASS lcl_handle_events IMPLEMENTATION.
                   WHERE mandt = <fs_result>-mandt
                     AND bname = <fs_result>-bname.
 
-              ELSEIF ( s_lvl1 = 'X' AND ( <fs_result>-codvn = 'G' OR <fs_result>-codvn = 'I' ) )
-                  OR ( s_lvl2 = 'X' AND ( <fs_result>-codvn = 'G' OR <fs_result>-codvn = 'I' OR <fs_result>-user_status IS NOT INITIAL ) )
-                  OR ( s_lvl3 = 'X' ).
+              ELSE.
 
                 " remove BCODE only
                 CLEAR: <fs_result>-xbcode.
