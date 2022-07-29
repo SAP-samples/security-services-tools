@@ -7,14 +7,18 @@
 *& 16.01.2018 Initial version
 *& 16.08.2018 Variant SEC_BASELINE extended
 *& 19.10.2020 Adjusted data type for formal parameter of form routine
-*& 02.02.2020 Interactive option to move item to another parent id (inactive, see comment ### - use with caution!)
+*& 02.02.2021 Interactive option to move item to another parent id (inactive, see comment ### - use with extreme caution!)
+*& 04.02.2021 New option to show keys only
+*& 12.02.2021 Rearrange columns to show texts in one line
+*& 19.02.2021 Add some texts
+*& to do:
+*& Check authorization for SM_DSHO not only for dashboard but for category, too.
 *&---------------------------------------------------------------------*
 REPORT zdsh_builder_edit
   LINE-SIZE 1023.
 
-CONSTANTS: c_program_version(10) TYPE c VALUE '02.02.2020'.
+CONSTANTS: c_program_version(10) TYPE c VALUE '19.02.2020'.
 
-* Variant SEC_BASELINE
 * Dashboard item                                              Transport key                 Element type  Table
 * Dashboard category: Security Baseline                       R3TR  DSHE  YCP54M5B614VV681  CAT           AGS_DSH_CAT
 *   Dashboard: Security Baseline ABAP                         R3TR  DSHE  ZC60Q0QER8T6511Q  DSH           AGS_DSH_HEADER
@@ -26,16 +30,7 @@ CONSTANTS: c_program_version(10) TYPE c VALUE '02.02.2020'.
 *         Drilldown view: Standard Users (Overview)           R3TR  DSHE  YB907K0L6068696O  DRV           AGS_KPI_DRILLDOW
 *         Drilldown view: Standard Users (User)               R3TR  DSHE  YG64J8H63OZQVN1A  DRV           AGS_KPI_DRILLDOW
 *         Drilldown view: Standard Users (Profile Parameter)  R3TR  DSHE  YXO19I67SW3J45FI  DRV           AGS_KPI_DRILLDOW
-*   Dashboard: Security Baseline JAVA                         R3TR  DSHE  YF69KB598Z3R1DXW  DSH           AGS_DSH_HEADER
-*     Group: Software Level                                   R3TR  DSHE  ZL407879010A256T  KPI           AGS_KPI_CONF
-*       Tile: Note 1322944                                    R3TR  DSHE  YY1Q72D1RW14Y545  KPI           AGS_KPI_CONF
-*         Drilldown view: Note 1322944                        R3TR  DSHE  ZC7476I0Y238E6T5  DRV           AGS_KPI_DRILLDOW
-*   Dashboard: Security Notes with Configuration              R3TR  DSHE  YG9ZNW0KGG6U57E0  DSH           AGS_DSH_HEADER
-*       Tile: Note 1322944                                    R3TR  DSHE  YFO3AMLJMB0KDJ98  KPI           AGS_KPI_CONF
-*         Drilldown view: Overview                            R3TR  DSHE  ZM2HN057Q3D4V8TQ  DRV           AGS_KPI_DRILLDOW
-*         Drilldown view: Details                             R3TR  DSHE  YRG9542FJ6L3PRXJ  DRV           AGS_KPI_DRILLDOW
-*       Tile: Note 2562089                                    R3TR  DSHE  ZQYAEQ1OB5159725  KPI           AGS_KPI_CONF
-*         Drilldown view: Overview                            R3TR  DSHE  ZTA98LXPBW3I95J4  DRV           AGS_KPI_DRILLDOW
+* ...
 
 DATA:
 
@@ -63,6 +58,8 @@ DATA:
   ls_ags_kpi_conf_txt TYPE ags_kpi_conf_txt, "(X) dashboard KPI defintion text table, incl. PARENT_ID of dashboard
   ls_ags_dsh_kfg_conf TYPE ags_dsh_kfg_conf, "(X) kpi data source setting key figures for columns
   ls_ags_dsh_flt_conf TYPE ags_dsh_flt_conf, "(X) kpi data source setting filter
+  ls_ags_dsh_ds_conf  TYPE ags_dsh_ds_conf,  "(X) data sources for tile/drilldown chart configuration
+  ls_dsh_kpi_thres_hd TYPE dsh_kpi_thres_hd, "(X) kpi threshold defintion
 
 * Drilldown
 
@@ -74,26 +71,33 @@ DATA:
 * Other tables (not used by Security Baseline Template)
 
   ls_ags_dsh_condit   TYPE ags_dsh_condit,   "condition setting
+
   ls_ags_dsh_ds_flt   TYPE ags_dsh_ds_flt,   "data source level predefined filters(like monid/sid/client)
+
   ls_ags_dsh_gflt_lst TYPE ags_dsh_gflt_lst, "global filter lastset table
   ls_ags_dsh_gflt_map TYPE ags_dsh_gflt_map, "global filter mapping table
   ls_ags_dsh_gflt_opr TYPE ags_dsh_gflt_opr, "global filter available operator(EQ;NE;BT)
-  ls_ags_dsh_thre_dim TYPE ags_dsh_thre_dim, "threshold setting: characteristic values
+
   ls_ags_kpi_to_appl  TYPE ags_kpi_to_appl,  "jump to url for drilldown table
+
   ls_dsh_kpi_threstxt TYPE dsh_kpi_threstxt, "kpi threshold defintion text table
-  ls_dsh_kpi_thres_hd TYPE dsh_kpi_thres_hd, "kpi threshold defintion
+  ls_ags_dsh_thre_dim TYPE ags_dsh_thre_dim, "threshold setting: characteristic values (header)
+
   ls_ags_monty_conf   TYPE ags_monty_conf,   "BPA key figure monetary value configuration
+
   ls_ags_std_kpi_info TYPE ags_std_kpi_info, "dashboard KPI defintion
+
   ls_dsh_semantic_set TYPE dsh_semantic_set, "semantics setting for dashboard charactertics
   ls_dsh_sematic_set2 TYPE dsh_sematic_set2, "semantics setting for dashboard charactertics
+
   ls_dsh_time_flt_rol TYPE dsh_time_flt_rol  "kpi data source setting time filter rolling pattern
   .
 
 
 DATA:
-  posid   TYPE i VALUE 19, " Line position of ID = lenName + 1
-  posdata TYPE i VALUE 39, " Line position of data = posID + 16 + 1 + 2 + 1
-  postext TYPE i VALUE 120. " Line position of text
+  posid   TYPE i VALUE 19,  " Line position of ID = lenName + 1
+  posdata TYPE i VALUE 39,  " Line position of data = posID + 16 + 1 + 2 + 1
+  postext TYPE i VALUE 110. " Line position of text
 
 *&---------------------------------------------------------------------*
 
@@ -116,6 +120,11 @@ DATA s_dshid LIKE ls_ags_dsh_elt_dir-eltuid.
 SELECTION-SCREEN BEGIN OF LINE.
 SELECTION-SCREEN COMMENT 1(25) ss_dshid FOR FIELD sdshid.
 SELECT-OPTIONS sdshid  FOR s_catid MATCHCODE OBJECT dshid_hlp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS pkeys AS CHECKBOX DEFAULT ' '.
+SELECTION-SCREEN COMMENT 5(28) ss_keys FOR FIELD pkeys.
 SELECTION-SCREEN END OF LINE.
 
 SELECTION-SCREEN END OF BLOCK dsh.
@@ -150,12 +159,21 @@ INITIALIZATION.
   sscrfields-functxt_01 = functxt.
 
   text001   = 'Dashboard Builder'(001).
+
   ss_catid  = 'Dashboard Category'(003).
+* 'YCP54M5B614VV681' "Security Baseline
+
   ss_dshid  = 'Dashboard'(004).
+* 'ZC60Q0QER8T6511Q' "Security Baseline ABAP
+* 'YXXL1O2PPW5N18FS' "Security Baseline Critical Authorizations
+* 'YF69KB598Z3R1DXW' "Security Baseline JAVA
+* 'YG9ZNW0KGG6U57E0' "Security Notes ABAP with Configuration
 
   text002   = 'Technical view'(005).
   ss_id     = 'Item'(006).
   ss_ptech  = 'Technical view'(005).
+
+  ss_keys   = 'Show keys only'.
 
   CONCATENATE 'Program version:'(VER) c_program_version INTO ss_vers
     SEPARATED BY space.
@@ -384,6 +402,52 @@ START-OF-SELECTION.
               '(' 'Version'(023) c_program_version ')'
     INTO sy-title SEPARATED BY space.
 
+* Check authority (simplified)
+  AUTHORITY-CHECK OBJECT 'SM_DSHO'
+           ID 'ACTVT' FIELD '03'
+           ID 'DSHID' DUMMY
+           ID 'CATID' DUMMY.
+  IF sy-subrc <> 0.
+*  Missing authority &1: ACTVT = &2 / DSHID = &3 / CATID = &4
+    MESSAGE e002(dsh_builder) WITH 'SM_DSHO' '03 (display)' '' ''.
+  ENDIF.
+
+* Get DDIC texts for KPI rendering type
+  DATA: ls_kpi_rendering_type_text TYPE dd07v,
+        lt_kpi_rendering_type_text TYPE TABLE OF dd07v.
+  CALL FUNCTION 'DDUT_DOMVALUES_GET'
+    EXPORTING
+      name          = 'DSH_RENDERING_TYPE'
+*     LANGU         = SY-LANGU
+      texts_only    = 'X'
+    TABLES
+      dd07v_tab     = lt_kpi_rendering_type_text
+    EXCEPTIONS
+      illegal_input = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+* Get DDIC texts for drilldown rendering type
+  DATA: ls_drill_rendering_type_text TYPE dd07v,
+        lt_drill_rendering_type_text TYPE TABLE OF dd07v.
+  CALL FUNCTION 'DDUT_DOMVALUES_GET'
+    EXPORTING
+      name          = 'DSH_DRILL_RENDER_TYPE'
+*     LANGU         = SY-LANGU
+      texts_only    = 'X'
+    TABLES
+      dd07v_tab     = lt_drill_rendering_type_text
+    EXCEPTIONS
+      illegal_input = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+
   FORMAT RESET.
 * Dashboard element directory
 
@@ -480,8 +544,9 @@ FORM write_element.
 
 *----------------------------------------------------------------------
 
-*   Directory of Repository Objects
+* Directory of Repository Objects
   DATA: ls_tadir TYPE tadir.
+  CLEAR ls_tadir.
   SELECT SINGLE * FROM tadir INTO ls_tadir
     WHERE pgmid    = 'R3TR'
       AND object   = 'DSHE'
@@ -510,7 +575,7 @@ FORM write_element.
 
 *----------------------------------------------------------------------
 
-*   solman dashboard category
+* solman dashboard category
   SELECT * FROM ags_dsh_cat INTO ls_ags_dsh_cat
     WHERE id = ls_ags_dsh_elt_dir-eltuid.
 
@@ -614,11 +679,12 @@ FORM write_element.
     WRITE: /          'AGS_KPI_CONF',
            AT posid   ls_ags_kpi_conf-kpi_id INTENSIFIED,
                       "ls_ags_kpi_conf-parent_id COLOR COL_POSITIVE,
-*###                  '@3N@' AS ICON HOTSPOT, "3N     ICON_INSERT_RELATION
+*###
+                      '@3N@' AS ICON HOTSPOT, "3N     ICON_INSERT_RELATION
            AT posdata ls_ags_kpi_conf-kpi_kind,
                       ls_ags_kpi_conf-pos,
-                      "LS_AGS_KPI_CONF-LAYOUT_TYPE,
-                      "LS_AGS_KPI_CONF-RENDERING_TYPE,
+                      ls_ags_kpi_conf-layout_type,
+                      ls_ags_kpi_conf-rendering_type,
                       ls_ags_kpi_conf-ds_type,
               (30)    ls_ags_kpi_conf-ds_source,
                       "LS_AGS_KPI_CONF-DS_LAST_CHANGED_AT,
@@ -640,6 +706,34 @@ FORM write_element.
                       ls_ags_kpi_conf_txt-kpi_goal,
                       ls_ags_kpi_conf_txt-kpi_units.
     ENDIF.
+
+*   Data source
+    SELECT * FROM ags_dsh_ds_conf INTO ls_ags_dsh_ds_conf
+      WHERE ds_setting_id = ls_ags_kpi_conf-kpi_id
+      ORDER BY pos.
+
+      WRITE: /          'AGS_KPI_CONF',
+             "AT posid  "ls_ags_dsh_ds_conf-ds_setting_id INTENSIFIED,
+                        "ls_AGS_DSH_DS_CONF-GUID,
+             AT posdata ls_ags_dsh_ds_conf-pos,
+                        ls_ags_dsh_ds_conf-ds_type,
+                (30)    ls_ags_dsh_ds_conf-ds_name.
+    ENDSELECT.
+
+*   Threshold
+    SELECT * FROM dsh_kpi_thres_hd INTO ls_dsh_kpi_thres_hd
+      WHERE kpi_id = ls_ags_kpi_conf-kpi_id.
+
+      WRITE: /          'DSH_KPI_THRES_HD',
+             "AT posid   "ls_ags_dsh_ds_conf-threshold_id INTENSIFIED,
+             AT posdata(15) ls_dsh_kpi_thres_hd-kfg_id,
+             (15)       ls_dsh_kpi_thres_hd-kfg_name,
+                        ls_dsh_kpi_thres_hd-sign,
+                        ls_dsh_kpi_thres_hd-zoption,
+             (10)       ls_dsh_kpi_thres_hd-low,
+             (10)       ls_dsh_kpi_thres_hd-high,
+                        ls_dsh_kpi_thres_hd-rating.
+    ENDSELECT.
 
   ENDSELECT.
 
@@ -683,6 +777,19 @@ FORM write_element.
                       "LS_AGS_DSH_DRIL_TXT-KPI_ID intensified,
                       ls_ags_dsh_dril_txt-drilldown_name COLOR COL_NORMAL.
     ENDIF.
+
+*   Data source
+    SELECT * FROM ags_dsh_ds_conf INTO ls_ags_dsh_ds_conf
+      WHERE ds_setting_id = ls_ags_kpi_drilldow-kpi_id
+      ORDER BY pos.
+
+      WRITE: /          'AGS_KPI_CONF',
+             AT posid   ls_ags_dsh_ds_conf-ds_setting_id INTENSIFIED,
+                        "ls_AGS_DSH_DS_CONF-GUID,
+             AT posdata ls_ags_dsh_ds_conf-pos,
+                        ls_ags_dsh_ds_conf-ds_type,
+                (30)    ls_ags_dsh_ds_conf-ds_name.
+    ENDSELECT.
 
   ENDSELECT.
 
@@ -812,8 +919,8 @@ FORM write_dashboard
 * Category    COL_HEADING
 * Dashboard   COL_KEY
 * Group       COL_GROUP
-* KPI         col_total
-* Drilldown   col_normal
+* KPI         COL_TOTAL
+* Drilldown   COL_NORMAL
 
 * Category
   CLEAR ls_tadir.
@@ -826,10 +933,10 @@ FORM write_dashboard
   WRITE: /(16)          'Category'(009),
          AT posid       ls_ags_dsh_cat-id,
          (2)            space, " no icon here
-         AT posdata(18) ls_tadir-author,
-                        ls_tadir-devclass,
-                        ls_ags_dsh_cat-created_by,
-                        ls_ags_dsh_cat-created_at DD/MM/YYYY,
+         AT posdata(18) ls_tadir-devclass,
+                        "ls_tadir-author,
+                        "ls_ags_dsh_cat-created_by,
+                        "ls_ags_dsh_cat-created_at DD/MM/YYYY,
          AT postext     ls_ags_dsh_cat_txt-name,
          AT sy-linsz    space.
 
@@ -846,50 +953,55 @@ FORM write_dashboard
   WRITE: /(16)          'Dashboard'(004),
          AT posid       ls_ags_dsh_header-id,
          (2)            space, " no icon here
-         AT posdata(18) ls_tadir-author,
-                        ls_tadir-devclass,
-                        ls_ags_dsh_header-created_by,
-                        ls_ags_dsh_header-created_at DD/MM/YYYY,
+         AT posdata(18) ls_tadir-devclass,
+                        "ls_tadir-author,
+                        "ls_ags_dsh_header-created_by,
+                        "ls_ags_dsh_header-created_at DD/MM/YYYY,
          AT postext     ls_ags_dsh_head_txt-name,
+         (50)           ls_ags_dsh_head_txt-description,
          AT sy-linsz    space.
   FORMAT RESET.
-  IF ls_ags_dsh_head_txt-description IS NOT INITIAL.
-    WRITE: / ls_ags_dsh_head_txt-description UNDER ls_ags_dsh_head_txt-name.
-  ENDIF.
+*  IF ls_ags_dsh_head_txt-description IS NOT INITIAL.
+*    WRITE: / ls_ags_dsh_head_txt-description UNDER ls_ags_dsh_head_txt-name.
+*  ENDIF.
 
-* Global filtes of Dashboard
-  SELECT * FROM ags_dsh_gflt_hd INTO TABLE lt_ags_dsh_gflt_hd
-    WHERE dsh_id = ls_ags_dsh_header-id
-    ORDER BY pos.
-  LOOP AT lt_ags_dsh_gflt_hd INTO ls_ags_dsh_gflt_hd.
-    WRITE: /(16)           'Global Filter'(014),
-            AT posid(16)   space,  " no id
-                           "LS_AGS_DSH_GFLT_HD-GFLT_ID,
-            AT posdata(18) ls_ags_dsh_gflt_hd-primary_ds_type,
-                           ls_ags_dsh_gflt_hd-primary_ds.
+  IF pkeys IS INITIAL.
 
-* Data Source
-    IF ls_ags_dsh_gflt_hd-primary_ds_type = 'FM'.
-      DATA: ls_tftit TYPE tftit.
-      SELECT SINGLE * FROM tftit INTO ls_tftit
-        WHERE spras    = sy-langu
-          AND funcname = ls_ags_dsh_gflt_hd-primary_ds.
-      IF sy-subrc NE 0 AND sy-langu NE 'E'.
+*   Global filtes of Dashboard
+    SELECT * FROM ags_dsh_gflt_hd INTO TABLE lt_ags_dsh_gflt_hd
+      WHERE dsh_id = ls_ags_dsh_header-id
+      ORDER BY pos.
+    LOOP AT lt_ags_dsh_gflt_hd INTO ls_ags_dsh_gflt_hd.
+      WRITE: /(16)           'Global Filter'(014),
+              AT posid(16)   space,  " no id
+                             "LS_AGS_DSH_GFLT_HD-GFLT_ID,
+              AT posdata(18) ls_ags_dsh_gflt_hd-primary_ds_type,
+                             ls_ags_dsh_gflt_hd-primary_ds.
+
+*     Data Source
+      IF ls_ags_dsh_gflt_hd-primary_ds_type = 'FM'.
+        DATA: ls_tftit TYPE tftit.
         SELECT SINGLE * FROM tftit INTO ls_tftit
-          WHERE spras    = 'E'
+          WHERE spras    = sy-langu
             AND funcname = ls_ags_dsh_gflt_hd-primary_ds.
+        IF sy-subrc NE 0 AND sy-langu NE 'E'.
+          SELECT SINGLE * FROM tftit INTO ls_tftit
+            WHERE spras    = 'E'
+              AND funcname = ls_ags_dsh_gflt_hd-primary_ds.
+        ENDIF.
+        WRITE: AT postext    ls_tftit-stext.
       ENDIF.
-      WRITE: AT postext    ls_tftit-stext.
-    ENDIF.
 
-    WRITE: /(16)           'Field'(015),
-            AT posid(16)   space, " no id
-            AT posdata(18) ls_ags_dsh_gflt_hd-filter_field,
-                           ls_ags_dsh_gflt_hd-sign,
-                           ls_ags_dsh_gflt_hd-operator,
-                           ls_ags_dsh_gflt_hd-low,
-                           ls_ags_dsh_gflt_hd-high.
-  ENDLOOP.
+      WRITE: /(16)           'Field'(015),
+              AT posid(16)   space, " no id
+              AT posdata(18) ls_ags_dsh_gflt_hd-filter_field,
+                             ls_ags_dsh_gflt_hd-sign,
+                             ls_ags_dsh_gflt_hd-operator,
+                             ls_ags_dsh_gflt_hd-low,
+                             ls_ags_dsh_gflt_hd-high.
+    ENDLOOP.
+
+  ENDIF.
 
 * ---
 
@@ -917,17 +1029,30 @@ FORM write_kpi
         "ls_ags_kpi_conf     TYPE ags_kpi_conf, "global field for HIDE
         lt_ags_kpi_conf     TYPE TABLE OF ags_kpi_conf,
         "ls_ags_kpi_conf_txt TYPE ags_kpi_conf_txt, "global field for HIDE
+
+        ls_ags_dsh_ds_conf  TYPE ags_dsh_ds_conf,
+        lt_ags_dsh_ds_conf  TYPE TABLE OF ags_dsh_ds_conf,
+
+        ls_dsh_kpi_thres_hd TYPE dsh_kpi_thres_hd,
+        lt_dsh_kpi_thres_hd TYPE TABLE OF dsh_kpi_thres_hd,
+
+        ls_ags_dsh_flt_conf TYPE ags_dsh_flt_conf,
+        lt_ags_dsh_flt_conf TYPE TABLE OF ags_dsh_flt_conf,
+
         ls_ags_dsh_kfg_conf TYPE ags_dsh_kfg_conf,
         lt_ags_dsh_kfg_conf TYPE TABLE OF ags_dsh_kfg_conf,
-        lt_ags_dsh_flt_conf TYPE TABLE OF ags_dsh_flt_conf,
-        ls_ags_dsh_flt_conf TYPE ags_dsh_flt_conf.
 
+        ls_ags_dsh_dim_conf TYPE ags_dsh_dim_conf,
+        lt_ags_dsh_dim_conf TYPE TABLE OF ags_dsh_dim_conf.
+
+* Object calalog entry
   CLEAR ls_tadir.
   SELECT SINGLE * FROM tadir INTO ls_tadir
     WHERE pgmid    = 'R3TR'
       AND object   = 'DSHE'
       AND obj_name =  l_kpi_id.
 
+* KPI definition
   CLEAR ls_ags_kpi_conf.
   SELECT SINGLE * FROM ags_kpi_conf INTO ls_ags_kpi_conf
     WHERE parent_id = l_parent_id
@@ -945,13 +1070,44 @@ FORM write_kpi
         AND lang      = 'E'.
   ENDIF.
 
+* Data source
+  CLEAR ls_ags_dsh_ds_conf.
+  SELECT * FROM ags_dsh_ds_conf INTO TABLE lt_ags_dsh_ds_conf
+    WHERE ds_setting_id = l_kpi_id.
+
   CASE ls_ags_kpi_conf-kpi_kind.
+    WHEN 'STD'.
+      FORMAT COLOR COL_KEY.
+      WRITE: /(16) 'Standard'.
+
     WHEN 'KGP'.
       FORMAT COLOR COL_GROUP.
       WRITE: /(16) 'Group'(007).
+
     WHEN 'CUS'.
       FORMAT COLOR COL_TOTAL.
       WRITE: /(16) 'Key perf. index'(011).
+
+*     Layout type
+      DATA layout_type(4).
+      CASE ls_ags_kpi_conf-layout_type.
+        WHEN 'S'.    layout_type = '1X1'.
+        WHEN 'L'.    layout_type = '1X2'.
+        WHEN 'XL'.   layout_type = '2X2'.
+        WHEN 'XXL'.  layout_type = '3X3'.
+        WHEN 'FS'.   layout_type = 'Full'.
+        WHEN OTHERS. layout_type = ls_ags_kpi_conf-layout_type.
+      ENDCASE.
+
+*     KPI Rendering type
+      DATA rendering_type TYPE val_text.
+      rendering_type = ls_ags_kpi_conf-rendering_type.
+      READ TABLE lt_kpi_rendering_type_text INTO ls_kpi_rendering_type_text
+        WITH KEY domvalue_l = ls_ags_kpi_conf-rendering_type.
+      IF sy-subrc = 0.
+        rendering_type = ls_kpi_rendering_type_text-ddtext.
+      ENDIF.
+
     WHEN OTHERS.
       FORMAT COLOR COL_TOTAL.
       WRITE: /(16) ls_ags_kpi_conf-kpi_kind COLOR COL_NEGATIVE.
@@ -960,12 +1116,18 @@ FORM write_kpi
   WRITE: "/(16)         '...',
          AT posid       ls_ags_kpi_conf-kpi_id,
                         "ls_ags_kpi_conf-parent_id COLOR COL_POSITIVE,
-*###                    '@3N@' AS ICON HOTSPOT, "3N     ICON_INSERT_RELATION
-         AT posdata(18) ls_tadir-author,
-                        ls_tadir-devclass,
-         (12)           space, "ls_AGS_KPI_CONF-CREATED_BY,
-         (10)           space, "ls_AGS_KPI_CONF-CREATED_AT dd/mm/yyyy,
-         AT postext     ls_ags_kpi_conf_txt-kpi_name,
+*###
+                        '@3N@' AS ICON HOTSPOT, "3N     ICON_INSERT_RELATION
+         AT posdata(18) ls_tadir-devclass,
+         "               ls_tadir-author,
+         "(12)           ls_AGS_KPI_CONF-CREATED_BY,
+         "(10)           space, "ls_AGS_KPI_CONF-CREATED_AT dd/mm/yyyy,
+                        layout_type,
+         (28)           rendering_type,
+         AT postext(50) ls_ags_kpi_conf_txt-kpi_name,
+         (50)           ls_ags_kpi_conf_txt-kpi_description,
+         (50)           ls_ags_kpi_conf_txt-kpi_goal,
+         (10)           ls_ags_kpi_conf_txt-kpi_units,
          AT sy-linsz    space.
   HIDE: ls_ags_kpi_conf-parent_id,
         ls_ags_kpi_conf-pos,
@@ -974,52 +1136,83 @@ FORM write_kpi
 
   IF ls_ags_kpi_conf-kpi_kind = 'CUS'.
 
-    WRITE: /(16)        'Description'(016),
-           AT posid(16) space,  " no id
-           AT postext   ls_ags_kpi_conf_txt-kpi_description,
-           /(16)        'Goal'(017),
-           AT posid(16) space, " no id
-           AT postext   ls_ags_kpi_conf_txt-kpi_goal.
-*   write: /(16)        'Units',      (16) space, LS_AGS_KPI_CONF_TXT-kpi_units.
+    IF pkeys IS INITIAL.
 
-*   Data Source
-    PERFORM write_data_source
-      USING ls_ags_kpi_conf-ds_type
-            ls_ags_kpi_conf-ds_source.
+*     Data Source
+      LOOP AT lt_ags_dsh_ds_conf INTO ls_ags_dsh_ds_conf.
+        PERFORM write_data_source
+          USING ls_ags_dsh_ds_conf-ds_type
+                ls_ags_dsh_ds_conf-ds_name.
+      ENDLOOP.
+      IF sy-subrc NE 0 AND ls_ags_kpi_conf-ds_type IS NOT INITIAL.
+        PERFORM write_data_source
+          USING ls_ags_kpi_conf-ds_type
+                ls_ags_kpi_conf-ds_source.
+      ENDIF.
 
-*   Rows of KPI
-*...
+*     Filters
+      SELECT * FROM ags_dsh_flt_conf INTO TABLE lt_ags_dsh_flt_conf
+        WHERE id = ls_ags_kpi_conf-kpi_id
+        ORDER BY pos.
+      LOOP AT lt_ags_dsh_flt_conf INTO ls_ags_dsh_flt_conf.
+        WRITE: /(16)           'Filter'(019),
+                AT posid(16)   space. " no id
+        IF ls_ags_dsh_flt_conf-dim_id = 'AGR_ON_SYSTEM'.
+          WRITE: AT posdata(18) ls_ags_dsh_flt_conf-dim_id INTENSIFIED ON.
+        ELSE.
+          WRITE: AT posdata(18) ls_ags_dsh_flt_conf-dim_id.
+        ENDIF.
+        WRITE:                 ls_ags_dsh_flt_conf-sign,
+                               ls_ags_dsh_flt_conf-operator,
+                               ls_ags_dsh_flt_conf-low,
+                               "ls_AGS_DSH_GFLT_HD-high,
+                AT postext     ls_ags_dsh_flt_conf-dim_text.
+      ENDLOOP.
 
-*   Columns of KPI
-    SELECT * FROM ags_dsh_kfg_conf INTO TABLE lt_ags_dsh_kfg_conf
-      WHERE id = ls_ags_kpi_conf-kpi_id
-      ORDER BY pos.
+*     Row dimensions
+      SELECT * FROM ags_dsh_dim_conf INTO TABLE lt_ags_dsh_dim_conf
+        WHERE id = ls_ags_kpi_conf-kpi_id
+        ORDER BY pos.
+      LOOP AT lt_ags_dsh_dim_conf INTO ls_ags_dsh_dim_conf.
+        WRITE: /(16)        'Row dimension'(021),
+               AT posid(16) space, " no id
+               AT posdata(18) ls_ags_dsh_dim_conf-dim_id,
+                            "ls_ags_dsh_dim_conf-sort_type,
+                            ls_ags_dsh_dim_conf-sort_direction.
+      ENDLOOP.
 
-    LOOP AT lt_ags_dsh_kfg_conf INTO ls_ags_dsh_kfg_conf.
-      WRITE: /(16)          'Column'(018),
-             AT posid(16)   space, " no id
-             AT posdata(18) ls_ags_dsh_kfg_conf-kfg_id,
-                            "LS_AGS_DSH_KFG_CONF-POS,
-                            ls_ags_dsh_kfg_conf-sort_type,
-                            ls_ags_dsh_kfg_conf-sort_direction,
-                            ls_ags_dsh_kfg_conf-kfg_member.
+*     Columns
+      SELECT * FROM ags_dsh_kfg_conf INTO TABLE lt_ags_dsh_kfg_conf
+        WHERE id = ls_ags_kpi_conf-kpi_id
+        ORDER BY pos.
+
+      LOOP AT lt_ags_dsh_kfg_conf INTO ls_ags_dsh_kfg_conf.
+        WRITE: /(16)          'Column'(018),
+               AT posid(16)   space, " no id
+               AT posdata(18) ls_ags_dsh_kfg_conf-kfg_id,
+                              "LS_AGS_DSH_KFG_CONF-POS,
+                              ls_ags_dsh_kfg_conf-sort_type,
+                              ls_ags_dsh_kfg_conf-sort_direction,
+                              ls_ags_dsh_kfg_conf-kfg_member.
 *            at postext     LS_AGS_DSH_KFG_CONF-KFG_NAME.
-    ENDLOOP.
+      ENDLOOP.
 
-*   Filters of KPI
-    SELECT * FROM ags_dsh_flt_conf INTO TABLE lt_ags_dsh_flt_conf
-      WHERE id = ls_ags_kpi_conf-kpi_id
-      ORDER BY serialno.
-    LOOP AT lt_ags_dsh_flt_conf INTO ls_ags_dsh_flt_conf.
-      WRITE: /(16)           'Filter'(019),
-              AT posid(16)   space, " no id
-              AT posdata(18) ls_ags_dsh_flt_conf-dim_id,
-                             ls_ags_dsh_flt_conf-sign,
-                             ls_ags_dsh_flt_conf-operator,
-                             ls_ags_dsh_flt_conf-low,
-                             "ls_AGS_DSH_GFLT_HD-high,
-              AT postext     ls_ags_dsh_flt_conf-dim_text.
-    ENDLOOP.
+*   Threshold
+      SELECT * FROM dsh_kpi_thres_hd INTO ls_dsh_kpi_thres_hd
+        WHERE kpi_id = ls_ags_kpi_conf-kpi_id.
+
+        WRITE: /(16)          'Threshold',
+               "AT posid   "ls_ags_dsh_ds_conf-threshold_id INTENSIFIED,
+               "AT posdata(18) ls_dsh_kpi_thres_hd-kfg_ID,
+               AT posdata(18) ls_dsh_kpi_thres_hd-kfg_name,
+                              ls_dsh_kpi_thres_hd-sign,
+                              ls_dsh_kpi_thres_hd-zoption,
+               (10)           ls_dsh_kpi_thres_hd-low,
+               (10)           ls_dsh_kpi_thres_hd-high,
+                              ls_dsh_kpi_thres_hd-rating.
+      ENDSELECT.
+
+    ENDIF.
 
 *   Drilldown
     PERFORM write_drilldown
@@ -1032,15 +1225,29 @@ ENDFORM. "
 FORM write_drilldown
   USING l_kpi_id TYPE sysuuid_16.
 
-  DATA: lt_ags_kpi_drilldow TYPE TABLE OF ags_kpi_drilldow,
+  DATA: ls_tadir            TYPE tadir,
+
+        lt_ags_kpi_drilldow TYPE TABLE OF ags_kpi_drilldow,
         ls_ags_kpi_drilldow TYPE ags_kpi_drilldow,
         ls_ags_dsh_dril_txt TYPE ags_dsh_dril_txt,
+
+        ls_ags_dsh_ds_conf  TYPE ags_dsh_ds_conf,
+        lt_ags_dsh_ds_conf  TYPE TABLE OF ags_dsh_ds_conf,
+
+        ls_ags_dsh_flt_conf TYPE ags_dsh_flt_conf,
+        lt_ags_dsh_flt_conf TYPE TABLE OF ags_dsh_flt_conf,
 
         ls_ags_dsh_dim_conf TYPE ags_dsh_dim_conf,
         lt_ags_dsh_dim_conf TYPE TABLE OF ags_dsh_dim_conf,
 
-        ls_ags_dsh_flt_conf TYPE ags_dsh_flt_conf,
-        lt_ags_dsh_flt_conf TYPE TABLE OF ags_dsh_flt_conf.
+        ls_ags_dsh_kfg_conf TYPE ags_dsh_kfg_conf,
+        lt_ags_dsh_kfg_conf TYPE TABLE OF ags_dsh_kfg_conf.
+
+  CLEAR ls_tadir.
+  SELECT SINGLE * FROM tadir INTO ls_tadir
+    WHERE pgmid    = 'R3TR'
+      AND object   = 'DSHE'
+      AND obj_name =  l_kpi_id.
 
   SELECT * FROM ags_kpi_drilldow INTO TABLE lt_ags_kpi_drilldow
     WHERE parent_id = l_kpi_id
@@ -1059,46 +1266,112 @@ FORM write_drilldown
           AND lang   = 'E'.
     ENDIF.
 
+*   Data source
+    CLEAR ls_ags_dsh_ds_conf.
+    SELECT * FROM ags_dsh_ds_conf INTO TABLE lt_ags_dsh_ds_conf
+      WHERE ds_setting_id = ls_ags_kpi_drilldow-kpi_id.
+
+
+* Drillwown rendering type
+    DATA rendering_type TYPE val_text.
+    rendering_type = ls_ags_kpi_drilldow-render_type.
+    READ TABLE lt_drill_rendering_type_text INTO ls_drill_rendering_type_text
+      WITH KEY domvalue_l = ls_ags_kpi_drilldow-render_type.
+    IF sy-subrc = 0.
+      rendering_type = ls_drill_rendering_type_text-ddtext.
+    ENDIF.
+
     FORMAT COLOR COL_NORMAL.
     WRITE: /(16)           'Drilldown'(020),
            AT posid        ls_ags_kpi_drilldow-kpi_id,
                            "ls_ags_kpi_drilldow-parent_id COLOR COL_POSITIVE INPUT,
             (2)            space, " no icon here
-            "AT posdata(18) ls_ags_kpi_drilldow-DS_LAST_CHANGED_AT,
-            AT postext     ls_ags_dsh_dril_txt-drilldown_name,
-            AT sy-linsz     space.
+           AT posdata(18)  ls_tadir-devclass,
+                           "ls_tadir-author,
+                           "ls_ags_kpi_drilldow-DS_LAST_CHANGED_AT,
+           (28)            rendering_type,
+           AT postext     ls_ags_dsh_dril_txt-drilldown_name,
+           AT sy-linsz     space.
     "HIDE ls_ags_kpi_drilldow-parent_id.
     FORMAT RESET.
 
-*   Data Source
-    PERFORM write_data_source
-      USING ls_ags_kpi_drilldow-ds_type
-            ls_ags_kpi_drilldow-ds_source.
+    IF pkeys IS INITIAL.
 
-*   Row dimensions
-    SELECT * FROM ags_dsh_dim_conf INTO TABLE lt_ags_dsh_dim_conf
-      WHERE id = ls_ags_kpi_drilldow-kpi_id
-      ORDER BY pos.
-    LOOP AT lt_ags_dsh_dim_conf INTO ls_ags_dsh_dim_conf.
-      WRITE: /(16)        'Row dimension'(021),
-             AT posid(16) space, " no id
-             AT posdata   ls_ags_dsh_dim_conf-dim_id.
-    ENDLOOP.
+*     Data Source
+      LOOP AT lt_ags_dsh_ds_conf INTO ls_ags_dsh_ds_conf.
+        PERFORM write_data_source
+          USING ls_ags_dsh_ds_conf-ds_type
+                ls_ags_dsh_ds_conf-ds_name.
+      ENDLOOP.
+      IF sy-subrc NE 0 AND ls_ags_kpi_drilldow-ds_type IS NOT INITIAL.
+        PERFORM write_data_source
+          USING ls_ags_kpi_drilldow-ds_type
+                ls_ags_kpi_drilldow-ds_source.
+      ENDIF.
 
-*   Filters of Drilldown
-    SELECT * FROM ags_dsh_flt_conf INTO TABLE lt_ags_dsh_flt_conf
-      WHERE id = ls_ags_kpi_drilldow-kpi_id
-      ORDER BY serialno.
-    LOOP AT lt_ags_dsh_flt_conf INTO ls_ags_dsh_flt_conf.
-      WRITE: /(16)          'Filter'(019),
-             AT posid(16)   space, " no id
-             AT posdata(18) ls_ags_dsh_flt_conf-dim_id,
-                            ls_ags_dsh_flt_conf-sign,
-                            ls_ags_dsh_flt_conf-operator,
-                            ls_ags_dsh_flt_conf-low,
-                            "ls_AGS_DSH_GFLT_HD-high,
-             AT postext     ls_ags_dsh_flt_conf-dim_text.
-    ENDLOOP. " LT_AGS_DSH_FLT_CONF
+*     Filters
+      SELECT * FROM ags_dsh_flt_conf INTO TABLE lt_ags_dsh_flt_conf
+        WHERE id = ls_ags_kpi_drilldow-kpi_id
+        ORDER BY pos.
+      LOOP AT lt_ags_dsh_flt_conf INTO ls_ags_dsh_flt_conf.
+        WRITE: /(16)          'Filter'(019),
+               AT posid(16)   space. " no id
+        IF ls_ags_dsh_flt_conf-dim_id = 'AGR_ON_SYSTEM'.
+          WRITE: AT posdata(18) ls_ags_dsh_flt_conf-dim_id INTENSIFIED ON.
+        ELSE.
+          WRITE: AT posdata(18) ls_ags_dsh_flt_conf-dim_id.
+        ENDIF.
+        WRITE:                ls_ags_dsh_flt_conf-sign,
+                              ls_ags_dsh_flt_conf-operator,
+                              ls_ags_dsh_flt_conf-low,
+                              "ls_AGS_DSH_GFLT_HD-high,
+               AT postext     ls_ags_dsh_flt_conf-dim_text.
+      ENDLOOP. " LT_AGS_DSH_FLT_CONF
+
+*     Row dimensions
+      SELECT * FROM ags_dsh_dim_conf INTO TABLE lt_ags_dsh_dim_conf
+        WHERE id = ls_ags_kpi_drilldow-kpi_id
+        ORDER BY pos.
+      LOOP AT lt_ags_dsh_dim_conf INTO ls_ags_dsh_dim_conf.
+        WRITE: /(16)        'Row dimension'(021),
+               AT posid(16) space, " no id
+               AT posdata(18) ls_ags_dsh_dim_conf-dim_id,
+                            "ls_ags_dsh_dim_conf-sort_type,
+                            ls_ags_dsh_dim_conf-sort_direction.
+      ENDLOOP.
+
+*     Columns
+      SELECT * FROM ags_dsh_kfg_conf INTO TABLE lt_ags_dsh_kfg_conf
+        WHERE id = ls_ags_kpi_drilldow-kpi_id
+        ORDER BY pos.
+
+      LOOP AT lt_ags_dsh_kfg_conf INTO ls_ags_dsh_kfg_conf.
+        WRITE: /(16)          'Column'(018),
+               AT posid(16)   space, " no id
+               AT posdata(18) ls_ags_dsh_kfg_conf-kfg_id,
+                              "LS_AGS_DSH_KFG_CONF-POS,
+                              ls_ags_dsh_kfg_conf-sort_type,
+                              ls_ags_dsh_kfg_conf-sort_direction,
+                              ls_ags_dsh_kfg_conf-kfg_member.
+*            at postext     LS_AGS_DSH_KFG_CONF-KFG_NAME.
+      ENDLOOP.
+
+*   Threshold
+      SELECT * FROM dsh_kpi_thres_hd INTO ls_dsh_kpi_thres_hd
+        WHERE kpi_id = ls_ags_kpi_drilldow-kpi_id.
+
+        WRITE: /(16)          'Threshold',
+               "AT posid   "ls_ags_dsh_ds_conf-threshold_id INTENSIFIED,
+               "AT posdata(18) ls_dsh_kpi_thres_hd-kfg_ID,
+               AT posdata(18) ls_dsh_kpi_thres_hd-kfg_name,
+                              ls_dsh_kpi_thres_hd-sign,
+                              ls_dsh_kpi_thres_hd-zoption,
+               (10)           ls_dsh_kpi_thres_hd-low,
+               (10)           ls_dsh_kpi_thres_hd-high,
+                              ls_dsh_kpi_thres_hd-rating.
+      ENDSELECT.
+
+    ENDIF.
 
   ENDLOOP. " LT_AGS_KPI_DRILLDOW
 
@@ -1174,6 +1447,16 @@ FORM at_line_selection.
     EXIT.
   ENDIF.
 
+* Check authority for original dashboard
+  AUTHORITY-CHECK OBJECT 'SM_DSHO'
+           ID 'ACTVT' FIELD '02'
+           ID 'DSHID' FIELD ls_ags_kpi_conf-parent_id
+           ID 'CATID' DUMMY. "Simplification: Let's ignore the (original and new) categoy
+  IF sy-subrc <> 0.
+*  Missing authority &1: ACTVT = &2 / DSHID = &3 / CATID = &4
+    MESSAGE e002(dsh_builder) WITH 'SM_DSHO' '02 (change)' ls_ags_kpi_conf-parent_id 'ignored'.
+  ENDIF.
+
   DATA:
     ls_fields    TYPE sval,
     lt_fields    TYPE TABLE OF sval,
@@ -1199,12 +1482,13 @@ FORM at_line_selection.
 
   ls_fields-tabname    = 'AGS_KPI_CONF'.
   ls_fields-fieldname	 = 'PARENT_ID'.
-  ls_fields-value      = ls_ags_kpi_conf-parent_id.
+  ls_fields-value      = ls_ags_kpi_conf-parent_id.  "Searchhelp dshid_hlp
   ls_fields-field_attr = '  '. "input
   ls_fields-field_obl	 = 'X'.
   ls_fields-fieldtext	 = 'Parent-ID'.
   "ls_fields-NOVALUEHLP = 'S'. " only usevol for function POPUP_GET_VALUES_USER_HELP)
   APPEND ls_fields TO lt_fields.
+
 
   ls_fields-tabname    = 'AGS_KPI_CONF'.
   ls_fields-fieldname	 = 'POS'.
@@ -1215,12 +1499,33 @@ FORM at_line_selection.
   "ls_fields-NOVALUEHLP = 'S'. " only usevol for function POPUP_GET_VALUES_USER_HELP)
   APPEND ls_fields TO lt_fields.
 
-  CALL FUNCTION 'POPUP_GET_VALUES'
+  "  CALL FUNCTION 'POPUP_GET_VALUES'
+  "    EXPORTING
+  "      popup_title     = 'Move entry to another Dashboard'
+  "*     NO_VALUE_CHECK  = ' '
+  "*     START_COLUMN    = '5'
+  "*     START_ROW       = '5'
+  "    IMPORTING
+  "      returncode      = l_returncode
+  "    TABLES
+  "      fields          = lt_fields
+  "    EXCEPTIONS
+  "      error_in_fields = 1
+  "      OTHERS          = 2.
+  DATA: progname TYPE sy-repid.
+  progname = sy-repid.
+  CALL FUNCTION 'POPUP_GET_VALUES_USER_HELP'
     EXPORTING
-*     NO_VALUE_CHECK  = ' '
-      popup_title     = 'Move entry to another Parent-ID'
+      popup_title     = 'Move entry to another Dashboard'
+      programname     = progname                 " Input validation
+      formname        = 'DSHID_INPUT_CHECK'
+      f1_programname  = progname                 " Input Help
+      f1_formname     = 'DSHID_F1_HELP'
+      f4_programname  = progname                 " Value Help
+      f4_formname     = 'DSHID_F4_HELP'
 *     START_COLUMN    = '5'
 *     START_ROW       = '5'
+*     NO_CHECK_FOR_FIXED_VALUES       = ' '
     IMPORTING
       returncode      = l_returncode
     TABLES
@@ -1228,6 +1533,10 @@ FORM at_line_selection.
     EXCEPTIONS
       error_in_fields = 1
       OTHERS          = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
   IF sy-subrc <> 0 OR l_returncode IS NOT INITIAL.
 * Implement suitable error handling here
     EXIT.
@@ -1272,22 +1581,143 @@ FORM at_line_selection.
     APPEND ls_ags_kpi_conf_txt_new TO lt_ags_kpi_conf_txt_new.
   ENDLOOP.
 
-* Do it!
-*###  
-EXIT.
+* Check authority for new dashboard
+  AUTHORITY-CHECK OBJECT 'SM_DSHO'
+           ID 'ACTVT' FIELD '02'
+           ID 'DSHID' FIELD ls_ags_kpi_conf_new-parent_id
+           ID 'CATID' DUMMY. "Simplification: Let's ignore the (original and new) categoy
+  IF sy-subrc <> 0.
+*  Missing authority &1: ACTVT = &2 / DSHID = &3 / CATID = &4
+    MESSAGE e002(dsh_builder) WITH 'SM_DSHO' '02 (change)' ls_ags_kpi_conf_new-parent_id 'ignored'.
+  ENDIF.
 
-  if ls_ags_kpi_conf_original-parent_id = ls_ags_kpi_conf_new-parent_id.
+* Do it!
+*###  EXIT.
+
+  IF ls_ags_kpi_conf_original-parent_id = ls_ags_kpi_conf_new-parent_id.
 *   Move to another position
-    modify ags_kpi_conf FROM ls_ags_kpi_conf_new.
-  else.
+    MODIFY ags_kpi_conf FROM ls_ags_kpi_conf_new.
+  ELSE.
 *   Move to another parent
     INSERT ags_kpi_conf FROM ls_ags_kpi_conf_new.
     DELETE ags_kpi_conf FROM ls_ags_kpi_conf_original.
 
     INSERT ags_kpi_conf_txt FROM TABLE lt_ags_kpi_conf_txt_new.
     DELETE ags_kpi_conf_txt FROM TABLE lt_ags_kpi_conf_txt_original.
-  endif.
+  ENDIF.
 
-  message s044(DSH_BUILDER) with 'Item moved' ls_ags_kpi_conf_original-kpi_id 'sucess'.
+  MESSAGE s044(dsh_builder) WITH 'Item moved' ls_ags_kpi_conf_original-kpi_id 'sucess'.
 
+ENDFORM.
+
+
+FORM dshid_input_check
+  TABLES
+    fields STRUCTURE sval
+  CHANGING
+    error  STRUCTURE svale
+    .
+
+  READ TABLE fields WITH KEY fieldname = 'PARENT_ID'.
+
+  DATA: ls_ags_dsh_elt_dir TYPE ags_dsh_elt_dir.
+  SELECT SINGLE * FROM ags_dsh_elt_dir
+    INTO ls_ags_dsh_elt_dir
+    WHERE deftp EQ 'DSH'
+      AND eltuid = fields-value.
+  IF sy-subrc NE 0.
+    "message e045(DSH_BUILDER). "This dashboard doesn't exist!
+    error-msgid      = 'DSH_BUILDER'.
+    error-msgty      = 'E'.
+    error-msgno      = '045'.
+    "ERROR-MSGV1      =
+    "ERROR-MSGV2      =
+    "ERROR-MSGV3      =
+    "ERROR-MSGV4      =
+    error-errortab   = 'AGS_KPI_CONF'.
+    error-errorfield = 'PARENT_ID'.
+  ELSE.
+    CLEAR error.
+  ENDIF.
+ENDFORM.
+
+FORM dshid_f1_help
+  USING
+    tabname
+    fieldname
+    .
+
+  MESSAGE i030(dsh_builder) WITH 'Select dashboard'.
+
+ENDFORM.
+
+FORM dshid_f4_help
+  USING
+    tabname
+    fieldname
+    display
+  CHANGING
+    returncode
+    value
+    .
+
+  DATA: "progname      TYPE sy-repid,
+        "dynnum        TYPE sy-dynnr,
+        "dynpro_values TYPE TABLE OF dynpread,
+        "field_value   LIKE LINE OF dynpro_values,
+        "field_tab     TYPE TABLE OF dfies      WITH HEADER LINE,
+        return_tab    TYPE TABLE OF ddshretval WITH HEADER LINE.
+
+  STATICS:
+        value_tab     LIKE ags_dsh_elt_dir OCCURS 0.
+
+  DATA: ls_system_info   TYPE ags_sr_s_lmdb_system.
+
+  "progname = sy-repid.
+  "dynnum   = sy-dynnr.
+
+  IF value_tab[] IS INITIAL.
+    SELECT * FROM ags_dsh_elt_dir
+      INTO TABLE value_tab
+      WHERE deftp EQ 'DSH'
+      ORDER BY deftp eltuid.
+  ENDIF.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      ddic_structure  = 'AGS_DSH_ELT_DIR'
+      retfield        = 'ELTUID'
+*     PVALKEY         = ' '
+*     DYNPPROG        = ' '
+*     DYNPNR          = ' '
+*     DYNPROFIELD     = ' '
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      value_org       = 'S'
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     CALLBACK_PROGRAM       = ' '
+*     CALLBACK_FORM   = ' '
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*   IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = value_tab
+*     FIELD_TAB       =
+      return_tab      = return_tab
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  CLEAR: returncode, value.
+  READ TABLE return_tab INDEX 1.
+  returncode = sy-subrc.
+  value = return_tab-fieldval.
 ENDFORM.

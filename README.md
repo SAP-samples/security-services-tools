@@ -55,6 +55,7 @@ See ZIP archive [Security Baseline Template](https://support.sap.com/content/dam
 - Report [`ZDSH_BUILDER_SHOW`](/ABAP/SolMan/ZDSH_BUILDER_SHOW.abap)  
 Show Dashboard Builder definitions  
 See see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
+Updated 29.07.2022  
 
 - Report [`ZDIAGST_GET_STORES`](/ABAP/SolMan/ZDIAGST_GET_STORES.abap)  
 Show Configuration Stores  
