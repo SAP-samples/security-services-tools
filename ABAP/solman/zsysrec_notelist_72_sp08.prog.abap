@@ -3095,7 +3095,7 @@ class LCL_HANDLE_EVENTS implementation.
             if SY-SUBRC = 0 and LS_NOTELIST-NOTE_NUMBER is not initial.
               perform DISPLAY_NOTE_TEXT in program (L_PROGNAME_NXS)
                 using LS_NOTELIST-NOTE_NUMBER
-                      "SPACE " not valid in ST-A/PI Release 01T_731, SP 1  
+                      "SPACE " not valid in ST-A/PI Release 01T_731, SP 1
 					  .
             endif.
           endif.
@@ -3313,7 +3313,7 @@ class LCL_HANDLE_EVENTS implementation.
         perform GET_PROGNAME_NXS changing L_PROGNAME_NXS.
         perform DISPLAY_NOTE_TEXT in program (L_PROGNAME_NXS)
           using LS_NOTELIST-NOTE_NUMBER
-                "SPACE " not valid in ST-A/PI Release 01T_731, SP 1  
+                "SPACE " not valid in ST-A/PI Release 01T_731, SP 1
 				.
       endif.
     endif.
