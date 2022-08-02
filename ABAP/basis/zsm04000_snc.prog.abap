@@ -10,13 +10,14 @@
 *& 29.09.2021 Show ccl-Parameters, too
 *&            Use more fields to find the SNC name
 *& 30.09.2021 Get data from all active application servers
+*& 02.08.2022 Small correction of ALV because of consistency check using Shift+Double right click
 *&---------------------------------------------------------------------*
 
 REPORT  zsm04000_snc
   MESSAGE-ID 14
   LINE-SIZE 1023.
 
-CONSTANTS: c_program_version(10) TYPE c VALUE '30.09.2021'.
+CONSTANTS: c_program_version(10) TYPE c VALUE '02.08.2022'.
 
 INCLUDE <color>.
 INCLUDE tskhincl. "opcodes for ThUsrInfo
@@ -472,9 +473,9 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-key          = ' '.
   ls_fieldcat-reptext_ddic = 'Server name'.
   ls_fieldcat-outputlen    = 40.
-  ls_fieldcat-ref_tabname  = 'USRINFO'.
+  ls_fieldcat-ref_tabname  = 'MSXXLIST'.
+  ls_fieldcat-ref_fieldname = 'NAME'.
   APPEND ls_fieldcat TO fieldcat.
-
 
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'TID'.
@@ -593,7 +594,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-fieldname    = 'TRACE'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
   ls_fieldcat-reptext_ddic = 'Trace'(026).
-  ls_fieldcat-datatype     = 'INT4'.
+  ls_fieldcat-datatype     = 'INT1'.
   ls_fieldcat-outputlen    = 3.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
   ls_fieldcat-tech         = 'X'.
