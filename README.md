@@ -7,23 +7,23 @@ You are using security relates services and tools like the EWA, SOS, System Reco
 
 ## Basis
 
-- Report [`ZSHOW_BG_JOB_USER`](/ABAP/Basis/ZSHOW_BG_JOB_USER.abap)  
+- Report [`ZSHOW_BG_JOB_USER`](/ABAP/basis/zshow_bg_job_user.prog.abap)  
 Show user type of background job steps  
 
-- Report [`ZSHOW_INSTALLED_COMPS`](/ABAP/Basis/ZSHOW_INSTALLED_COMPS.abap)  
+- Report [`ZSHOW_INSTALLED_COMPS`](/ABAP/basis/zshow_installed_comps.prog.abap)  
 Show installed software components and verify the age of the support packages  
 
-- Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/Basis/ZRFC_STATRECS_SUMMARY.abap)  
+- Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/basis/zrfc_statrecs_summary.prog.abap)  
 Show Workload Statistic of RFC calls  
 See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
 Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://launchpad.support.sap.com/#/notes/2080378))  
 
-- Report [`ZSM04000_SNC`](/ABAP/Basis/ZSM04000_SNC.abap)  
+- Report [`ZSM04000_SNC`](/ABAP/basis/zsm04000_snc.prog.abap)  
 Show SNC status of active users on current application server  
 See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
 You can use the Z-reports from note [748424](https://launchpad.support.sap.com/#/notes/748424) - Evaluation of SAP GUI versions and patches
 
-- Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/Basis/ZCLEANUP_PASSWORD_HASH_VALUESX.abap)  
+- Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
 See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/report-zcleanup_password_hash_valuesx-remove-weak-password-hash-values/)  
 Updated 28.07.2022  
@@ -32,42 +32,44 @@ Updated 28.07.2022
 
 ### Security Optimization Service
 
-- Report [`ZSOS_OVERVIEW`](/ABAP/SolMan/ZSOS_OVERVIEW.abap)  
+- Report [`ZSOS_OVERVIEW`](/ABAP/solman/zsos_overview.prog.abap)  
 Show overview about results from the Security Optimization Service  
 See blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
 Updated 27.07.2022: You can now use the same report to view the rating overview tables of the EarlyWatch Alert (EWA).  
 
 ### System Recommendations
 
-- Report [`ZSYSREC_NOTELIST_72_SP08`](/ABAP/SolMan/ZSYSREC_NOTELIST_72_SP08.abap)  
+- Report [`ZSYSREC_NOTELIST_72_SP08`](/ABAP/solman/zsysrec_notelist_72_sp08.prog.abap)  
 Show results from application System Recommendations  
 See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/)  
 
 ### Configuration Validation
 
-- Report [`ZSHOW_CCDB_CUSTOMIZING`](/ABAP/SolMan/ZSHOW_CCDB_CUSTOMIZING.abap)  
+- Report [`ZSHOW_CCDB_CUSTOMIZING`](/ABAP/solman/zshow_ccdb_customizing.prog.abap)  
 Show Store Customization of CCDB  
 
-- Report [`ZDIAGCV_TSCUS_HDR`](/ABAP/SolMan/ZDIAGCV_TSCUS_HDR.abap)  
+- Report [`ZDIAGCV_TSCUS_HDR`](/ABAP/solman/zdiagcv_tscus_hdr.prog.abap)  
 Maintain descriptions of Target Systems of application Configuration Validation  
 See ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
 
-- Report [`ZDSH_BUILDER_SHOW`](/ABAP/SolMan/ZDSH_BUILDER_SHOW.abap)  
+- Report [`ZDSH_BUILDER_SHOW`](/ABAP/solman/zdsh_builder_show.prog.abap)  
 Show Dashboard Builder definitions  
 See see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
 Updated 29.07.2022  
 
-- Report [`ZDIAGST_GET_STORES`](/ABAP/SolMan/ZDIAGST_GET_STORES.abap)  
+- Report [`ZDIAGST_GET_STORES`](/ABAP/solman/zdiagst_get_stores.prog.abap)  
 Show Configuration Stores  
 
-- Report [`ZSHOW_KERNEL_STORES`](/ABAP/SolMan/ZSHOW_KERNEL_STORES.abap)  
+- Report [`ZSHOW_KERNEL_STORES`](/ABAP/solman/zshow_kernel_stores.prog.abap)  
 Show ABAP release, Kernel patch level and version of the CommonCryptoLib using the configuration stores SAP_KERNEL and CRYPTOLIB  
 
 ## Requirements
 None
 
 ## Download and Installation
-Use the raw view to copy & paste the source code of the reports into a custom program. (You do not need any tool like [abapGit](https://github.com/abapGit/abapGit).)
+Use the raw view to copy & paste the source code of the reports into a custom program.  
+
+You can use [abapGit](https://github.com/abapGit/abapGit) to load the compleate package from branch `abapGit` into an SAP Solution Manager.
 
 ## Known Issues
 No known issues.
