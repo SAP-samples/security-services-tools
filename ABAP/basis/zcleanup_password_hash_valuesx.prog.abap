@@ -9,12 +9,13 @@
 *& 28.07.2022 Typos corrected
 *&            Interpret BCODE and PASSCODE with code versions space, A, D, X as redundant
 *&            Correction: only selected entries for USH02 and USRPWDHISTORY are deleted (not all of that selected user)
+*& 24.08.2022 Correction in showing the profile parameter values on the report selection screen
 *&---------------------------------------------------------------------*
 
 REPORT     zcleanup_password_hash_valuesx
            LINE-SIZE 132.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '28.07.2022 OQL'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '24.08.2022 OQL'.
 
 
 "INCLUDE <color>.
@@ -204,9 +205,9 @@ INITIALIZATION.
 
   text003  = 'Profile parameter'.
   ss_par01 = 'login/password_downwards_compatibility'.
-  CALL 'C_SAPGPARAM' ID 'NAME'  FIELD ss_par01 ID 'VALUE' FIELD s_par02.
+  CALL 'C_SAPGPARAM' ID 'NAME'  FIELD ss_par01 ID 'VALUE' FIELD s_par01.
   ss_par02 = 'login/password_compliance_to_current_policy'.
-  CALL 'C_SAPGPARAM' ID 'NAME'  FIELD ss_par02 ID 'VALUE' FIELD s_par01.
+  CALL 'C_SAPGPARAM' ID 'NAME'  FIELD ss_par02 ID 'VALUE' FIELD s_par02.
   ss_par03 = 'login/min_password_lng'.
   CALL 'C_SAPGPARAM' ID 'NAME'  FIELD ss_par03 ID 'VALUE' FIELD s_par03.
   ss_par04 = 'login/min_password_lowercase'.
