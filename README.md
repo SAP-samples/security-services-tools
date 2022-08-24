@@ -26,7 +26,7 @@ You can use the Z-reports from note [748424](https://launchpad.support.sap.com/#
 - Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
 See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/report-zcleanup_password_hash_valuesx-remove-weak-password-hash-values/)  
-Updated 28.07.2022  
+Updated 24.08.2022  
 
 ## SAP Solution Manager (SolMan)
 
