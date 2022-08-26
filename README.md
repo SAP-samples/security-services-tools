@@ -17,6 +17,7 @@ Show installed software components and verify the age of the support packages
 Show Workload Statistic of RFC calls  
 See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
 Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://launchpad.support.sap.com/#/notes/2080378))  
+Updated 26.08.2022  
 
 - Report [`ZSM04000_SNC`](/ABAP/basis/zsm04000_snc.prog.abap)  
 Show SNC status of active users on current application server  

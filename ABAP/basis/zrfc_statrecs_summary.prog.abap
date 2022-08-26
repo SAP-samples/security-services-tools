@@ -37,11 +37,13 @@
 *&            Table RFCSYSACL List of permitted trusted systems for the current system: Systems whose calls are trusted (to be used to SV/SVD)
 *&            Table RFCTRUST List of existing trusting systems: Systems who trust current system (to be used for CL/CLD)
 *& 26.03.2018 Allow exclude selection for S_USER and S_DEST
+*& 26.08.2022 Updated list of tast types
+*&            Prepare to analyse authorizations for S_RFCACL
 *&---------------------------------------------------------------------*
 
 REPORT  ZRFC_STATRECS_SUMMARY.
 
-constants: c_program_version(10) type c value '26.03.2018'.
+constants: c_program_version(14) type c value '26.08.2022 FBT'.
 
 * see function SWNC_COLLECTOR_GET_AGGREGATES
 * in include LSCSM_COLLECTORU04
@@ -178,7 +180,8 @@ types: begin of ts_result,
          REMOT_DEST like SWNCINCRFCH-REMOT_DEST,
          FUNC_NAME  like RS38L-NAME,
          GROUP      like RS38L-AREA,
-         AUTH       type string,
+         AUTH_S_RFC type string,
+         AUTH_S_RFCACL type string,
          PROG_NAME  like RS38L-PROGNAME,     "No PROG_NAME for server
          ENTRY_ID   like SWNCINCRFCH-ENTRY_ID,
          COUNTER    like SWNCINCRFCB-COUNTER,
@@ -207,8 +210,9 @@ types:
     bname type usr02-bname,
     USTYP type usr02-USTYP,
     CLASS type usr02-CLASS,
-    FUGR  type tt_FNAME,
-    FUNC  type tt_FNAME,
+    FUGR  type tt_FNAME,  " authorizations for S_RFC
+    FUNC  type tt_FNAME,  " authorizations for S_RFC
+    S_RFCACL type string, " authorizations for S_RFCACL
   end of ts_user_auth,
   tt_user_auth type sorted table of ts_user_auth
     with non-unique key mandt bname.
@@ -654,7 +658,8 @@ FORM MAIN.
         perform get_authorization
           using    ls_rfcsrvr-mandt ls_rfcsrvr-account
                    gs_result-FUNC_NAME gs_result-GROUP
-          changing gs_result-AUTH.
+          changing gs_result-AUTH_S_RFC
+                   gs_result-AUTH_S_RFCACL.
 
         append gs_result to gt_result.
       endloop.
@@ -832,27 +837,51 @@ form translate_tasktype
           l_char.
 
   CASE l_char.
-    WHEN 'D'.    gs_result-tasktype = 'Dialog'(402).
-    WHEN 'U'.    gs_result-tasktype = 'Update'(403).
-    WHEN '2'.    gs_result-tasktype = 'Update2'(404).
-    WHEN 'B'.    gs_result-tasktype = 'Background'(405).
     WHEN '*'.    gs_result-tasktype = 'Total'(406).
+    WHEN 'D'.    gs_result-tasktype = 'Dialog'(402).
+    WHEN 'U'.    gs_result-tasktype = 'Update (V1)'(403).
     WHEN 'S'.    gs_result-tasktype = 'Spool'(407).
+    WHEN '$'.    gs_result-tasktype = 'NBR'(415).
+    WHEN 'B'.    gs_result-tasktype = 'Background'(405).
     WHEN 'E'.    gs_result-tasktype = 'Enqueue'(408).
     WHEN 'Y'.    gs_result-tasktype = 'Buffer Sync.'(409).
-    WHEN 'A'.    gs_result-tasktype = 'AutoABAP'(410).
+    WHEN 'A'.    gs_result-tasktype = 'Auto ABAP'(410).
+    WHEN '7'.    gs_result-tasktype = 'Auto RFC'(416).
+    WHEN '§'.    gs_result-tasktype = 'lrrfc'. "(417)
+    WHEN '2'.    gs_result-tasktype = 'Update (V2)'(404).
     WHEN 'C'.    gs_result-tasktype = 'CPI-C'(411).
     WHEN 'R'.    gs_result-tasktype = 'RFC'(412).
     WHEN 'L'.    gs_result-tasktype = 'ALE'(413).
-    WHEN 'P'.    gs_result-tasktype = 'plugin'(394).
     WHEN 'H'.    gs_result-tasktype = 'http'(395).
     WHEN 'T'.    gs_result-tasktype = 'https'(396).
     WHEN 'N'.    gs_result-tasktype = 'nntp'(397).
     WHEN 'M'.    gs_result-tasktype = 'smtp'(398).
     WHEN 'F'.    gs_result-tasktype = 'ftp'(399).
-    WHEN 'O'.    gs_result-tasktype = 'LCOM'(204).
+
+    WHEN 'P'.    gs_result-tasktype = 'plugin'(394).
+    WHEN 'G'.    gs_result-tasktype = 'auto task handler'(418).
+    WHEN 'I'.    gs_result-tasktype = 'remote procedure call'(419).
+    WHEN 'X'.    gs_result-tasktype = 'RFV within VMC'(420).
+    WHEN 'K'.    gs_result-tasktype = 'DDLOG cleanup'(421).
+    WHEN 'Z'.    gs_result-tasktype = 'delayed task handler call'(422).
+    WHEN 'J'.    gs_result-tasktype = 'Auto JAVA'(423).
+    WHEN 'O'.    gs_result-tasktype = 'LCOM (fast RFC)'(204).
+    WHEN 'V'.    gs_result-tasktype = 'http/JSP'(424).
+    WHEN 'W'.    gs_result-tasktype = 'https/JSP'(425).
+    WHEN 'Q'.    gs_result-tasktype = 'Licence server'(426).
+    WHEN '1'.    gs_result-tasktype = 'ESF sub records'(427).
+    WHEN '8'.    gs_result-tasktype = 'WS-RFC'(390).
     WHEN '9'.    gs_result-tasktype = 'WS-http'(391).
-    WHEN '8'.    gs_result-tasktype = 'WS-rfc'(390).
+    WHEN '?'.    gs_result-tasktype = 'unknown'(414).
+
+    WHEN '4'.    gs_result-tasktype = 'BGRFC Scheduler'(428).
+    WHEN '5'.    gs_result-tasktype = 'BGRFC Unit'(429).
+
+    WHEN '6'.    gs_result-tasktype = 'msadm'. "(430)
+    WHEN '0'.    gs_result-tasktype = 'sys_startup'. "(431)
+    WHEN '#'.    gs_result-tasktype = 'apc'. "(432)
+    WHEN '3'.    gs_result-tasktype = 'Auto CCMS'(433).
+
     WHEN OTHERS. gs_result-tasktype = 'unknown'(414).
   ENDCASE.
 
@@ -897,6 +926,9 @@ form get_user_data
   data: lt_S_RFC_USER_AUTH type table of USVALUES,
         ls_S_RFC_USER_AUTH type          USVALUES.
 
+  data: lt_S_RFCACL_USER_AUTH type table of USVALUES,
+        ls_S_RFCACL_USER_AUTH type          USVALUES.
+
   data: l_tabix      type sy-tabix,
         gs_user_auth type ts_user_auth,
         lS_FNAME     type ts_FNAME,
@@ -911,7 +943,6 @@ form get_user_data
     where mandt = l_mandt
       and bname = l_userid.
 
-* Get authorizations for S_RFC
 * Do we know this user already?
   read table gt_user_auth TRANSPORTING NO FIELDS
     with key mandt = l_mandt
@@ -919,6 +950,13 @@ form get_user_data
   check sy-subrc ne 0.
   l_tabix = sy-tabix.
 
+  clear gs_user_auth.
+  gs_user_auth-mandt = l_mandt.
+  gs_user_auth-bname = l_userid.
+  gs_user_auth-USTYP = l_USTYP.
+  gs_user_auth-CLASS = l_CLASS.
+
+* Get authorizations for S_RFC
   clear lt_S_RFC_USER_AUTH[].
   CALL FUNCTION 'SUSR_USER_AUTH_FOR_OBJ_GET'
     EXPORTING
@@ -974,10 +1012,6 @@ form get_user_data
       check l_ACTVT_OK = 'X'
         and l_RFC_TYPE is not initial.
 
-      gs_user_auth-mandt = l_mandt.
-      gs_user_auth-bname = l_userid.
-      gs_user_auth-USTYP = l_USTYP.
-      gs_user_auth-CLASS = l_CLASS.
       if     l_RFC_TYPE = 'F'.
         append lines of lt_fname to gs_user_auth-FUNC.
       elseif l_RFC_TYPE = 'G'.
@@ -996,10 +1030,86 @@ form get_user_data
     delete ADJACENT DUPLICATES FROM gs_user_auth-FUNC COMPARING ALL FIELDS.
     sort gs_user_auth-FUGR by from_value to_value.
     delete ADJACENT DUPLICATES FROM gs_user_auth-FUGR COMPARING ALL FIELDS.
-
-*   Store  authorization data
-    insert gs_user_auth into gt_user_auth index l_tabix.
   endif.
+
+* Get authorizations for S_RFCACL
+  clear lt_S_RFCACL_USER_AUTH[].
+  CALL FUNCTION 'SUSR_USER_AUTH_FOR_OBJ_GET'
+    EXPORTING
+*     NEW_BUFFERING       = 3
+      MANDANT             = l_mandt
+      USER_NAME           = l_userid
+      SEL_OBJECT          = 'S_RFCACL'
+    TABLES
+      VALUES              = lt_S_RFCACL_USER_AUTH
+    EXCEPTIONS
+      USER_NAME_NOT_EXIST = 1
+      NOT_AUTHORIZED      = 2
+      INTERNAL_ERROR      = 3
+      OTHERS              = 4.
+  IF SY-SUBRC <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  data: l_S_RFCACL   type string,
+        l_AUTH       type string,
+        l_VAL        type string,
+        l_RFC_SYSID	 type RFCSSYSID,
+        l_RFC_CLIENT type RFC_CLIENT,
+        l_RFC_USER   type RFC_USER,
+        l_RFC_EQUSER type RFC_EQUSER,
+        l_RFC_TCODE  type RFC_TCODE,
+        l_RFC_INFO   type RFC_INFO,
+        l_ACTVT      type ACTIV_AUTH.
+  sort lt_S_RFC_USER_AUTH by OBJCT AUTH FIELD VON BIS.
+  loop at lt_S_RFCACL_USER_AUTH into ls_S_RFCACL_USER_AUTH.
+    at new auth.
+      clear: l_AUTH, l_RFC_SYSID, l_RFC_CLIENT, l_RFC_USER, l_RFC_EQUSER, l_RFC_TCODE, l_RFC_INFO, l_ACTVT.
+    endat.
+
+    if ls_S_RFCACL_USER_AUTH-BIS is initial.
+      l_VAL = ls_S_RFCACL_USER_AUTH-VON.
+    else.
+      CONCATENATE
+          ls_S_RFCACL_USER_AUTH-VON
+          ls_S_RFCACL_USER_AUTH-BIS
+        INTO l_VAL SEPARATED BY '-'.
+    endif.
+
+    case ls_S_RFCACL_USER_AUTH-FIELD.
+      when 'RFC_SYSID'.  l_RFC_SYSID  = l_VAL.
+      when 'RFC_CLIENT'. l_RFC_CLIENT = l_VAL.
+      when 'RFC_USER'.   l_RFC_USER   = l_VAL.
+      when 'RFC_EQUSER'. l_RFC_EQUSER = l_VAL.
+      when 'RFC_TCODE'.  l_RFC_TCODE  = l_VAL.
+      when 'RFC_INFO'.   l_RFC_INFO   = l_VAL.
+      when 'ACTVT'.      l_ACTVT      = l_VAL.
+    endcase.
+
+    at end of auth.
+      concatenate
+          'ID' l_RFC_SYSID
+          'CL' l_RFC_CLIENT
+          'US' l_RFC_USER
+          'EQ' l_RFC_EQUSER
+          "l_RFC_TCODE
+          "l_RFC_INFO
+          l_ACTVT
+        into l_AUTH SEPARATED BY space.
+
+      if l_S_RFCACL is initial.
+        l_S_RFCACL = l_AUTH.
+      else.
+        concatenate l_S_RFCACL l_AUTH
+          INTO l_S_RFCACL SEPARATED BY ', '.
+      endif.
+    endat.
+  endloop.
+  gs_user_auth-S_RFCACL = l_S_RFCACL.
+
+* Store  authorization data
+  insert gs_user_auth into gt_user_auth index l_tabix.
+
 endform.                    "get_user_data
 
 form get_authorization
@@ -1007,7 +1117,8 @@ form get_authorization
            l_userid     type usr02-bname
            l_FUNC_NAME  type RS38L-NAME
            l_GROUP      type RS38L-AREA
-  changing l_auth       type ts_result-auth.
+  changing l_auth       type ts_result-auth_S_RFC
+           l_S_RFCACL   type ts_result-auth_S_RFCACL.
 
   data: ls_FNAME     type ts_FNAME,
         ls_FNAME2    type ts_FNAME,
@@ -1157,6 +1268,8 @@ form get_authorization
 * Implement suitable error handling here
     ENDIF.
   endif.
+
+  l_S_RFCACL = gs_user_auth-S_RFCACL.
 
 endform.
 
@@ -1693,10 +1806,19 @@ FORM set_columns_text_GT_RESULT
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
-      lr_column ?= ir_columns->get_column( 'AUTH' ).
-      lr_column->set_short_text(  'Auth.'(s15) ).
-      lr_column->set_medium_text( 'Authorizations'(m15) ).
+      lr_column ?= ir_columns->get_column( 'AUTH_S_RFC' ).
+      lr_column->set_short_text(  'S_RFC'(s15) ).
+      lr_column->set_medium_text( 'Auth. for S_RFC'(m15) ).
       lr_column->set_long_text(   'Authorizations for S_RFC'(l15) ).
+      if p_SV is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'AUTH_S_RFCACL' ).
+      lr_column->set_short_text(  'S_RFCACL'(s37) ).
+      lr_column->set_medium_text( 'Auth. for S_RFCACL'(m37) ).
+      lr_column->set_long_text(   'Authorizations for S_RFCACL'(l37) ).
+      lr_column->SET_VISIBLE( if_salv_c_bool_sap=>false ). " not fully used yet
       if p_SV is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
@@ -1804,14 +1926,6 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_short_text(  'RFC User'(s30) ).
       lr_column->set_medium_text( 'RFC User'(m30) ).
       lr_column->set_long_text(   'RFC User'(l30) ).
-      if p_CL is initial and p_CLD is initial.
-        lr_column->set_technical( if_salv_c_bool_sap=>true ).
-      endif.
-
-      lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCAUTH' ).
-      lr_column->set_short_text(  'RFC Pwd'(s31) ).
-      lr_column->set_medium_text( 'RFC Password'(m31) ).
-      lr_column->set_long_text(   'RFC Password'(l31) ).
       if p_CL is initial and p_CLD is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
