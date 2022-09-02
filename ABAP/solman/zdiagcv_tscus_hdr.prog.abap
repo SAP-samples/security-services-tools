@@ -7,7 +7,7 @@
 *&---------------------------------------------------------------------*
 REPORT zdiagcv_tscus_hdr.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '18.11.2020'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '02.09.2022'.
 
 TABLES diagcv_tscus_hdr.
 types: icon.
@@ -80,7 +80,7 @@ START-OF-SELECTION.
 AT LINE-SELECTION.
 
 * Update all
-  if SY-LILLI = 3 and sy-lisel(2) = '2L'. "click on 3rd line showing ICON_SYSTEM_SAVE
+  if sy-lisel(3) = '2L '. "click on ICON_SYSTEM_SAVE
     DO.
       CLEAR ls_tsys.
       READ LINE sy-index FIELD VALUE ls_tsys-ref_id ls_tsys-description.
@@ -93,7 +93,7 @@ AT LINE-SELECTION.
           WHERE ref_id = ls_tsys-ref_id.
       ENDIF.
     ENDDO.
-    MESSAGE s398(00) WITH 'Saved'(004).
+    MESSAGE s398(00) WITH 'All lines saved'(003).
     exit.
   endif.
 
@@ -104,6 +104,7 @@ AT LINE-SELECTION.
     UPDATE diagcv_tscus_hdr
       SET description = ls_tsys-description
       WHERE ref_id = ls_tsys-ref_id.
-    MESSAGE s398(00) WITH 'Saved'(004) ls_tsys-ref_id ls_tsys-description.
+    MESSAGE s398(00) WITH 'Saved(004)' ls_tsys-ref_id ls_tsys-description.
     exit.
   ENDIF.
+  MESSAGE w398(00) WITH 'Nothing saved'(005).
