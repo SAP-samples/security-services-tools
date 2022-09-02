@@ -51,12 +51,12 @@ Show Store Customization of CCDB
 
 - Report [`ZDIAGCV_TSCUS_HDR`](/ABAP/solman/zdiagcv_tscus_hdr.prog.abap)  
 Maintain descriptions of Target Systems of application Configuration Validation  
-See ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
+See ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)  
 Updated 02.09.2022  
 
 - Report [`ZDSH_BUILDER_SHOW`](/ABAP/solman/zdsh_builder_show.prog.abap)  
 Show Dashboard Builder definitions  
-See see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)
+See see ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)  
 Updated 29.07.2022  
 
 - Report [`ZDIAGST_GET_STORES`](/ABAP/solman/zdiagst_get_stores.prog.abap)  
