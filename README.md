@@ -31,6 +31,7 @@ Updated 24.08.2022
 
 - Report [`ZSHOW_SECPOL`](/ABAP/basis/zshow_secpol.prog.abap)  
 Show security policy attributes (SECPOL) and compare them with the default values  
+See blog [Show overview about security policies (SECPOL)](https://blogs.sap.com/2022/10/07/show-overview-about-security-policies-secpol/)  
 Created 07.10.2022
 
 ## SAP Solution Manager (SolMan)
