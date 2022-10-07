@@ -29,6 +29,10 @@ Remove all weak password hash values in user master data, change documents and p
 See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/report-zcleanup_password_hash_valuesx-remove-weak-password-hash-values/)  
 Updated 24.08.2022  
 
+- Report [`ZSHOW_SECPOL`](/ABAP/basis/zshow_secpol.prog.abap)  
+Show security policy attributes (SECPOL) and compare them with the default values  
+Created 07.10.2022
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
