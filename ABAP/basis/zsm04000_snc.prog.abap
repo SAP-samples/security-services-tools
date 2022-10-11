@@ -3,7 +3,8 @@
 *& based on transaction SM04 = Report RSM04000_ALV
 *& (report RSM04000_ALV_NEW might know some more data)
 *&---------------------------------------------------------------------*
-*& Author: Frank Buchholz, SAP AGS Security Services
+*& Author: Frank Buchholz, SAP CoE Security Services
+*& Source: https://github.com/SAP-samples/security-services-tools
 *&
 *& 30.09.2013 Initial version
 *& 12.12.2018 Additional fields SNC_MODE, SNC_PEER_NAME (if available depending on Kernel version)
@@ -11,13 +12,15 @@
 *&            Use more fields to find the SNC name
 *& 30.09.2021 Get data from all active application servers
 *& 02.08.2022 Small correction of ALV because of consistency check using Shift+Double right click
+*& 11.10.2022 Correct coloring in case of snc_mode = OFF
+*&            Show transaction and program always
 *&---------------------------------------------------------------------*
 
 REPORT  zsm04000_snc
   MESSAGE-ID 14
   LINE-SIZE 1023.
 
-CONSTANTS: c_program_version(10) TYPE c VALUE '02.08.2022'.
+CONSTANTS: c_program_version(10) TYPE c VALUE '11.10.2022'.
 
 INCLUDE <color>.
 INCLUDE tskhincl. "opcodes for ThUsrInfo
@@ -41,7 +44,8 @@ DATA: BEGIN OF usr_tabl_alv OCCURS 10,
         ipaddr(30),
         selected(1),
         total_mem_mb     TYPE i,
-        security_context TYPE string.
+        security_context TYPE string,
+        programInfo      type string.
 * SM04 -> user -> technical information
 DATA: display(80),
       iaddr(80),
@@ -111,16 +115,16 @@ SELECTION-SCREEN COMMENT 1(60) ss_vers.
 
 INITIALIZATION.
 
-  text001   = 'Selection'.
-  ss_mandt  = 'Client'.
-  ss_bname  = 'User'.
-  ss_snc    = 'SNC count'.
-  ss_type   = 'Logon type (GUI/RFC)'.
-  ss_rfcty  = 'RFC type (E/I)'.
+  text001   = 'Selection'(101).
+  ss_mandt  = 'Client'(001).
+  ss_bname  = 'User'(002).
+  ss_snc    = 'SNC count'(104).
+  ss_type   = 'Logon type (GUI/RFC)'(105).
+  ss_rfcty  = 'RFC type (E/I)'(106).
 
-  ss_head   = 'Show profile parameters in header'.
+  ss_head   = 'Show profile parameters in header'(107).
 
-  CONCATENATE 'Program version from' c_program_version INTO ss_vers
+  CONCATENATE 'Program version from'(100) c_program_version INTO ss_vers
     SEPARATED BY space.
 
 *----------------------------------------------------------------------*
@@ -396,6 +400,8 @@ FORM build_list
 
           IF   usr_tabl_alv-type = 4   "GUI
             OR usr_tabl_alv-type = 32. "RFC
+
+            clear tmp_field_col.
             tmp_field_col-fieldname = 'SNC_COUNT'.
             tmp_field_col-color-int = 0.
             tmp_field_col-color-inv = 0.
@@ -410,15 +416,17 @@ FORM build_list
         WHEN 'snc_per_logon.sncMode' OR 'snc_base_info.mode'.
           usr_tabl_alv-snc_mode = usr_info-value.
 
+          clear tmp_field_col.
           tmp_field_col-fieldname = 'SNC_MODE'.
           tmp_field_col-color-int = 0.
           tmp_field_col-color-inv = 0.
           IF usr_tabl_alv-snc_mode = 'ON'.
             tmp_field_col-color-col = col_positive.
-*            else.
-*              tmp_field_col-color-col = col_negative.
+            APPEND tmp_field_col TO usr_tabl_alv-field_col.
+          ELSEIF usr_tabl_alv-snc_mode = 'OFF'.
+            tmp_field_col-color-col = col_negative.
+            APPEND tmp_field_col TO usr_tabl_alv-field_col.
           ENDIF.
-          APPEND tmp_field_col TO usr_tabl_alv-field_col.
 
         WHEN 'snc_per_logon.peerid'.
           " ignored
@@ -431,6 +439,12 @@ FORM build_list
 
         WHEN 'snc_per_logon.snc_peer_name_len'.
           " ignored
+
+        WHEN 'modeinfo[0].tcode'.
+          " already known
+
+        WHEN 'modeinfo[0].programInfo'.
+          usr_tabl_alv-programInfo =  usr_info-value.
 
       ENDCASE.
     ENDLOOP.
@@ -453,7 +467,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-fieldname    = 'MANDT'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
   ls_fieldcat-key          = 'X'.
-  ls_fieldcat-reptext_ddic = 'Clnt'(001).
+  ls_fieldcat-reptext_ddic = 'Client'(001).
   ls_fieldcat-outputlen    = 4.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
   APPEND ls_fieldcat TO fieldcat.
@@ -471,7 +485,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-fieldname    = 'SERVER_NAME'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
   ls_fieldcat-key          = ' '.
-  ls_fieldcat-reptext_ddic = 'Server name'.
+  ls_fieldcat-reptext_ddic = 'Server name'(008).
   ls_fieldcat-outputlen    = 40.
   ls_fieldcat-ref_tabname  = 'MSXXLIST'.
   ls_fieldcat-ref_fieldname = 'NAME'.
@@ -490,7 +504,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'HOSTADDR'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'Hostname'.
+  ls_fieldcat-reptext_ddic = 'Hostname'(009).
   ls_fieldcat-outputlen    = 12.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
   ls_fieldcat-lowercase    = 'X'.
@@ -509,7 +523,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'IADDR'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'IADDR'.
+  ls_fieldcat-reptext_ddic = 'IADDR'(010).
   ls_fieldcat-outputlen    = 10.
   ls_fieldcat-no_out       = ' '.
   APPEND ls_fieldcat TO fieldcat.
@@ -526,14 +540,14 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'DISPLAY'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'Display'.
+  ls_fieldcat-reptext_ddic = 'Display'(011).
   ls_fieldcat-outputlen    = 10.
   APPEND ls_fieldcat TO fieldcat.
 
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'SNC_MODE'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'SNC Mode'.
+  ls_fieldcat-reptext_ddic = 'SNC Mode'(012).
   ls_fieldcat-outputlen    = 8.
 *  ls_fieldcat-emphasize    = 'X'.
   APPEND ls_fieldcat TO fieldcat.
@@ -541,7 +555,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'SNC_PNAME'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'SNC Name'.
+  ls_fieldcat-reptext_ddic = 'SNC Name'(013).
   ls_fieldcat-outputlen    = 40.
 *  ls_fieldcat-emphasize    = 'X'.
   APPEND ls_fieldcat TO fieldcat.
@@ -549,7 +563,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'SNC_COUNT'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'SNC Count'. "number of snc contexts
+  ls_fieldcat-reptext_ddic = 'SNC Count'(014). "number of snc contexts
   ls_fieldcat-outputlen    = 10.
 *  ls_fieldcat-emphasize    = 'X'.
   APPEND ls_fieldcat TO fieldcat.
@@ -560,7 +574,16 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-reptext_ddic = 'Transaction'(004).
   ls_fieldcat-outputlen    = 20.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
-  ls_fieldcat-no_out       = 'X'.
+"  ls_fieldcat-no_out       = 'X'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'PROGRAMINFO'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'Program'(015).
+  ls_fieldcat-outputlen    = 40.
+  ls_fieldcat-ref_tabname  = 'USRINFO'.
+"  ls_fieldcat-no_out       = 'X'.
   APPEND ls_fieldcat TO fieldcat.
 
   CLEAR ls_fieldcat.
@@ -584,7 +607,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   CLEAR ls_fieldcat.
   ls_fieldcat-fieldname    = 'MASTER'.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'Master'.
+  ls_fieldcat-reptext_ddic = 'Master'(016).
   ls_fieldcat-outputlen    = 12.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
   ls_fieldcat-no_out       = 'X'.
