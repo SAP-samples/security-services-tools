@@ -33,7 +33,7 @@ Updated 24.08.2022
 - Report [`ZSHOW_SECPOL`](/ABAP/basis/zshow_secpol.prog.abap)  
 Show security policy attributes (SECPOL) and compare them with the default values  
 See blog [Show overview about security policies (SECPOL)](https://blogs.sap.com/2022/10/07/show-overview-about-security-policies-secpol/)  
-Created 07.10.2022
+Updated 19.10.2022  
 
 ## SAP Solution Manager (SolMan)
 
@@ -77,7 +77,7 @@ None
 ## Download and Installation
 Use the raw view to copy & paste the source code of the reports into a custom program.  
 
-You can use [abapGit](https://github.com/abapGit/abapGit) to load the compleate package from branch `abapGit` into an SAP Solution Manager.
+You can use [abapGit](https://github.com/abapGit/abapGit) to load the compleate package from branch `abapGit` into an SAP Solution Manager. In any other system you might want to use the function 'Advanced -> Selective Pull' to get only the basis objects.  
 
 ## Known Issues
 No known issues.

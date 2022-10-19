@@ -3,11 +3,12 @@
 *&---------------------------------------------------------------------*
 *&
 *& 07.10.2022 Initial version
+*& 19.10.2022 Selection mode: single cell
 *&---------------------------------------------------------------------*
 REPORT z_secpol
  LINE-SIZE 255.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '07.10.2022 S41'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '19.10.2022 S41'.
 
 " see class CL_SECURITY_POLICY with methods like GET_ATTRIBUTE_VALUE_LIST
 
@@ -489,6 +490,10 @@ FORM show_result.
   "lr_functions_list->set_detail( abap_true ).
   "lr_functions_list->set_default( abap_true ).
   lr_functions_list->set_all( abap_true ).
+
+  " Selection mode: single cell
+  lr_selections   = gr_alv_table->get_selections( ).
+  lr_selections->SET_SELECTION_MODE( IF_SALV_C_SELECTION_MODE=>CELL ).
 
 * Set the columns visible
   lr_columns = gr_alv_table->get_columns( ).
