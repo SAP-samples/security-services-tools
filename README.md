@@ -35,6 +35,10 @@ Show security policy attributes (SECPOL) and compare them with the default value
 See blog [Show overview about security policies (SECPOL)](https://blogs.sap.com/2022/10/07/show-overview-about-security-policies-secpol/)  
 Updated 19.10.2022  
 
+- Report [`ZSPFRECOMMENDED`](/ABAP/basis/zspfrecommended.prog.abap)  
+Show recommended profile parameter values according to the secure-by-default project of S/4HANA  
+New 02.11.2022  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
