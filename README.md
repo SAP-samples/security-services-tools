@@ -37,7 +37,8 @@ Updated 19.10.2022
 
 - Report [`ZSPFRECOMMENDED`](/ABAP/basis/zspfrecommended.prog.abap)  
 Show recommended profile parameter values according to the secure-by-default project of S/4HANA  
-New 02.11.2022  
+See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=635281119)  
+Updated 03.11.2022  
 
 ## SAP Solution Manager (SolMan)
 

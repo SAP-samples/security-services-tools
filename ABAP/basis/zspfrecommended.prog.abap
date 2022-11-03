@@ -5,11 +5,12 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Published on: https://github.com/SAP-samples/security-services-tools
 *& 02.11.2022 Initial version
+*& 03.11.2022 Authorization check added
 *&---------------------------------------------------------------------*
 
 report rspfrecommended no standard page heading message-id pf.
 
-constants: C_PROGRAM_VERSION(30) type C value '02.11.2022'.
+constants: C_PROGRAM_VERSION(30) type C value '03.11.2022'.
 
 type-pools: slis.
 
@@ -36,8 +37,16 @@ types: begin of ts_outtab,
 
 data: gt_outtab   type tt_outtab.
 
-sy-title = 'Show recommended profile parameter values'(TIT).
-perform execute.
+START-OF-SELECTION.
+
+  AUTHORITY-CHECK OBJECT 'S_RZL_ADM'
+    ID 'ACTVT' FIELD '03'.
+  IF sy-subrc <> 0.
+    MESSAGE E002. "You have no display authorization for CCMS tools
+  ENDIF.
+
+  sy-title = 'Show recommended profile parameter values'(TIT).
+  perform execute.
 
 *---------------------------------------------------------------------
 *       FORM EXECUTE
@@ -176,10 +185,14 @@ form create_table tables it_fieldcat type slis_t_fieldcat_alv
         ID 'VALUE33' FIELD PAR_VALUE33  "<32> and $$ and $(..) substitution
         ID 'VALUE34' FIELD PAR_VALUE34  "<33> and filename generation
         ID 'VALUE44' FIELD PAR_VALUE44. "<44> shared memory
-      if ls_outtab-actual = PAR_VALUE44. lv_origin = 3. endif. " Dynamic Switching
-      if ls_outtab-actual = PAR_VALUE31. lv_origin = 2. endif. " Instance Profile
-      if ls_outtab-actual = PAR_VALUE21. lv_origin = 1. endif. " Default Profile
-      if ls_outtab-actual = PAR_VALUE11. lv_origin = 0. endif. " Kernel Default
+      if ls_outtab-actual = PAR_VALUE44. lv_origin = 3.  " Dynamic Switching
+        if ls_outtab-actual = PAR_VALUE31. lv_origin = 2.  " Instance Profile
+          if ls_outtab-actual = PAR_VALUE21. lv_origin = 1.  " Default Profile
+            if ls_outtab-actual = PAR_VALUE11. lv_origin = 0.  " Kernel Default
+            endif.
+          endif.
+        endif.
+      endif.
     ENDTRY.
 
     if lv_origin eq 0. "cl_spfl_profile_parameter=>orig_krn. "kernel
