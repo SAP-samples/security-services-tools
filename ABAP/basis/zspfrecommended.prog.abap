@@ -6,11 +6,12 @@
 *& Published on: https://github.com/SAP-samples/security-services-tools
 *& 02.11.2022 Initial version
 *& 03.11.2022 Authorization check added
+*& 07.11.2022 Popup to show values
 *&---------------------------------------------------------------------*
 
 report rspfrecommended no standard page heading message-id pf.
 
-constants: C_PROGRAM_VERSION(30) type C value '03.11.2022'.
+constants: C_PROGRAM_VERSION(30) type C value '07.11.2022'.
 
 type-pools: slis.
 
@@ -289,6 +290,57 @@ form CALLBACK_USER_COMMAND using r_ucomm     LIKE sy-ucomm
     and  rs_selfield-fieldname = 'NOTE'.
 
     perform show_note using ls_outtab-note.
+
+  elseif R_UCOMM               = '&IC1' "pick
+    and (   rs_selfield-fieldname = 'ACTUAL'
+         or rs_selfield-fieldname = 'RECOMMENDED'
+         or rs_selfield-fieldname = 'DEFAULT' )
+    and ls_outtab-result is not initial.
+
+    data:
+      titlebar(80),
+      line_size type i,
+      list_tab type table of TRTAB,
+      line     type          TRTAB.
+
+    concatenate 'Profile parameter'(par) ls_outtab-name into titlebar SEPARATED BY space.
+
+    line_size = strlen( ls_outtab-name ).
+    if line_size < strlen( ls_outtab-ACTUAL ).      line_size = strlen( ls_outtab-ACTUAL ).      endif.
+    if line_size < strlen( ls_outtab-RECOMMENDED ). line_size = strlen( ls_outtab-RECOMMENDED ). endif.
+    if line_size < strlen( ls_outtab-DEFAULT ).     line_size = strlen( ls_outtab-DEFAULT ).     endif.
+
+    clear list_tab[].
+    line = 'Profile parameter'(par). append line to list_tab.
+    line = ls_outtab-name.           append line to list_tab.
+    line = space.                    append line to list_tab.
+    line = 'Actual Value'(002).      append line to list_tab.
+    line = ls_outtab-ACTUAL.         append line to list_tab.
+    line = space.                    append line to list_tab.
+    line = 'Recommended Value'(003). append line to list_tab.
+    line = ls_outtab-RECOMMENDED.    append line to list_tab.
+    line = space.                    append line to list_tab.
+    line = 'Default Value'(005).     append line to list_tab.
+    line = ls_outtab-DEFAULT.        append line to list_tab.
+
+    call function 'LAW_SHOW_POPUP_WITH_TEXT'
+      exporting
+        TITELBAR                     = titlebar
+*       HEADER_LINES                 =
+*       SHOW_CANCEL_BUTTON           = ' '
+        LINE_SIZE                    = line_size
+*       SHOW_BUTTON_YES_TO_ALL       = ' '
+*     IMPORTING
+*       YES_TO_ALL                   =
+      TABLES
+        LIST_TAB                     = list_tab
+      EXCEPTIONS
+        ACTION_CANCELLED             = 1
+        OTHERS                       = 2
+              .
+    if SY-SUBRC <> 0.
+* Implement suitable error handling here
+    endif.
 
   endif.
 
