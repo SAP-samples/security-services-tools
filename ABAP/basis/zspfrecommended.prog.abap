@@ -297,6 +297,43 @@ form CALLBACK_USER_COMMAND using r_ucomm     LIKE sy-ucomm
          or rs_selfield-fieldname = 'DEFAULT' )
     and ls_outtab-result is not initial.
 
+    " Show multiple long lines in a textedit control
+    data LONGTEXT type string.
+    CONCATENATE
+      'Profile parameter'(par)
+      ls_outtab-name
+      space
+      'Actual Value'(002)
+      ls_outtab-ACTUAL
+      space
+      'Recommended Value'(003)
+      ls_outtab-RECOMMENDED
+      space
+      'Default Value'(005)
+      ls_outtab-DEFAULT
+      space
+      'Profile'(007)
+      ls_outtab-PROFILE
+      into LONGTEXT
+      SEPARATED BY CL_ABAP_CHAR_UTILITIES=>NEWLINE.
+
+    call function 'CRM_SURVEY_EDITOR_LONGTEXT'
+      EXPORTING
+*       MAX_LENGTH           = 0
+        READ_ONLY            = 'X'
+      changing
+        LONGTEXT             = LONGTEXT
+      EXCEPTIONS
+        USER_CANCELLED       = 1
+        OTHERS               = 2
+              .
+    if SY-SUBRC <> 0.
+* Implement suitable error handling here
+    endif.
+
+    return.
+
+    " Show multiple long lines on a list popup (not used)
     data:
       titlebar(80),
       line_size type i,
