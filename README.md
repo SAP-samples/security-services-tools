@@ -28,7 +28,7 @@ Updated 11.10.2022
 - Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
 See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/report-zcleanup_password_hash_valuesx-remove-weak-password-hash-values/)  
-Updated 24.08.2022  
+Updated 22.12.2022  
 
 - Report [`ZSHOW_SECPOL`](/ABAP/basis/zshow_secpol.prog.abap)  
 Show security policy attributes (SECPOL) and compare them with the default values  

@@ -10,12 +10,13 @@
 *&            Interpret BCODE and PASSCODE with code versions space, A, D, X as redundant
 *&            Correction: only selected entries for USH02 and USRPWDHISTORY are deleted (not all of that selected user)
 *& 24.08.2022 Correction in showing the profile parameter values on the report selection screen
+*& 22.12.2022 Correction of the PWDSALTEDHASH icon for USH02
 *&---------------------------------------------------------------------*
 
 REPORT     zcleanup_password_hash_valuesx
            LINE-SIZE 132.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '24.08.2022 OQL'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '22.12.2022 OQL'.
 
 
 "INCLUDE <color>.
@@ -555,7 +556,7 @@ FORM load_data.
       CLEAR: ls_result-xbcode, ls_result-xpasscode, ls_result-xpwdsaltedhash.
       IF ls_ush02-bcode         IS NOT INITIAL. ls_result-xbcode         = icon_incomplete.   ENDIF.
       IF ls_ush02-passcode      IS NOT INITIAL. ls_result-xpasscode      = icon_incomplete.   ENDIF.
-      IF ls_usr02-pwdsaltedhash IS NOT INITIAL. ls_result-xpwdsaltedhash = icon_checked.      ENDIF.
+      IF ls_ush02-pwdsaltedhash IS NOT INITIAL. ls_result-xpwdsaltedhash = icon_checked.      ENDIF.
 
       CLEAR: ls_color, lt_color.
       ls_color-fname = 'COMMENT'.
