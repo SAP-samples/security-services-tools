@@ -39,11 +39,12 @@
 *& 26.03.2018 Allow exclude selection for S_USER and S_DEST
 *& 26.08.2022 Updated list of tast types
 *&            Prepare to analyse authorizations for S_RFCACL
+*& 18.01.2023 Tooltip for column Logon Procedure (trusted, basic, no)
 *&---------------------------------------------------------------------*
 
 REPORT  ZRFC_STATRECS_SUMMARY.
 
-constants: c_program_version(14) type c value '26.08.2022 FBT'.
+constants: c_program_version(14) type c value '18.01.2023 FBT'.
 
 * see function SWNC_COLLECTOR_GET_AGGREGATES
 * in include LSCSM_COLLECTORU04
@@ -1656,7 +1657,7 @@ form show_alv_GT_RESULT.
   lr_aggregations = gr_ALV_TABLE_gt_RESULT->get_aggregations( ).
   lr_aggregations->clear( ).
   try.
-      lr_aggregations->add_aggregation( columnname = 'COUNTER' ).
+      lr_aggregations->add_aggregation( columnname = 'COUNTER' ). " default:    aggregation = if_salv_c_aggregation=>total
       lr_aggregations->add_aggregation( columnname = 'RECEIVE' ).
       lr_aggregations->add_aggregation( columnname = 'SEND' ).
       lr_aggregations->add_aggregation( columnname = 'EXE_TIME' ).
@@ -1939,9 +1940,10 @@ FORM set_columns_text_GT_RESULT
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCSLOGIN' ).
-      lr_column->set_short_text(  'TrustedRFC'(s34) ).
-      lr_column->set_medium_text( 'Trusted-RFC'(m34) ).
-      lr_column->set_long_text(   'Trusted-RFC'(l34) ).
+      lr_column->set_short_text(  'Logon Proc'(s34) ).
+      lr_column->set_medium_text( 'Logon Procedure'(m34) ).
+      lr_column->set_long_text(   'Logon Procedure (trusted, basic, no)'(l34) ).
+      lr_column->SET_TOOLTIP( 'Y=Trusted RFC, B=Basic auth., A=No user'(t34) ). " 40 char
       if p_CL is initial and p_CLD is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.

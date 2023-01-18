@@ -104,7 +104,7 @@ AT LINE-SELECTION.
     UPDATE diagcv_tscus_hdr
       SET description = ls_tsys-description
       WHERE ref_id = ls_tsys-ref_id.
-    MESSAGE s398(00) WITH 'Saved(004)' ls_tsys-ref_id ls_tsys-description.
+    MESSAGE s398(00) WITH 'Saved'(004) ls_tsys-ref_id ls_tsys-description.
     exit.
   ENDIF.
   MESSAGE w398(00) WITH 'Nothing saved'(005).
