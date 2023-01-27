@@ -80,6 +80,14 @@ Show Configuration Stores
 - Report [`ZSHOW_KERNEL_STORES`](/ABAP/solman/zshow_kernel_stores.prog.abap)  
 Show ABAP release, Kernel patch level and version of the CommonCryptoLib using the configuration stores SAP_KERNEL and CRYPTOLIB  
 
+## SAP Focused Run (FRUN)
+
+### Configuration & Security Analysis
+
+- Report [`ZCCDB_GET_STORES`](/ABAP/frun/zccdb_get_stores.prog.abap)  
+Show configuration stores and content  
+New 27.01.2023  
+ 
 ## Requirements
 None
 
