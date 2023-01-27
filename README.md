@@ -40,6 +40,10 @@ Show recommended profile parameter values according to the secure-by-default pro
 See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=635281119)  
 Updated 07.11.2022  
 
+- Report [`ZZSHOW_GWMON_LOG`](/ABAP/basis/zshow_gwmon_log.prog.abap)  
+Show settings, log and trace files of the RFC gateway  
+New 27.01.2023  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
