@@ -3,8 +3,9 @@
 *& Show settings, log and trace files of the RFC gateway
 *&---------------------------------------------------------------------*
 *& Author: Frank Buchholz, SAP CoE Security Services
-*& https://github.com/SAP-samples/security-services-tools
+*& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 31.01.2023 Validate NI addresses and show network buffer
 *& 27.01.2023 Initial version
 *&
 *& Limitation: Only daily logfiles are supported
@@ -13,7 +14,7 @@ REPORT zshow_gwmon_log
   MESSAGE-ID gw
   LINE-SIZE 255.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '27.01.2023 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '31.01.2023 FBT'.
 
 SELECTION-SCREEN BEGIN OF BLOCK sel WITH FRAME TITLE text001.
 
@@ -35,6 +36,11 @@ SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN BEGIN OF LINE.
 PARAMETERS show_prx AS CHECKBOX DEFAULT ' '.
 SELECTION-SCREEN COMMENT 3(30) p_prx FOR FIELD show_prx.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS show_buf AS CHECKBOX DEFAULT ' '.
+SELECTION-SCREEN COMMENT 3(30) p_buf FOR FIELD show_buf.
 SELECTION-SCREEN END OF LINE.
 
 SELECTION-SCREEN BEGIN OF LINE.
@@ -72,6 +78,7 @@ INITIALIZATION.
   p_sec   = 'Show secinfo'(002).
   p_reg   = 'Show reginfo'(003).
   p_prx   = 'Show prxinfo'(004).
+  p_buf   = 'Show network buffer'(027).
   p_log   = 'Show log files'(005).
   p_trc   = 'Show trace files'(006).
 
@@ -206,6 +213,8 @@ START-OF-SELECTION.
     FORMAT RESET.
     LOOP AT secinfo INTO line.
       WRITE: / line.
+      PERFORM convert_adress USING 'USER-HOST' line.
+      PERFORM convert_adress USING 'HOST' line.
     ENDLOOP.
     ULINE.
   ENDIF.
@@ -222,6 +231,8 @@ START-OF-SELECTION.
     FORMAT RESET.
     LOOP AT reginfo INTO line.
       WRITE: / line.
+      PERFORM convert_adress USING 'USER-HOST' line.
+      PERFORM convert_adress USING 'HOST' line.
     ENDLOOP.
     ULINE.
   ENDIF.
@@ -238,8 +249,15 @@ START-OF-SELECTION.
     FORMAT RESET.
     LOOP AT prxyinfo INTO line.
       WRITE: / line.
+      PERFORM convert_adress USING 'USER-HOST' line.
+      PERFORM convert_adress USING 'HOST' line.
     ENDLOOP.
     ULINE.
+  ENDIF.
+
+  " Host buffer
+  IF show_buf = 'X'.
+    PERFORM rsnitest.
   ENDIF.
 
   " Log files
@@ -321,6 +339,7 @@ FORM show_file
     IF sy-subrc <> 0. EXIT. ENDIF.
 
     IF file = 'dev_rd' OR file = 'dev_rd.old' ##NO_TEXT.
+
       " Highlight timestamp in dev_rd: Wed Jan 18 05:21:13:794 2023
       DATA: monthtext(3), day(2), month(2), year(4).
       FIND REGEX  '^\w\w\w (\w\w\w) (\d{1,2}) \d\d:\d\d:\d\d:\d\d\d (\d\d\d\d)' ##NO_TEXT
@@ -362,6 +381,7 @@ FORM show_file
             WRITE / line.
           ENDIF.
         ENDIF.
+
       ENDIF.
 
     ELSE. " other files
@@ -493,7 +513,7 @@ FORM read_directory. " not used yet
   REPLACE '%t' IN regex WITH '\d\d'.     " minute
   REPLACE '%s' IN regex WITH '\d\d'.     " second
 
-  data size type i.
+  DATA size TYPE i.
   LOOP AT file_tbl INTO file_entry.
     FIND REGEX regex IN file_entry-name.
     IF sy-subrc = 0.
@@ -501,5 +521,279 @@ FORM read_directory. " not used yet
       WRITE: / file_entry-name, size.
     ENDIF.
   ENDLOOP.
+
+ENDFORM.
+
+FORM rsnitest. " based on report RSNITEST
+  DATA:
+    it_addrlist TYPE TABLE OF nis_nodeaddr_list,
+    wa_addrlist TYPE          nis_nodeaddr_list,
+    it_hostlist TYPE TABLE OF nis_hostbuf_list,
+    wa_hostlist TYPE          nis_hostbuf_list,
+    it_servlist TYPE TABLE OF nis_servbuf_list,
+    wa_servlist TYPE          nis_servbuf_list.
+
+  FORMAT RESET.
+  FORMAT COLOR COL_HEADING.
+  WRITE: / 'Network buffer'(028), AT sy-linsz space.
+  FORMAT RESET.
+
+*-----------------------------------------------------------------------
+* LOCAL ADDRESS LIST
+*-----------------------------------------------------------------------
+
+  CALL FUNCTION 'NI_GET_ADDR_LIST'
+    TABLES
+      addrlist = it_addrlist
+    EXCEPTIONS
+      einval   = 1
+      OTHERS   = 2.
+
+  IF sy-subrc <> 0.
+    WRITE: 'Error in function NI_GET_ADDR_LIST'(029) COLOR COL_NEGATIVE.
+  ENDIF.
+
+  IF it_addrlist IS NOT INITIAL.
+    FORMAT COLOR COL_NORMAL.
+    WRITE: / 'Local address list'(030), AT sy-linsz space.
+    FORMAT RESET.
+
+    LOOP AT it_addrlist INTO wa_addrlist.
+      NEW-LINE.
+      WRITE:
+        wa_addrlist-nodeaddr.
+
+      IF wa_addrlist-protocol = 0.
+        WRITE 'unknown'.
+      ELSEIF wa_addrlist-protocol = 1.
+        WRITE 'UDS'.
+      ELSEIF wa_addrlist-protocol = 2.
+        WRITE 'IPv4'.
+      ELSEIF wa_addrlist-protocol = 4.
+        WRITE 'IPv6'.
+      ENDIF.
+
+      IF wa_addrlist-addrtype = 0.
+        " undefined
+      ELSEIF wa_addrlist-addrtype = 1.
+        WRITE: '/', 'any'.
+      ELSEIF wa_addrlist-addrtype = 2.
+        WRITE: '/', 'loopback'.
+      ELSEIF wa_addrlist-addrtype = 4.
+        WRITE: '/', 'multicast'.
+      ELSEIF wa_addrlist-addrtype = 8.
+        WRITE: '/', 'link local'.
+      ELSEIF wa_addrlist-addrtype = 16.
+        WRITE: '/', 'site local'.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+*-----------------------------------------------------------------------
+* HOST BUFFER
+*-----------------------------------------------------------------------
+
+  CALL FUNCTION 'NI_GET_BUFFER_LIST'
+    TABLES
+      hostlist = it_hostlist
+*     SERVLIST =
+    EXCEPTIONS
+      einval   = 1
+      eintern  = 2
+      OTHERS   = 3.
+
+  IF sy-subrc <> 0.
+    WRITE: 'Error in function NI_GET_BUFFER_LIST'(031) COLOR COL_NEGATIVE.
+  ENDIF.
+
+  IF it_hostlist IS NOT INITIAL.
+    FORMAT COLOR COL_NORMAL.
+    WRITE: / 'Host buffer'(032), AT sy-linsz space.
+    FORMAT RESET.
+
+    LOOP AT it_hostlist INTO wa_hostlist.
+      NEW-LINE.
+      WRITE:
+        wa_hostlist-id.
+
+      IF wa_hostlist-status = 1.
+        WRITE 'valid  '.
+      ELSEIF wa_hostlist-status = 0.
+        WRITE 'unknown'.
+      ELSE.
+        WRITE 'invalid status'.
+      ENDIF.
+
+      WRITE:
+        wa_hostlist-typ,
+        wa_hostlist-ipv4addr.
+
+      IF NOT wa_hostlist-ipv6addr = '~'.
+        WRITE wa_hostlist-ipv6addr.
+      ENDIF.
+
+      WRITE:
+        wa_hostlist-hostname.
+    ENDLOOP.
+  ENDIF.
+
+*-----------------------------------------------------------------------
+* SERV BUFFER
+*-----------------------------------------------------------------------
+
+  CALL FUNCTION 'NI_GET_BUFFER_LIST'
+    TABLES
+*     hostlist =
+      servlist = it_servlist
+    EXCEPTIONS
+      einval   = 1
+      eintern  = 2
+      OTHERS   = 3.
+
+  IF sy-subrc <> 0.
+    WRITE: 'Error in function NI_GET_BUFFER_LIST'(031) COLOR COL_NEGATIVE.
+  ENDIF.
+
+  IF it_servlist IS NOT INITIAL.
+    FORMAT COLOR COL_NORMAL.
+    WRITE: / 'Service buffer'(034), AT sy-linsz space.
+    FORMAT RESET.
+
+    LOOP AT it_servlist INTO wa_servlist.
+      NEW-LINE.
+      WRITE:
+        wa_servlist-id.
+
+      IF wa_servlist-status = 1.
+        WRITE 'valid  '.
+      ELSEIF wa_servlist-status = 0.
+        WRITE 'unknown'.
+      ELSE.
+        WRITE 'invalid status'.
+      ENDIF.
+
+      IF wa_servlist-servno = 0.
+        WRITE '    - '.
+      ELSE.
+        WRITE wa_servlist-servno.
+      ENDIF.
+
+      WRITE:
+        wa_servlist-servname.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+
+
+FORM convert_adress
+    USING
+      token " USER_HOST or HOST
+      line. " Line from secifo, reginfo, prxyinfo
+
+  " Convert NI adresses using functions NI_ADDR_TO_NAME (or NI_ADDR_TO_FQ_NAME?) respective NI_NAME_TO_ADDR
+  " Other useful function might be NI_PORT_TO_NAME, NI_NAME_TO_PORT
+
+  DATA value TYPE string.
+  DATA result TYPE string.
+
+  DATA nodeaddr      TYPE ni_nodeaddr.
+  DATA hostname      TYPE ni_hostname.      "  63 char
+*  DATA hostname_long TYPE ni_hostname_long. " 256 char
+  DATA protocol      TYPE ni_proto_fam.     "   0 Undefined Protocol Family
+  "   1 Local Protocol (UDS)
+  "   2 Internet Protocol Version 4 (IPv4)
+  "   4 Internet Protocol Version 6 (IPv6)
+  DATA addrtype      TYPE ni_addr_type.     "   0 Undefined Address Type
+  "   1 Any Address
+  "   2 Loopback Address
+  "   4 Multicast Address
+  "   8 Link Local Address
+  "  16 Site Local Address
+  DATA local         TYPE ni_addr_local.
+
+  " Convert IP address to hostname
+  FIND REGEX  ` ` && token && `=([0-9.:/*]*)` ##NO_TEXT
+    IN line SUBMATCHES value.
+  IF sy-subrc = 0 AND value IS NOT INITIAL.
+    IF value NA '*/'. " ignore entries with submask like /24 or .*)
+      nodeaddr = value.
+      CALL FUNCTION 'NI_ADDR_TO_NAME' " or NI_ADDR_TO_FQ_NAME
+        EXPORTING
+          nodeaddr      = nodeaddr
+        IMPORTING
+          hostname      = hostname
+*          hostname_long = hostname_long
+          protocol      = protocol
+          addrtype      = addrtype
+          local         = local
+        EXCEPTIONS
+          ehost_unknown = 1
+          einval        = 2
+          etoo_small    = 3
+          OTHERS        = 4.
+      IF sy-subrc = 0.
+        result = hostname.
+      ELSEIF sy-subrc = 1.
+        WRITE: '#', `unknown` && ` ` && token COLOR COL_NEGATIVE.
+      ELSE.
+        WRITE: '#', 'Error in NI_ADDR_TO_NAME' COLOR COL_NEGATIVE.
+      ENDIF.
+    ENDIF.
+
+  ELSE.
+
+    " Convert hostname to IP address
+    FIND REGEX  ` ` && token && `=([^ ]*) ` ##NO_TEXT
+      IN line SUBMATCHES value.
+    IF sy-subrc = 0 AND value IS NOT INITIAL.
+      IF value NE 'local' AND value NE 'internal' AND value NA '*'. " Ignore some values and an submask
+        hostname = value.
+*        hostname_long = value.
+        CALL FUNCTION 'NI_NAME_TO_ADDR'
+          EXPORTING
+           hostname      = hostname
+*            hostname_long = hostname_long
+*           PROTOCOL_RESTRICTION       = 0
+          IMPORTING
+            nodeaddr      = nodeaddr
+            protocol      = protocol
+            addrtype      = addrtype
+            local         = local
+          EXCEPTIONS
+            ehost_unknown = 1
+            einval        = 2
+            OTHERS        = 3.
+        IF sy-subrc = 0.
+          result = nodeaddr.
+        ELSEIF sy-subrc = 1.
+          WRITE: '#', `unknown` && ` ` && token COLOR COL_NEGATIVE.
+        ELSE.
+          WRITE: '#', 'Error in NI_NAME_TO_ADDR' COLOR COL_NEGATIVE.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+  " Show result as comment and
+  IF result IS NOT INITIAL.
+    WRITE: '#', token && `=` && result COLOR COL_POSITIVE.
+    CASE protocol.
+      WHEN 1. WRITE 'UDS'.
+        "WHEN 2. WRITE 'IPv4'.
+      WHEN 4. WRITE 'IPv6'.
+    ENDCASE.
+    CASE addrtype.
+      WHEN 1. WRITE 'Any'.
+      WHEN 2. WRITE 'Loopback'.
+      WHEN 4. WRITE 'Multicase'.
+      WHEN 8. WRITE 'Link local'.
+    ENDCASE.
+    IF local IS NOT INITIAL.
+      WRITE 'local'.
+    ENDIF.
+  ENDIF.
 
 ENDFORM.

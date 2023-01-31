@@ -41,8 +41,8 @@ See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022]
 Updated 07.11.2022  
 
 - Report [`ZZSHOW_GWMON_LOG`](/ABAP/basis/zshow_gwmon_log.prog.abap)  
-Show settings, log and trace files of the RFC gateway  
-New 27.01.2023  
+Show settings, and log and trace files of the RFC gateway  
+Updated 31.01.2023  
 
 ## SAP Solution Manager (SolMan)
 
