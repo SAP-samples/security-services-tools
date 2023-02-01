@@ -59,6 +59,11 @@ Updated 27.07.2022: You can now use the same report to view the rating overview 
 Show results from application System Recommendations  
 See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/)  
 
+- Report [`ZCHECK_NOTE_2934135`](/ABAP/solman/zcheck_note_2934135.prog.abap)  
+Check the implementation status of note [2934135](https://launchpad.support.sap.com/#/notes/2934135) for connected Java systems  
+See note [2953257](https://launchpad.support.sap.com/#/notes/2953257)  
+Updated 28.08.2020  
+
 ### Configuration Validation
 
 - Report [`ZSHOW_CCDB_CUSTOMIZING`](/ABAP/solman/zshow_ccdb_customizing.prog.abap)  
