@@ -5,6 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 02.02.2023 Check destinations, too
 *& 02.02.2023 Initial version
 *&---------------------------------------------------------------------*
 REPORT ZCHECK_NOTE_3089413.
@@ -20,6 +21,34 @@ SELECTION-SCREEN BEGIN OF LINE.
 SELECTION-SCREEN COMMENT 1(30) ss_sid FOR FIELD p_sid.
 SELECT-OPTIONS p_sid   FOR sel_store_dir-long_sid.
 SELECTION-SCREEN END OF LINE.
+
+* Check Kernel
+selection-screen begin of line.
+parameters       P_KERN as checkbox default 'X'.
+selection-screen comment 3(33) PS_KERN for field P_KERN.
+selection-screen end of line.
+
+* Check ABAP
+selection-screen begin of line.
+parameters       P_ABAP as checkbox default 'X'.
+selection-screen comment 3(33) PS_ABAP for field P_ABAP.
+selection-screen end of line.
+
+* Check trusted relations
+selection-screen begin of line.
+parameters       P_TRUST as checkbox default 'X'.
+selection-screen comment 3(33) PS_TRUST for field P_TRUST.
+selection-screen end of line.
+
+* Check trusted destinations
+selection-screen begin of line.
+parameters       P_DEST as checkbox default 'X'.
+selection-screen comment 3(33) PS_DEST for field P_DEST.
+selection-screen end of line.
+* Show specific type only if data found
+data P_DEST_3 type abap_bool.
+data P_DEST_H type abap_bool.
+data P_DEST_W type abap_bool.
 
 * Store status
 SELECTION-SCREEN BEGIN OF LINE.
@@ -86,7 +115,31 @@ TYPES:
     TRUSTSY_cnt_1         TYPE i,
 
     " Source store: ABAP_INSTANMCE_PAHI
+    rfc_allowoldticket4tt TYPE string,
     RFC_SELFTRUST         TYPE string,
+    rfc_sendInstNr4tt     TYPE string,
+
+    " Source store: RFCDES
+    DEST_3_cnt_all               TYPE i,
+    DEST_3_cnt_trusted           TYPE i,
+    DEST_3_cnt_trusted_migrated  TYPE i,
+    DEST_3_cnt_trusted_no_instnr TYPE i,
+    DEST_3_cnt_trusted_no_sysid  TYPE i,
+    DEST_3_cnt_trusted_snc       TYPE i,
+
+    DEST_H_cnt_all               TYPE i,
+    DEST_H_cnt_trusted           TYPE i,
+    DEST_H_cnt_trusted_migrated  TYPE i,
+    DEST_H_cnt_trusted_no_instnr TYPE i,
+    DEST_H_cnt_trusted_no_sysid  TYPE i,
+    DEST_H_cnt_trusted_tls       TYPE i,
+
+    DEST_W_cnt_all               TYPE i,
+    DEST_W_cnt_trusted           TYPE i,
+    DEST_W_cnt_trusted_migrated  TYPE i,
+    DEST_W_cnt_trusted_no_instnr TYPE i,
+    DEST_W_cnt_trusted_no_sysid  TYPE i,
+    DEST_W_cnt_trusted_tls       TYPE i,
 
     " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
     store_id              TYPE sdiagst_store_dir-store_id,
@@ -116,6 +169,11 @@ INITIALIZATION.
 
   ss_sid   = 'System (long sid)'.
   ss_state = 'Config. store status (G/Y/R)'.
+
+  PS_KERN  = 'Check Kernel'.
+  PS_ABAP  = 'Check Support Package and Notes'.
+  PS_TRUST = 'Check Trusted Relations'.
+  PS_DEST  = 'Check Trusted Destinations'.
 
   PS_LOUT     = 'Layout'(t18).
 
@@ -272,11 +330,12 @@ endform.                               " handle_at_selscr_f4_p_layout
 
 START-OF-SELECTION.
 
-  PERFORM get_SAP_KERNEL.
-  PERFORM get_ABAP_COMP_SPLEVEL.
-  PERFORM get_ABAP_NOTES.
-  PERFORM get_RFCSYSACL.
-  PERFORM get_ABAP_INSTANCE_PAHI.
+  PERFORM get_SAP_KERNEL.         " Kernel version
+  PERFORM get_ABAP_COMP_SPLEVEL.  " Support Package version of SAP_BASIS
+  PERFORM get_ABAP_NOTES.         " Notes 3089413 and 3287611
+  PERFORM get_RFCSYSACL.          " Trusting relations
+  PERFORM get_RFCDES.             " Trusted desinations
+  PERFORM get_ABAP_INSTANCE_PAHI. " rfc/selftrust
 
   PERFORM validate_kernel.
   PERFORM validate_ABAP.
@@ -285,6 +344,8 @@ START-OF-SELECTION.
 
 
 FORM get_SAP_KERNEL.
+  check P_KERN = 'X'.
+
   " Same as in report ZSHOW_KERNEL_STORES but one one entry per system
 
   DATA:
@@ -440,6 +501,7 @@ ENDFORM. " get_SAP_KERNEL
 
 
 FORM get_ABAP_COMP_SPLEVEL.
+  check P_ABAP = 'X'.
 
   DATA:
     lt_store_dir_tech    TYPE  tt_diagst_store_dir_tech,
@@ -570,6 +632,7 @@ ENDFORM. " get_ABAP_COMP_SPLEVEL
 
 
 FORM get_ABAP_NOTES.
+  check P_ABAP = 'X'.
 
   DATA:
     lt_store_dir_tech    TYPE  tt_diagst_store_dir_tech,
@@ -716,6 +779,7 @@ ENDFORM. " get_ABAP_NOTES
 
 
 FORM get_RFCSYSACL.
+  check P_TRUST = 'X'.
 
   DATA:
     lt_store_dir_tech    TYPE  tt_diagst_store_dir_tech,
@@ -841,6 +905,8 @@ FORM get_RFCSYSACL.
       READ TABLE lt_snapshot_elem INTO data(ls_RFCSLOPT)      INDEX 7.
       check ls_RFCSLOPT-fieldname = 'RFCSLOPT'.
 
+      " The following fields are only available in higher versions:
+
       "READ TABLE lt_snapshot_elem INTO data(ls_RFCCREDEST)    INDEX 8.
       "check ls_RFCCREDEST-fieldname = 'RFCCREDEST'.
 
@@ -879,7 +945,223 @@ FORM get_RFCSYSACL.
 ENDFORM. " get_RFCSYSACL
 
 
+FORM get_RFCDES.
+  check P_DEST = 'X'.
+
+  DATA:
+    lt_store_dir_tech    TYPE  tt_diagst_store_dir_tech,
+    lt_store_dir         TYPE  tt_diagst_store_dir,
+    lt_fieldlist         TYPE  tt_diagst_table_store_fields,
+    lt_snapshot          TYPE  tt_diagst_trows,
+    rc                   TYPE  i,
+    rc_text              TYPE  natxt.
+
+  data: tabix type i.
+
+  CALL FUNCTION 'DIAGST_GET_STORES'
+    EXPORTING
+
+      " The “System Filter” parameters allow to get all Stores of a system or technical system.
+      " Some combinations of the four parameters are not allowed.
+      " The function will return an error code in such a case.
+*     SID                   = ' '
+*     INSTALL_NUMBER        = ' '
+*     LONG_SID              = ' '
+*     TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
+
+      " Store key fields
+      group_namespace       = 'ACTIVE'                   "(optional)
+      group_landscape_class = 'CL_DIAGLS_ABAP_TECH_SYST' "(optional)
+*     GROUP_LANDSCAPE_ID    = ' '
+*     GROUP_COMP_ID         = ' '
+      group_source          = 'ABAP'                     "(optional)
+      group_name            = 'RFC-DESTINATIONS'         "(optional)
+      store_category        = 'CONFIG'                   "(optional)
+      store_type            = 'TABLE'                    "(optional)
+*     STORE_FULLPATH        = ' '
+      store_name            = 'RFCDES'
+
+      " Special filters
+      store_mainalias       = 'RFC-DESTINATIONS'         "(optional)
+      store_subalias        = 'RFCDES'                   "(optional)
+*     STORE_TPL_ID          = ' '
+*     HAS_ELEMENT_FROM      =                            " date range
+*     HAS_ELEMENT_TO        =                            " date range
+*     ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
+*     CASE_INSENSITIVE      = ' '
+*     PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
+*     SEARCH_STRING         =
+*     ONLY_RELEVANT         = 'X'
+*     PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
+
+      " Others
+*     DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
+                                                         " Setting this parameter to ‘X’ will display the result.
+*     CALLING_APPL          = ' '
+
+    IMPORTING
+*     STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
+      store_dir             = lt_store_dir               "(not recommended anymore)
+*     STORE_DIR_MI          =                            "(SAP internal usage only)
+*     STORE_STATS           =                            " History regarding the changes of elements (configuration items).
+*     PARAMETER             =                            "(SAP internal usage only)
+      rc                    = rc
+      rc_text               = rc_text.
+
+  IF rc IS NOT INITIAL.
+    MESSAGE e001(00) WITH rc_text.
+  ENDIF.
+
+  LOOP AT lt_store_dir INTO data(ls_store_dir)
+    WHERE long_sid              IN p_sid
+      AND store_main_state_type IN p_state
+    .
+
+    " Do we already have an entry for this system?
+    READ table lt_outtab into ls_outtab
+      with key
+        install_number = ls_store_dir-install_number
+        long_sid       = ls_store_dir-long_sid
+        sid            = ls_store_dir-sid
+        .
+    if sy-subrc = 0.
+      tabix = sy-tabix.
+    else.
+      tabix = -1.
+      CLEAR ls_outtab.
+      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+    endif.
+
+    CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
+      EXPORTING
+        store_id                    = ls_store_dir-store_id
+*       TIMESTAMP                   =                        " if not specified the latest available snapshot is returned
+*       CALLING_APPL                = ' '
+      IMPORTING
+        fieldlist                   = lt_fieldlist
+*       SNAPSHOT_VALID_FROM         =
+*       SNAPSHOT_VALID_TO_CONFIRMED =
+*       SNAPSHOT_VALID_TO           =
+        snapshot                    = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
+*       SNAPSHOT_TR                 =
+*       SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
+        rc                          = rc                     " 3: Permission denied, Content Authorization missing
+                                                             " 4: Store not existing
+                                                             " 8: Error
+        rc_text                     = rc_text.
+
+    LOOP AT lt_snapshot INTO data(lt_snapshot_elem).
+      READ TABLE lt_snapshot_elem INTO data(ls_RFCDEST)       INDEX 1.
+      check ls_RFCDEST-fieldname = 'RFCDEST'.
+
+      READ TABLE lt_snapshot_elem INTO data(ls_RFCTYPE)       INDEX 2.
+      check ls_RFCTYPE-fieldname = 'RFCTYPE'.
+      check ls_RFCTYPE-fieldvalue = '3' or  ls_RFCTYPE-fieldvalue = 'H' or ls_RFCTYPE-fieldvalue =  'W'.
+
+      READ TABLE lt_snapshot_elem INTO data(ls_RFCOPTIONS)    INDEX 3.
+      check ls_RFCOPTIONS-fieldname = 'RFCOPTIONS'.
+
+      case ls_RFCTYPE-fieldvalue.
+
+        when '3'. " RFC destinations
+          P_DEST_3 = 'X'.
+          add 1 to ls_outtab-DEST_3_cnt_all.                             " All destinations
+
+          if ls_RFCOPTIONS-fieldvalue cs ',Q=Y,'.                        " Trusted destination
+            add 1 to ls_outtab-DEST_3_cnt_trusted.
+
+            find regex ',\[=[^,]{3},'    in ls_RFCOPTIONS-fieldvalue.    " System ID
+            if sy-subrc = 0.
+              find regex ',\^=[^,]{1,10},' in ls_RFCOPTIONS-fieldvalue.  " Installation number
+              if sy-subrc = 0.
+                " System ID and installation number are available
+                add 1 to ls_outtab-DEST_3_cnt_trusted_migrated.
+              else.
+                " Installation number is missing
+                add 1 to ls_outtab-DEST_3_cnt_trusted_no_instnr.
+              endif.
+            else.
+              " System ID is missing
+              add 1 to ls_outtab-DEST_3_cnt_trusted_no_sysid.
+            endif.
+
+            if ls_RFCOPTIONS-fieldvalue cs ',s=Y,'.                      " SNC
+              add 1 to ls_outtab-DEST_3_cnt_trusted_snc.
+            endif.
+          endif.
+
+        when 'H'. " http destinations
+          P_DEST_H = 'X'.
+          add 1 to ls_outtab-DEST_H_cnt_all.                             " All destinations
+
+          if ls_RFCOPTIONS-fieldvalue cs ',Q=Y,'.                        " Trusted destination
+            add 1 to ls_outtab-DEST_H_cnt_trusted.
+
+            find regex ',\[=[^,]{3},'    in ls_RFCOPTIONS-fieldvalue.    " System ID
+            if sy-subrc = 0.
+              find regex ',\^=[^,]{1,10},' in ls_RFCOPTIONS-fieldvalue.  " Installation number
+              if sy-subrc = 0.
+                " System ID and installation number are available
+                add 1 to ls_outtab-DEST_H_cnt_trusted_migrated.
+              else.
+                " Installation number is missing
+                add 1 to ls_outtab-DEST_H_cnt_trusted_no_instnr.
+              endif.
+            else.
+              " System ID is missing
+              add 1 to ls_outtab-DEST_H_cnt_trusted_no_sysid.
+            endif.
+
+            if ls_RFCOPTIONS-fieldvalue cs ',s=Y,'.                      " TLS
+              add 1 to ls_outtab-DEST_H_cnt_trusted_tls.
+            endif.
+          endif.
+
+        when 'W'. " web RFC destinations
+          P_DEST_W = 'X'.
+          add 1 to ls_outtab-DEST_W_cnt_all.                             " All destinations
+
+          if ls_RFCOPTIONS-fieldvalue cs ',Q=Y,'.                        " Trusted destination
+            add 1 to ls_outtab-DEST_W_cnt_trusted.
+
+            find regex ',\[=[^,]{3},'    in ls_RFCOPTIONS-fieldvalue.    " System ID
+            if sy-subrc = 0.
+              find regex ',\^=[^,]{1,10},' in ls_RFCOPTIONS-fieldvalue.  " Installation number
+              if sy-subrc = 0.
+                " System ID and installation number are available
+                add 1 to ls_outtab-DEST_W_cnt_trusted_migrated.
+              else.
+                " Installation number is missing
+                add 1 to ls_outtab-DEST_W_cnt_trusted_no_instnr.
+              endif.
+            else.
+              " System ID is missing
+              add 1 to ls_outtab-DEST_W_cnt_trusted_no_sysid.
+            endif.
+
+            if ls_RFCOPTIONS-fieldvalue cs ',s=Y,'.                      " TLS
+              add 1 to ls_outtab-DEST_W_cnt_trusted_tls.
+            endif.
+          endif.
+
+      endcase.
+
+    ENDLOOP.
+
+    if tabix > 0.
+      MODIFY lt_outtab from ls_outtab INDEX tabix.
+    else.
+      APPEND ls_outtab TO lt_outtab.
+    endif.
+
+  ENDLOOP. " lt_STORE_DIR
+
+ENDFORM. " get_RFCDES
+
+
 FORM get_ABAP_INSTANCE_PAHI.
+  check P_TRUST = 'X' or P_DEST = 'X'.
+
   " Same as in report ZSHOW_KERNEL_STORES but one one entry per system
 
   DATA:
@@ -923,8 +1205,8 @@ FORM get_ABAP_INSTANCE_PAHI.
 *     HAS_ELEMENT_TO        =                            " date range
 *     ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
 *     CASE_INSENSITIVE      = ' '
-      PATTERN_SEARCH        = ' '                        " Allow pattern search for SEARCH_STRING
-      SEARCH_STRING         = 'rfc/selftrust'
+*     PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
+*     SEARCH_STRING         =
 *     ONLY_RELEVANT         = 'X'
 *     PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
 
@@ -994,12 +1276,15 @@ FORM get_ABAP_INSTANCE_PAHI.
     LOOP AT lt_snapshot INTO data(lt_snapshot_elem).
       READ TABLE lt_snapshot_elem INTO data(ls_PARAMETER) INDEX 1.
       check ls_PARAMETER-fieldname = 'PARAMETER'.
-      check ls_PARAMETER-fieldvalue = 'rfc/selftrust'.
 
       READ TABLE lt_snapshot_elem INTO data(ls_VALUE)     INDEX 2.
       check ls_VALUE-fieldname = 'VALUE'.
 
-      ls_outtab-rfc_selftrust = ls_VALUE-fieldvalue.
+      case ls_PARAMETER-fieldvalue.
+        when 'rfc/selftrust'.         ls_outtab-rfc_selftrust         = ls_VALUE-fieldvalue.
+        when 'rfc/allowoldticket4tt'. ls_outtab-rfc_allowoldticket4tt = ls_VALUE-fieldvalue.
+        when 'rfc/sendInstNr4tt'.     ls_outtab-rfc_sendInstNr4tt     = ls_VALUE-fieldvalue.
+      endcase.
     ENDLOOP.
 
     if tabix > 0.
@@ -1014,6 +1299,8 @@ ENDFORM. " get_ABAP_INSTANCE_PAHI
 
 
 FORM validate_kernel.
+  check P_KERN = 'X'.
+
 * Minimum Kernel
 * The solution works only if both the client systems as well as the server systems of a trusting/trusted connection runs on a suitable Kernel version:
 * 7.22       1214
@@ -1070,6 +1357,8 @@ ENDFORM. " validate_kernel
 
 
 FORM validate_ABAP.
+  check P_ABAP = 'X' or P_TRUST = 'X' or P_DEST = 'X'.
+
 * Minimum SAP_BASIS for SNOTE
 * You only can implement the notes 3089413 and 3287611 using transaction SNOTE if the system runs on a suitable ABAP version:
 *                minimum   Note 3089413 solved   Note 3287611 solved
@@ -1223,6 +1512,37 @@ FORM validate_ABAP.
       APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_total ) TO <fs_outtab>-t_color.
     endif.
 
+    " Validate trusted destinations
+    if <fs_outtab>-DEST_3_CNT_TRUSTED_MIGRATED > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_outtab>-t_color.
+    endif.
+    if <fs_outtab>-DEST_3_CNT_TRUSTED_NO_INSTNR > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_outtab>-t_color.
+    endif.
+    if <fs_outtab>-DEST_3_CNT_TRUSTED_NO_SYSID > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_outtab>-t_color.
+    endif.
+
+    if <fs_outtab>-DEST_H_CNT_TRUSTED_MIGRATED > 0.
+      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_outtab>-t_color.
+    endif.
+    if <fs_outtab>-DEST_H_CNT_TRUSTED_NO_INSTNR > 0.
+      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_outtab>-t_color.
+    endif.
+    if <fs_outtab>-DEST_H_CNT_TRUSTED_NO_SYSID > 0.
+      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_outtab>-t_color.
+    endif.
+
+    if <fs_outtab>-DEST_W_CNT_TRUSTED_MIGRATED > 0.
+      APPEND VALUE #( fname = 'DEST_W_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_outtab>-t_color.
+    endif.
+    if <fs_outtab>-DEST_W_CNT_TRUSTED_NO_INSTNR > 0.
+      APPEND VALUE #( fname = 'DEST_W_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_outtab>-t_color.
+    endif.
+    if <fs_outtab>-DEST_W_CNT_TRUSTED_NO_SYSID > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_outtab>-t_color.
+    endif.
+
   endloop.
 ENDFORM. " validate_ABAP
 
@@ -1286,16 +1606,16 @@ FORM show_result.
   ENDTRY.
 
 * ...Set the layout
-  LR_LAYOUT = lr_table->GET_LAYOUT( ) .
-  ls_layout_key-REPORT = SY-REPID.
-  LR_LAYOUT->SET_KEY( ls_layout_key ).
-  LR_LAYOUT->SET_INITIAL_LAYOUT( P_LAYOUT ).
+  lr_layout = lr_table->get_layout( ).
+  ls_layout_key-report = sy-repid.
+  lr_layout->set_key( ls_layout_key ).
+  lr_layout->set_initial_layout( P_LAYOUT ).
   authority-check object 'S_ALV_LAYO'
                       id 'ACTVT' field '23'.
-  if SY-SUBRC = 0.
-    LR_LAYOUT->SET_SAVE_RESTRICTION( 3 ) . "no restictions
+  if sy-subrc = 0.
+    lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ) . "no restictions
   else.
-    LR_LAYOUT->SET_SAVE_RESTRICTION( 2 ) . "user dependend
+    lr_layout->set_save_restriction( cl_salv_layout=>restrict_user_dependant ) . "user dependend
   endif.
 
 *... sort
@@ -1324,8 +1644,6 @@ FORM show_result.
 
 *... adjust headings
       DATA color TYPE lvc_s_colo.
-      "color-col = 3. " 2=light blue, 3=yellow, 4=blue, 5=green, 6=red, 7=orange
-      "lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'TECH_SYSTEM_ID' ).
       lr_column->set_long_text( 'Technical system ID' ).
@@ -1346,6 +1664,8 @@ FORM show_result.
       lr_column->set_long_text( 'ABAP release' ).   "max. 40 characters
       lr_column->set_medium_text( 'ABAP release' ). "max. 20 characters
       lr_column->set_short_text( 'ABAP rel.' ).     "max. 10 characters
+
+      " Kernel
 
       lr_column ?= lr_columns->get_column( 'KERN_REL' ).
       lr_column->set_long_text( 'Kernel release' ).
@@ -1372,6 +1692,8 @@ FORM show_result.
       lr_column->set_medium_text( 'Validate Kernel' ).
       lr_column->set_short_text( 'Kernel?' ).
 
+      " ABAP
+
       lr_column ?= lr_columns->get_column( 'ABAP_RELEASE' ).
       lr_column->set_long_text( 'ABAP release' ).
       lr_column->set_medium_text( 'ABAP release' ).
@@ -1382,12 +1704,12 @@ FORM show_result.
       lr_column->set_medium_text( 'ABAP Support Package' ).
       lr_column->set_short_text( 'ABAP SP' ).
 
-      color-col = 3. " 2=light blue, 3=yellow, 4=blue, 5=green, 6=red, 7=orange
       lr_column ?= lr_columns->get_column( 'VALIDATE_ABAP' ).
       lr_column->set_long_text( 'Validate ABAP' ).
       lr_column->set_medium_text( 'Validate ABAP' ).
       lr_column->set_short_text( 'ABAP?' ).
-      lr_column->set_color( color ).
+
+      " Notes
 
       lr_column ?= lr_columns->get_column( 'NOTE_3089413' ).
       lr_column->set_long_text( 'Note 3089413' ).
@@ -1408,6 +1730,8 @@ FORM show_result.
       lr_column->set_long_text( 'Note 3287611' ).
       lr_column->set_medium_text( 'Note 3287611' ).
       lr_column->set_short_text( 'N. 3287611' ).
+
+      " Trusted systems
 
       lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_ALL' ).
       lr_column->set_long_text( 'All trusted systems' ).
@@ -1439,10 +1763,198 @@ FORM show_result.
       lr_column->set_short_text( 'Very old' ).
       lr_column->set_zero( abap_false  ).
 
+      " Profile parameter
+
+      lr_column ?= lr_columns->get_column( 'RFC_ALLOWOLDTICKET4TT' ).
+      lr_column->set_long_text( 'Allow old ticket' ).
+      lr_column->set_medium_text( 'Allow old ticket' ).
+      lr_column->set_short_text( 'Allow old' ).
+
       lr_column ?= lr_columns->get_column( 'RFC_SELFTRUST' ).
       lr_column->set_long_text( 'RFC selftrust' ).
       lr_column->set_medium_text( 'RFC selftrust' ).
       lr_column->set_short_text( 'Selftrust' ).
+
+      lr_column ?= lr_columns->get_column( 'RFC_SENDINSTNR4TT' ).
+      lr_column->set_long_text( 'Send installation number' ).
+      lr_column->set_medium_text( 'Send installation nr' ).
+      lr_column->set_short_text( 'SendInstNr' ).
+
+      " Type 3 Destinations
+      color-col = 2. " 2=light blue, 3=yellow, 4=blue, 5=green, 6=red, 7=orange
+
+      lr_column ?= lr_columns->get_column( 'DEST_3_CNT_ALL' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'RFC Destinations (Type 3)' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'RFC Destinations' ).
+                                 "1234567890
+      lr_column->set_short_text( 'RFC Dest.' ).
+      lr_column->set_zero( abap_false  ).
+      lr_column->set_color( color ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED'  ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'Trusted RFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'Trusted RFC Dest.' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Trust.RFC' ).
+      lr_column->set_zero( abap_false  ).
+      lr_column->set_color( color ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_MIGRATED' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'Migrated Trusted RFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'Migrated Trusted' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Migrated' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_NO_INSTNR' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'No Installation Number in Trusted Dest.' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'No Installation Nr' ).
+                                 "1234567890
+      lr_column->set_short_text( 'No Inst Nr' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_NO_SYSID' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'No System ID in Trusted RFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'No System ID' ).
+                                 "1234567890
+      lr_column->set_short_text( 'No Sys. ID' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_SNC' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'SNC for Trusted RFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'SNC Trusted Dest' ).
+                                 "1234567890
+      lr_column->set_short_text( 'SNC Trust.' ).
+      lr_column->set_zero( abap_false  ).
+
+      " Type H Destinations
+
+      lr_column ?= lr_columns->get_column( 'DEST_H_CNT_ALL' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'HTTP Destinations (Type H)' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'HTTP Destinations' ).
+                                 "1234567890
+      lr_column->set_short_text( 'HTTP Dest.' ).
+      lr_column->set_zero( abap_false  ).
+      lr_column->set_color( color ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED'  ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'Trusted HTTP Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'Trusted HTTPS Dest.' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Trust.HTTP' ).
+      lr_column->set_zero( abap_false  ).
+      lr_column->set_color( color ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_MIGRATED' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'Migrated Trusted HTTP Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'Migrated Trusted' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Migrated' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_NO_INSTNR' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'No Installation Number in Trusted Dest.' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'No Installation Nr' ).
+                                 "1234567890
+      lr_column->set_short_text( 'No Inst Nr' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_NO_SYSID' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'No System ID in Trusted HTTP Dest.' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'No System ID' ).
+                                 "1234567890
+      lr_column->set_short_text( 'No Sys. ID' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_TLS' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'TLS for Trusted HTTP Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'TLS Trusted Dest.' ).
+                                 "1234567890
+      lr_column->set_short_text( 'TLS Trust.' ).
+      lr_column->set_zero( abap_false  ).
+
+      " Type W Destinations
+
+      lr_column ?= lr_columns->get_column( 'DEST_W_CNT_ALL' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'WebRFC Destinations (Type W)' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'WebRFC Destinations' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Web Dest.' ).
+      lr_column->set_zero( abap_false  ).
+      lr_column->set_color( color ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED'  ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'Trusted WebRFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'Trusted WebRFC Dest.' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Trust Web' ).
+      lr_column->set_zero( abap_false  ).
+      lr_column->set_color( color ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_MIGRATED' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'Migrated Trusted WebRFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'Migrated Trusted' ).
+                                 "1234567890
+      lr_column->set_short_text( 'Migrated' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_INSTNR' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'No Installation Number in Trusted Dest.' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'No Installation Nr' ).
+                                 "1234567890
+      lr_column->set_short_text( 'No Inst Nr' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_SYSID' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'No System ID in Trusted WebRFC Dest.' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'No System ID' ).
+                                 "1234567890
+      lr_column->set_short_text( 'No Sys. ID' ).
+      lr_column->set_zero( abap_false  ).
+
+      lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_TLS' ).
+                                "1234567890123456789012345678901234567890
+      lr_column->set_long_text( 'TLS for Trusted WebRFC Destinations' ).
+                                  "12345678901234567890
+      lr_column->set_medium_text( 'TLS Trusted Dest.' ).
+                                 "1234567890
+      lr_column->set_short_text( 'TLS Trust.' ).
+      lr_column->set_zero( abap_false  ).
+
 
 *... hide unimportant columns
       lr_column ?= lr_columns->get_column( 'LONG_SID' ).                lr_column->set_visible( abap_false ).
@@ -1474,14 +1986,68 @@ FORM show_result.
       lr_column ?= lr_columns->get_column( 'STORE_MAIN_STATE' ).        lr_column->set_visible( abap_true ).
       lr_column ?= lr_columns->get_column( 'STORE_OUTDATED_DAY' ).      lr_column->set_visible( abap_false ).
 
+      if P_KERN is initial.
+        lr_column ?= lr_columns->get_column( 'KERN_REL' ).              lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'KERN_PATCHLEVEL' ).       lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'KERN_COMP_TIME' ).        lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'KERN_COMP_DATE' ).        lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'VALIDATE_KERNEL' ).       lr_column->set_technical( abap_true ).
+      endif.
+
+      if P_ABAP is initial.
+        lr_column ?= lr_columns->get_column( 'ABAP_RELEASE' ).          lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'ABAP_SP' ).               lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'VALIDATE_ABAP' ).         lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'NOTE_3089413' ).          lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'NOTE_3089413_PRSTATUS' ). lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'NOTE_3287611' ).          lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'NOTE_3287611_PRSTATUS' ). lr_column->set_technical( abap_true ).
+      endif.
+
+      if P_TRUST is initial.
+        lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_ALL' ).       lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_TCD' ).       lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_3' ).         lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_2' ).         lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_1' ).         lr_column->set_technical( abap_true ).
+
+        lr_column ?= lr_columns->get_column( 'RFC_SELFTRUST' ).         lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'RFC_SENDINSTNR4TT' ).     lr_column->set_technical( abap_true ).
+      endif.
+
+      if P_DEST is initial or P_DEST_3 is initial.
+        lr_column ?= lr_columns->get_column( 'DEST_3_CNT_ALL' ).               lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED' ).           lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_MIGRATED' ).  lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_NO_INSTNR' ). lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_NO_SYSID' ).  lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_SNC' ).       lr_column->set_technical( abap_true ).
+      endif.
+
+      if P_DEST is initial or P_DEST_H is initial.
+        lr_column ?= lr_columns->get_column( 'DEST_H_CNT_ALL' ).               lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED' ).           lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_MIGRATED' ).  lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_NO_INSTNR' ). lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_NO_SYSID' ).  lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_TLS' ).       lr_column->set_technical( abap_true ).
+      endif.
+
+      if P_DEST is initial or P_DEST_W is initial.
+        lr_column ?= lr_columns->get_column( 'DEST_W_CNT_ALL' ).               lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED' ).           lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_MIGRATED' ).  lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_INSTNR' ). lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_SYSID' ).  lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_TLS' ).       lr_column->set_technical( abap_true ).
+      endif.
+
+      if P_TRUST is initial and P_DEST is initial.
+        lr_column ?= lr_columns->get_column( 'RFC_ALLOWOLDTICKET4TT' ). lr_column->set_technical( abap_true ).
+      endif.
+
     CATCH cx_salv_not_found.
   ENDTRY.
-
-*       Allow to save layout
-  lr_layout = lr_table->get_layout( ).
-  ls_layout_key-report = sy-repid.
-  lr_layout->set_key( ls_layout_key ).
-  lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ).
 
 *... show it
   lr_table->display( ).
