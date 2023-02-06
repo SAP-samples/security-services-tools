@@ -5,12 +5,13 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 06.02.2023 A double click on a count of trusted systems shows a poupup with the details
 *& 02.02.2023 Check destinations, too
 *& 02.02.2023 Initial version
 *&---------------------------------------------------------------------*
 REPORT ZCHECK_NOTE_3089413.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '02.02.2023 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '06.02.2023 FBT'.
 
 type-pools: ICON, COL, SYM.
 
@@ -67,7 +68,7 @@ SELECTION-SCREEN COMMENT /1(60) ss_vers.
 *----------------------------------------------------------------------
 
 TYPES:
-  BEGIN OF ts_outtab,
+  BEGIN OF ts_result,
     " Assumption: Match entries from different stores based on install_number and landscape_id
 
     install_number        TYPE sdiagst_store_dir-install_number,
@@ -153,14 +154,41 @@ TYPES:
 *   t_celltype             type salv_t_int4_column,
 *   T_HYPERLINK            type SALV_T_INT4_COLUMN,
 *   t_dropdown             type salv_t_int4_column,
-  END OF ts_outtab,
-  tt_outtab TYPE TABLE OF ts_outtab.
+  END OF ts_result,
+  tt_result TYPE TABLE OF ts_result.
 
 DATA:
-  lt_outtab TYPE tt_outtab,
-  ls_outtab TYPE ts_outtab.
+  lt_result TYPE tt_result,
+  ls_result TYPE ts_result.
 
 data: GS_ALV_LOUT_VARIANT type DISVARIANT.
+
+types:
+  begin of ts_RFCSYSACL_data,
+    RFCSYSID    type RFCSSYSID,  " Trusted system
+    TLICENSE_NR type SLIC_INST,  " Installation number of trusted system
+
+    RFCTRUSTSY  type RFCSSYSID,  " Trusting system (=current system)
+    LLICENSE_NR type SLIC_INST,  " Installation number of trusting system (=current system), only available in higher versions
+
+    RFCDEST     type RFCDEST,    " Destination to trusted system
+    RFCCREDEST  type RFCDEST,    " Destination, only available in higher versions
+    RFCREGDEST  type RFCDEST,    " Destination, only available in higher versions
+
+    RFCSNC      type RFCSNC,     " SNC respective TLS
+    RFCSECKEY   type RFCTICKET,  " Security key (empty or '(stored)'), only available in higher versions
+    RFCTCDCHK   type RFCTCDCHK,  " Tcode check
+    RFCSLOPT    type RFCSLOPT,   " Options respective version
+  end of ts_RFCSYSACL_data,
+  tt_RFCSYSACL_data type STANDARD TABLE OF ts_RFCSYSACL_data WITH KEY RFCSYSID TLICENSE_NR,
+  begin of ts_TRUSTED_SYSTEM,
+    RFCTRUSTSY  type RFCSSYSID,  " Trusting system (=current system)
+    LLICENSE_NR type SLIC_INST,  " Installation number of trusting system
+    RFCSYSACL_data type tt_RFCSYSACL_data,
+  end of ts_TRUSTED_SYSTEM.
+data:
+  ls_TRUSTED_SYSTEM  type ts_TRUSTED_SYSTEM,
+  lt_TRUSTED_SYSTEMS type table of ts_TRUSTED_SYSTEM.
 
 *----------------------------------------------------------------------
 
@@ -418,7 +446,7 @@ FORM get_SAP_KERNEL.
     .
 
     " Do we already have an entry for this system?
-    READ table lt_outtab into ls_outtab
+    READ table lt_result into ls_result
       with key
         install_number = ls_store_dir-install_number
         long_sid       = ls_store_dir-long_sid
@@ -429,15 +457,15 @@ FORM get_SAP_KERNEL.
       if ls_store_dir-instance_type ne 'CENTRAL'.
         continue.
       endif.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     else.
       tabix = -1.
-      CLEAR ls_outtab.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      CLEAR ls_result.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     endif.
 
-    IF ls_outtab-host_full IS INITIAL.
-      ls_outtab-host_full = ls_outtab-host. " host, host_id, physical_host
+    IF ls_result-host_full IS INITIAL.
+      ls_result-host_full = ls_result-host. " host, host_id, physical_host
     ENDIF.
 
     CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
@@ -471,17 +499,17 @@ FORM get_SAP_KERNEL.
           " not used yet
 
         WHEN 'KERN_COMP_TIME'.    " Jun  7 2020 15:44:10
-          ls_outtab-kern_comp_time  = ls_VALUE-fieldvalue.
-          PERFORM convert_comp_time USING ls_outtab-kern_comp_time CHANGING ls_outtab-kern_comp_date.
+          ls_result-kern_comp_time  = ls_VALUE-fieldvalue.
+          PERFORM convert_comp_time USING ls_result-kern_comp_time CHANGING ls_result-kern_comp_date.
 
         WHEN 'KERN_DBLIB'.        " SQLDBC 7.9.8.040
           " not used yet
 
         WHEN 'KERN_PATCHLEVEL'.   " 1000
-          ls_outtab-kern_patchlevel = ls_VALUE-fieldvalue.
+          ls_result-kern_patchlevel = ls_VALUE-fieldvalue.
 
         WHEN 'KERN_REL'.          " 722_EXT_REL
-          ls_outtab-kern_rel        = ls_VALUE-fieldvalue.
+          ls_result-kern_rel        = ls_VALUE-fieldvalue.
 
         WHEN 'PLATFORM-ID'.       " 390
           " not used yet
@@ -490,9 +518,9 @@ FORM get_SAP_KERNEL.
     ENDLOOP.
 
     if tabix > 0.
-      MODIFY lt_outtab from ls_outtab INDEX tabix.
+      MODIFY lt_result from ls_result INDEX tabix.
     else.
-      APPEND ls_outtab TO lt_outtab.
+      APPEND ls_result TO lt_result.
     endif.
 
   ENDLOOP. " lt_STORE_DIR
@@ -574,7 +602,7 @@ FORM get_ABAP_COMP_SPLEVEL.
     .
 
     " Do we already have an entry for this system?
-    READ table lt_outtab into ls_outtab
+    READ table lt_result into ls_result
       with key
         install_number = ls_store_dir-install_number
         long_sid       = ls_store_dir-long_sid
@@ -584,8 +612,8 @@ FORM get_ABAP_COMP_SPLEVEL.
       tabix = sy-tabix.
     else.
       tabix = -1.
-      CLEAR ls_outtab.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      CLEAR ls_result.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     endif.
 
     CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
@@ -613,17 +641,17 @@ FORM get_ABAP_COMP_SPLEVEL.
 
       READ TABLE lt_snapshot_elem INTO data(ls_RELEASE)    INDEX 2.
       check ls_RELEASE-fieldname = 'RELEASE'.
-      ls_outtab-ABAP_RELEASE = ls_RELEASE-fieldvalue.
+      ls_result-ABAP_RELEASE = ls_RELEASE-fieldvalue.
 
       READ TABLE lt_snapshot_elem INTO data(ls_EXTRELEASE) INDEX 3.
       check ls_EXTRELEASE-fieldname = 'EXTRELEASE'.
-      ls_outtab-ABAP_SP      = ls_EXTRELEASE-fieldvalue.
+      ls_result-ABAP_SP      = ls_EXTRELEASE-fieldvalue.
     ENDLOOP.
 
     if tabix > 0.
-      MODIFY lt_outtab from ls_outtab INDEX tabix.
+      MODIFY lt_result from ls_result INDEX tabix.
     else.
-      APPEND ls_outtab TO lt_outtab.
+      APPEND ls_result TO lt_result.
     endif.
 
   ENDLOOP. " lt_STORE_DIR
@@ -705,7 +733,7 @@ FORM get_ABAP_NOTES.
     .
 
     " Do we already have an entry for this system?
-    READ table lt_outtab into ls_outtab
+    READ table lt_result into ls_result
       with key
         install_number = ls_store_dir-install_number
         long_sid       = ls_store_dir-long_sid
@@ -715,8 +743,8 @@ FORM get_ABAP_NOTES.
       tabix = sy-tabix.
     else.
       tabix = -1.
-      CLEAR ls_outtab.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      CLEAR ls_result.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     endif.
 
     CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
@@ -758,19 +786,19 @@ FORM get_ABAP_NOTES.
       data(status) = ls_PRSTATUST-fieldvalue && ` version ` && ls_VERSION-fieldvalue.
       case ls_NOTE-fieldvalue.
         when '0003089413'.
-          ls_outtab-NOTE_3089413 = status.
-          ls_outtab-NOTE_3089413_PRSTATUS = ls_PRSTATUS-fieldvalue.
+          ls_result-NOTE_3089413 = status.
+          ls_result-NOTE_3089413_PRSTATUS = ls_PRSTATUS-fieldvalue.
         when '0003287611'.
-          ls_outtab-NOTE_3287611 = status.
-          ls_outtab-NOTE_3287611_PRSTATUS = ls_PRSTATUS-fieldvalue.
+          ls_result-NOTE_3287611 = status.
+          ls_result-NOTE_3287611_PRSTATUS = ls_PRSTATUS-fieldvalue.
       endcase.
 
     ENDLOOP.
 
     if tabix > 0.
-      MODIFY lt_outtab from ls_outtab INDEX tabix.
+      MODIFY lt_result from ls_result INDEX tabix.
     else.
-      APPEND ls_outtab TO lt_outtab.
+      APPEND ls_result TO lt_result.
     endif.
 
   ENDLOOP. " lt_STORE_DIR
@@ -851,7 +879,7 @@ FORM get_RFCSYSACL.
     .
 
     " Do we already have an entry for this system?
-    READ table lt_outtab into ls_outtab
+    READ table lt_result into ls_result
       with key
         install_number = ls_store_dir-install_number
         long_sid       = ls_store_dir-long_sid
@@ -861,8 +889,8 @@ FORM get_RFCSYSACL.
       tabix = sy-tabix.
     else.
       tabix = -1.
-      CLEAR ls_outtab.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      CLEAR ls_result.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     endif.
 
     CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
@@ -883,61 +911,64 @@ FORM get_RFCSYSACL.
                                                              " 8: Error
         rc_text                     = rc_text.
 
+    " Store RRFCSYSACL data
+    clear ls_TRUSTED_SYSTEM.
+    ls_TRUSTED_SYSTEM-RFCTRUSTSY  = ls_store_dir-long_sid.
+    ls_TRUSTED_SYSTEM-LLICENSE_NR = ls_store_dir-install_number.
+
     LOOP AT lt_snapshot INTO data(lt_snapshot_elem).
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCSYSID)      INDEX 1.
-      "check ls_RFCSYSID-fieldname = 'RFCSYSID'.
 
-      "READ TABLE lt_snapshot_elem INTO data(ls_TLICENCE_NR)   INDEX 2.
-      "check ls_TLICENCE_NR-fieldname = 'TLICENSE_NR'.
+    " Store RRFCSYSACL data
+      data ls_RFCSYSACL_data type ts_RFCSYSACL_data.
+      clear ls_RFCSYSACL_data.
 
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCTRUSTSY)    INDEX 3.
-      "check ls_RFCTRUSTSY-fieldname = 'RFCTRUSTSY'.
+      loop at lt_snapshot_elem into data(snapshot_elem).
+        if snapshot_elem-fieldvalue = '<CCDB NULL>'.
+          clear snapshot_elem-fieldvalue.
+        endif.
 
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCDEST)       INDEX 4.
-      "check ls_RFCDEST-fieldname = 'RFCDEST'.
+        case snapshot_elem-fieldname.
+          when 'RFCSYSID'.    ls_RFCSYSACL_data-RFCSYSID    = snapshot_elem-fieldvalue. " 1
+          when 'TLICENSE_NR'. ls_RFCSYSACL_data-TLICENSE_NR = snapshot_elem-fieldvalue. " 2
+          when 'RFCTRUSTSY'.  ls_RFCSYSACL_data-RFCTRUSTSY  = snapshot_elem-fieldvalue. " 3
+          when 'RFCDEST'.     ls_RFCSYSACL_data-RFCDEST     = snapshot_elem-fieldvalue. " 4
+          when 'RFCTCDCHK'.   ls_RFCSYSACL_data-RFCTCDCHK   = snapshot_elem-fieldvalue. " 5
+          when 'RFCSNC'.      ls_RFCSYSACL_data-RFCSNC      = snapshot_elem-fieldvalue. " 6
+          when 'RFCSLOPT'.    ls_RFCSYSACL_data-RFCSLOPT    = snapshot_elem-fieldvalue. " 7
+          " only available in higher versions
+          when 'RFCCREDEST'.  ls_RFCSYSACL_data-RFCCREDEST  = snapshot_elem-fieldvalue. " 8
+          when 'RFCREGDEST'.  ls_RFCSYSACL_data-RFCREGDEST  = snapshot_elem-fieldvalue. " 9
+          when 'LLICENSE_NR'. ls_RFCSYSACL_data-LLICENSE_NR = snapshot_elem-fieldvalue. " 10
+          when 'RFCSECKEY'.   ls_RFCSYSACL_data-RFCSECKEY   = snapshot_elem-fieldvalue. " 11
+        endcase.
+      endloop.
 
-      READ TABLE lt_snapshot_elem INTO data(ls_RFCTCDCHK)     INDEX 5.
-      check ls_RFCTCDCHK-fieldname = 'RFCTCDCHK'.
+      " Store RRFCSYSACL data
+      append ls_RFCSYSACL_data to ls_TRUSTED_SYSTEM-RFCSYSACL_data.
 
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCSNC)        INDEX 6.
-      "check ls_RFCSNC-fieldname = 'RFCSNC'.
+      add 1 to ls_result-TRUSTSY_cnt_all.
 
-      READ TABLE lt_snapshot_elem INTO data(ls_RFCSLOPT)      INDEX 7.
-      check ls_RFCSLOPT-fieldname = 'RFCSLOPT'.
-
-      " The following fields are only available in higher versions:
-
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCCREDEST)    INDEX 8.
-      "check ls_RFCCREDEST-fieldname = 'RFCCREDEST'.
-
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCREGDEST)    INDEX 9.
-      "check ls_RFCREGDEST-fieldname = 'RFCREGDEST'.
-
-      "READ TABLE lt_snapshot_elem INTO data(ls_LLICENSE_NR)   INDEX 10.
-      "check ls_LLICENSE_NR-fieldname = 'LLICENSE_NR'.
-
-      "READ TABLE lt_snapshot_elem INTO data(ls_RFCSECKEY)     INDEX 11.
-      "check ls_RFCSECKEY-fieldname = 'RFCSECKEY'.
-
-      add 1 to ls_outtab-TRUSTSY_cnt_all.
-
-      if ls_RFCTCDCHK-fieldvalue is not initial.
-        add 1 to ls_outtab-TRUSTSY_cnt_TCD.
+      if ls_RFCSYSACL_data-RFCTCDCHK is not initial.
+        add 1 to ls_result-TRUSTSY_cnt_TCD.
       endif.
 
       data version(1).
-      version = ls_RFCSLOPT-fieldvalue. " get first char of the string
+      version = ls_RFCSYSACL_data-RFCSLOPT. " get first char of the string
       case version.
-        when '3'. add 1 to ls_outtab-TRUSTSY_cnt_3.
-        when '2'. add 1 to ls_outtab-TRUSTSY_cnt_2.
-        when ' '. add 1 to ls_outtab-TRUSTSY_cnt_1.
+        when '3'. add 1 to ls_result-TRUSTSY_cnt_3.
+        when '2'. add 1 to ls_result-TRUSTSY_cnt_2.
+        when ' '. add 1 to ls_result-TRUSTSY_cnt_1.
       endcase.
     ENDLOOP.
 
+    " Store RRFCSYSACL data
+    append ls_TRUSTED_SYSTEM to lt_TRUSTED_SYSTEMS.
+
+    " Store result
     if tabix > 0.
-      MODIFY lt_outtab from ls_outtab INDEX tabix.
+      MODIFY lt_result from ls_result INDEX tabix.
     else.
-      APPEND ls_outtab TO lt_outtab.
+      APPEND ls_result TO lt_result.
     endif.
 
   ENDLOOP. " lt_STORE_DIR
@@ -1018,7 +1049,7 @@ FORM get_RFCDES.
     .
 
     " Do we already have an entry for this system?
-    READ table lt_outtab into ls_outtab
+    READ table lt_result into ls_result
       with key
         install_number = ls_store_dir-install_number
         long_sid       = ls_store_dir-long_sid
@@ -1028,8 +1059,8 @@ FORM get_RFCDES.
       tabix = sy-tabix.
     else.
       tabix = -1.
-      CLEAR ls_outtab.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      CLEAR ls_result.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     endif.
 
     CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
@@ -1065,82 +1096,82 @@ FORM get_RFCDES.
 
         when '3'. " RFC destinations
           P_DEST_3 = 'X'.
-          add 1 to ls_outtab-DEST_3_cnt_all.                             " All destinations
+          add 1 to ls_result-DEST_3_cnt_all.                             " All destinations
 
           if ls_RFCOPTIONS-fieldvalue cs ',Q=Y,'.                        " Trusted destination
-            add 1 to ls_outtab-DEST_3_cnt_trusted.
+            add 1 to ls_result-DEST_3_cnt_trusted.
 
             find regex ',\[=[^,]{3},'    in ls_RFCOPTIONS-fieldvalue.    " System ID
             if sy-subrc = 0.
               find regex ',\^=[^,]{1,10},' in ls_RFCOPTIONS-fieldvalue.  " Installation number
               if sy-subrc = 0.
                 " System ID and installation number are available
-                add 1 to ls_outtab-DEST_3_cnt_trusted_migrated.
+                add 1 to ls_result-DEST_3_cnt_trusted_migrated.
               else.
                 " Installation number is missing
-                add 1 to ls_outtab-DEST_3_cnt_trusted_no_instnr.
+                add 1 to ls_result-DEST_3_cnt_trusted_no_instnr.
               endif.
             else.
               " System ID is missing
-              add 1 to ls_outtab-DEST_3_cnt_trusted_no_sysid.
+              add 1 to ls_result-DEST_3_cnt_trusted_no_sysid.
             endif.
 
             if ls_RFCOPTIONS-fieldvalue cs ',s=Y,'.                      " SNC
-              add 1 to ls_outtab-DEST_3_cnt_trusted_snc.
+              add 1 to ls_result-DEST_3_cnt_trusted_snc.
             endif.
           endif.
 
         when 'H'. " http destinations
           P_DEST_H = 'X'.
-          add 1 to ls_outtab-DEST_H_cnt_all.                             " All destinations
+          add 1 to ls_result-DEST_H_cnt_all.                             " All destinations
 
           if ls_RFCOPTIONS-fieldvalue cs ',Q=Y,'.                        " Trusted destination
-            add 1 to ls_outtab-DEST_H_cnt_trusted.
+            add 1 to ls_result-DEST_H_cnt_trusted.
 
             find regex ',\[=[^,]{3},'    in ls_RFCOPTIONS-fieldvalue.    " System ID
             if sy-subrc = 0.
               find regex ',\^=[^,]{1,10},' in ls_RFCOPTIONS-fieldvalue.  " Installation number
               if sy-subrc = 0.
                 " System ID and installation number are available
-                add 1 to ls_outtab-DEST_H_cnt_trusted_migrated.
+                add 1 to ls_result-DEST_H_cnt_trusted_migrated.
               else.
                 " Installation number is missing
-                add 1 to ls_outtab-DEST_H_cnt_trusted_no_instnr.
+                add 1 to ls_result-DEST_H_cnt_trusted_no_instnr.
               endif.
             else.
               " System ID is missing
-              add 1 to ls_outtab-DEST_H_cnt_trusted_no_sysid.
+              add 1 to ls_result-DEST_H_cnt_trusted_no_sysid.
             endif.
 
             if ls_RFCOPTIONS-fieldvalue cs ',s=Y,'.                      " TLS
-              add 1 to ls_outtab-DEST_H_cnt_trusted_tls.
+              add 1 to ls_result-DEST_H_cnt_trusted_tls.
             endif.
           endif.
 
         when 'W'. " web RFC destinations
           P_DEST_W = 'X'.
-          add 1 to ls_outtab-DEST_W_cnt_all.                             " All destinations
+          add 1 to ls_result-DEST_W_cnt_all.                             " All destinations
 
           if ls_RFCOPTIONS-fieldvalue cs ',Q=Y,'.                        " Trusted destination
-            add 1 to ls_outtab-DEST_W_cnt_trusted.
+            add 1 to ls_result-DEST_W_cnt_trusted.
 
             find regex ',\[=[^,]{3},'    in ls_RFCOPTIONS-fieldvalue.    " System ID
             if sy-subrc = 0.
               find regex ',\^=[^,]{1,10},' in ls_RFCOPTIONS-fieldvalue.  " Installation number
               if sy-subrc = 0.
                 " System ID and installation number are available
-                add 1 to ls_outtab-DEST_W_cnt_trusted_migrated.
+                add 1 to ls_result-DEST_W_cnt_trusted_migrated.
               else.
                 " Installation number is missing
-                add 1 to ls_outtab-DEST_W_cnt_trusted_no_instnr.
+                add 1 to ls_result-DEST_W_cnt_trusted_no_instnr.
               endif.
             else.
               " System ID is missing
-              add 1 to ls_outtab-DEST_W_cnt_trusted_no_sysid.
+              add 1 to ls_result-DEST_W_cnt_trusted_no_sysid.
             endif.
 
             if ls_RFCOPTIONS-fieldvalue cs ',s=Y,'.                      " TLS
-              add 1 to ls_outtab-DEST_W_cnt_trusted_tls.
+              add 1 to ls_result-DEST_W_cnt_trusted_tls.
             endif.
           endif.
 
@@ -1149,9 +1180,9 @@ FORM get_RFCDES.
     ENDLOOP.
 
     if tabix > 0.
-      MODIFY lt_outtab from ls_outtab INDEX tabix.
+      MODIFY lt_result from ls_result INDEX tabix.
     else.
-      APPEND ls_outtab TO lt_outtab.
+      APPEND ls_result TO lt_result.
     endif.
 
   ENDLOOP. " lt_STORE_DIR
@@ -1234,7 +1265,7 @@ FORM get_ABAP_INSTANCE_PAHI.
     .
 
     " Do we already have an entry for this system?
-    READ table lt_outtab into ls_outtab
+    READ table lt_result into ls_result
       with key
         install_number = ls_store_dir-install_number
         long_sid       = ls_store_dir-long_sid
@@ -1247,12 +1278,12 @@ FORM get_ABAP_INSTANCE_PAHI.
       endif.
     else.
       tabix = -1.
-      CLEAR ls_outtab.
-      MOVE-CORRESPONDING ls_store_dir TO ls_outtab.
+      CLEAR ls_result.
+      MOVE-CORRESPONDING ls_store_dir TO ls_result.
     endif.
 
-    IF ls_outtab-host_full IS INITIAL.
-      ls_outtab-host_full = ls_outtab-host. " host, host_id, physical_host
+    IF ls_result-host_full IS INITIAL.
+      ls_result-host_full = ls_result-host. " host, host_id, physical_host
     ENDIF.
 
     CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
@@ -1281,16 +1312,16 @@ FORM get_ABAP_INSTANCE_PAHI.
       check ls_VALUE-fieldname = 'VALUE'.
 
       case ls_PARAMETER-fieldvalue.
-        when 'rfc/selftrust'.         ls_outtab-rfc_selftrust         = ls_VALUE-fieldvalue.
-        when 'rfc/allowoldticket4tt'. ls_outtab-rfc_allowoldticket4tt = ls_VALUE-fieldvalue.
-        when 'rfc/sendInstNr4tt'.     ls_outtab-rfc_sendInstNr4tt     = ls_VALUE-fieldvalue.
+        when 'rfc/selftrust'.         ls_result-rfc_selftrust         = ls_VALUE-fieldvalue.
+        when 'rfc/allowoldticket4tt'. ls_result-rfc_allowoldticket4tt = ls_VALUE-fieldvalue.
+        when 'rfc/sendInstNr4tt'.     ls_result-rfc_sendInstNr4tt     = ls_VALUE-fieldvalue.
       endcase.
     ENDLOOP.
 
     if tabix > 0.
-      MODIFY lt_outtab from ls_outtab INDEX tabix.
+      MODIFY lt_result from ls_result INDEX tabix.
     else.
-      APPEND ls_outtab TO lt_outtab.
+      APPEND ls_result TO lt_result.
     endif.
 
   ENDLOOP. " lt_STORE_DIR
@@ -1317,15 +1348,15 @@ FORM validate_kernel.
     rel   type i,
     patch type i.
 
-  loop at lt_outtab ASSIGNING FIELD-SYMBOL(<fs_outtab>).
+  loop at lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
 
-    if <fs_outtab>-kern_rel is initial or <fs_outtab>-kern_patchlevel is INITIAL.
-      <fs_outtab>-validate_kernel = 'Unknown Kernel'.
-      APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_normal ) TO <fs_outtab>-t_color.
+    if <fs_result>-kern_rel is initial or <fs_result>-kern_patchlevel is INITIAL.
+      <fs_result>-validate_kernel = 'Unknown Kernel'.
+      APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_normal ) TO <fs_result>-t_color.
 
     else.
-      rel   = <fs_outtab>-kern_rel(3).
-      patch = ls_outtab-kern_patchlevel.
+      rel   = <fs_result>-kern_rel(3).
+      patch = ls_result-kern_patchlevel.
 
       if     rel = 722 and patch < 1214
         or   rel = 753 and patch < 1036
@@ -1336,19 +1367,19 @@ FORM validate_kernel.
         or   rel = 788 and patch < 21
         or   rel = 789 and patch < 10
         .
-        <fs_outtab>-validate_kernel = 'Kernel patch required'.
-        APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_kernel = 'Kernel patch required'.
+        APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color.
 
       elseif rel < 722
           or rel > 722 and rel < 753
           .
-        <fs_outtab>-validate_kernel = `Release update required`.
-        APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_kernel = `Release update required`.
+        APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color.
 
       else.
 
-        <fs_outtab>-validate_kernel = 'ok'.
-        APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_positive ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_kernel = 'ok'.
+        APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_positive ) TO <fs_result>-t_color.
 
       endif.
     endif.
@@ -1380,16 +1411,16 @@ FORM validate_ABAP.
     rel   type i,
     SP    type i.
 
-  loop at lt_outtab assigning FIELD-SYMBOL(<fs_outtab>).
+  loop at lt_result assigning FIELD-SYMBOL(<fs_result>).
 
     " Validate release and SP
-    if <fs_outtab>-ABAP_RELEASE is initial or <fs_outtab>-ABAP_SP is INITIAL.
-      <fs_outtab>-validate_ABAP = 'Unknown ABAP version'.
-      APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_normal ) TO <fs_outtab>-t_color.
+    if <fs_result>-ABAP_RELEASE is initial or <fs_result>-ABAP_SP is INITIAL.
+      <fs_result>-validate_ABAP = 'Unknown ABAP version'.
+      APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_normal ) TO <fs_result>-t_color.
 
     else.
-      rel   = <fs_outtab>-ABAP_RELEASE.
-      SP    = <fs_outtab>-ABAP_SP.
+      rel   = <fs_result>-ABAP_RELEASE.
+      SP    = <fs_result>-ABAP_SP.
 
       if     rel < 700
         or   rel = 700 and SP < 35
@@ -1401,8 +1432,8 @@ FORM validate_ABAP.
         or   rel = 751 and SP < 7
         or   rel = 752 and SP < 1
         .
-        <fs_outtab>-validate_ABAP = 'ABAP SP required'.
-        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_negative ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_ABAP = 'ABAP SP required'.
+        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_negative ) TO <fs_result>-t_color.
 
       elseif rel = 700 and SP < 41
         or   rel = 701 and SP < 26
@@ -1419,38 +1450,38 @@ FORM validate_ABAP.
         or   rel = 757 and SP < 2
         or   rel > 757
         .
-        <fs_outtab>-validate_ABAP = 'Note required'.
-        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_ABAP = 'Note required'.
+        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_result>-t_color.
 
-        if <fs_outtab>-NOTE_3089413 is initial.
-           <fs_outtab>-NOTE_3089413 = 'required'.
+        if <fs_result>-NOTE_3089413 is initial.
+           <fs_result>-NOTE_3089413 = 'required'.
         endif.
-        if <fs_outtab>-NOTE_3287611 is initial.
-           <fs_outtab>-NOTE_3287611 = 'required'.
+        if <fs_result>-NOTE_3287611 is initial.
+           <fs_result>-NOTE_3287611 = 'required'.
         endif.
 
       elseif rel = 750 and SP < 27
         or   rel = 751 and SP < 17
         .
-        <fs_outtab>-validate_ABAP = 'Note required'.
-        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_ABAP = 'Note required'.
+        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_result>-t_color.
 
-        if <fs_outtab>-NOTE_3089413 is initial.
-           <fs_outtab>-NOTE_3089413 = 'ok'.
+        if <fs_result>-NOTE_3089413 is initial.
+           <fs_result>-NOTE_3089413 = 'ok'.
         endif.
-        if <fs_outtab>-NOTE_3287611 is initial.
-           <fs_outtab>-NOTE_3287611 = 'required'.
+        if <fs_result>-NOTE_3287611 is initial.
+           <fs_result>-NOTE_3287611 = 'required'.
         endif.
 
       else.
-        <fs_outtab>-validate_ABAP = 'ok'.
-        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_positive ) TO <fs_outtab>-t_color.
+        <fs_result>-validate_ABAP = 'ok'.
+        APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_positive ) TO <fs_result>-t_color.
 
-        if <fs_outtab>-NOTE_3089413 is initial.
-           <fs_outtab>-NOTE_3089413 = 'ok'.
+        if <fs_result>-NOTE_3089413 is initial.
+           <fs_result>-NOTE_3089413 = 'ok'.
         endif.
-        if <fs_outtab>-NOTE_3287611 is initial.
-           <fs_outtab>-NOTE_3287611 = 'ok'.
+        if <fs_result>-NOTE_3287611 is initial.
+           <fs_result>-NOTE_3287611 = 'ok'.
         endif.
 
       endif.
@@ -1464,92 +1495,197 @@ FORM validate_ABAP.
     " O	Obsolete
     " U	Incompletely implemented
     " V	Obsolete version implemented
-    case <fs_outtab>-NOTE_3089413_PRSTATUS.
+    case <fs_result>-NOTE_3089413_PRSTATUS.
       when 'E' or '-'.
-        APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_outtab>-t_color.
+        APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
       when 'N' or 'O' or 'U' or 'V'.
-        APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_outtab>-t_color.
+        APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
       when others.
-        if     <fs_outtab>-NOTE_3089413 = 'ok'.
-          APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_outtab>-t_color.
-        elseif <fs_outtab>-NOTE_3089413 = 'required'.
-          APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_outtab>-t_color.
+        if     <fs_result>-NOTE_3089413 = 'ok'.
+          APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
+        elseif <fs_result>-NOTE_3089413 = 'required'.
+          APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
         endif.
     endcase.
-    case <fs_outtab>-NOTE_3287611_PRSTATUS.
+    case <fs_result>-NOTE_3287611_PRSTATUS.
       when 'E' or '-'.
-        APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_outtab>-t_color.
+        APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_result>-t_color.
       when 'N' or 'O' or 'U' or 'V'.
-        APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_outtab>-t_color.
+        APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
       when others.
-        if     <fs_outtab>-NOTE_3287611 = 'ok'.
-          APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_outtab>-t_color.
-        elseif <fs_outtab>-NOTE_3287611 = 'required'.
-          APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_outtab>-t_color.
+        if     <fs_result>-NOTE_3287611 = 'ok'.
+          APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_result>-t_color.
+        elseif <fs_result>-NOTE_3287611 = 'required'.
+          APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
         endif.
     endcase.
 
     " Validate trusted systems
-    if <fs_outtab>-TRUSTSY_cnt_3 > 0.
-      APPEND VALUE #( fname = 'TRUSTSY_CNT_3' color-col = col_positive ) TO <fs_outtab>-t_color.
+    if <fs_result>-TRUSTSY_cnt_3 > 0.
+      APPEND VALUE #( fname = 'TRUSTSY_CNT_3' color-col = col_positive ) TO <fs_result>-t_color.
     endif.
-    if <fs_outtab>-TRUSTSY_cnt_2 > 0.
-      APPEND VALUE #( fname = 'TRUSTSY_CNT_2' color-col = col_negative ) TO <fs_outtab>-t_color.
+    if <fs_result>-TRUSTSY_cnt_2 > 0.
+      APPEND VALUE #( fname = 'TRUSTSY_CNT_2' color-col = col_negative ) TO <fs_result>-t_color.
     endif.
-    if <fs_outtab>-TRUSTSY_cnt_1 > 0.
-      APPEND VALUE #( fname = 'TRUSTSY_CNT_1' color-col = col_negative ) TO <fs_outtab>-t_color.
+    if <fs_result>-TRUSTSY_cnt_1 > 0.
+      APPEND VALUE #( fname = 'TRUSTSY_CNT_1' color-col = col_negative ) TO <fs_result>-t_color.
     endif.
 
     " Validate TCD flag
-    if <fs_outtab>-TRUSTSY_CNT_TCD > 0.
-      APPEND VALUE #( fname = 'TRUSTSY_CNT_TCD' color-col = col_positive ) TO <fs_outtab>-t_color.
+    if <fs_result>-TRUSTSY_CNT_TCD > 0.
+      APPEND VALUE #( fname = 'TRUSTSY_CNT_TCD' color-col = col_positive ) TO <fs_result>-t_color.
     endif.
 
     " Validate rfc/selftrust
-    if <fs_outtab>-rfc_selftrust = '0'.
-      APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_positive ) TO <fs_outtab>-t_color.
-    elseif <fs_outtab>-rfc_selftrust = '1'.
-      APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_total ) TO <fs_outtab>-t_color.
+    if <fs_result>-rfc_selftrust = '0'.
+      APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_positive ) TO <fs_result>-t_color.
+    elseif <fs_result>-rfc_selftrust = '1'.
+      APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_total ) TO <fs_result>-t_color.
     endif.
 
     " Validate trusted destinations
-    if <fs_outtab>-DEST_3_CNT_TRUSTED_MIGRATED > 0.
-      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_outtab>-t_color.
+    if <fs_result>-DEST_3_CNT_TRUSTED_MIGRATED > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_result>-t_color.
     endif.
-    if <fs_outtab>-DEST_3_CNT_TRUSTED_NO_INSTNR > 0.
-      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_outtab>-t_color.
+    if <fs_result>-DEST_3_CNT_TRUSTED_NO_INSTNR > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_result>-t_color.
     endif.
-    if <fs_outtab>-DEST_3_CNT_TRUSTED_NO_SYSID > 0.
-      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_outtab>-t_color.
-    endif.
-
-    if <fs_outtab>-DEST_H_CNT_TRUSTED_MIGRATED > 0.
-      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_outtab>-t_color.
-    endif.
-    if <fs_outtab>-DEST_H_CNT_TRUSTED_NO_INSTNR > 0.
-      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_outtab>-t_color.
-    endif.
-    if <fs_outtab>-DEST_H_CNT_TRUSTED_NO_SYSID > 0.
-      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_outtab>-t_color.
+    if <fs_result>-DEST_3_CNT_TRUSTED_NO_SYSID > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_result>-t_color.
     endif.
 
-    if <fs_outtab>-DEST_W_CNT_TRUSTED_MIGRATED > 0.
-      APPEND VALUE #( fname = 'DEST_W_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_outtab>-t_color.
+    if <fs_result>-DEST_H_CNT_TRUSTED_MIGRATED > 0.
+      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_result>-t_color.
     endif.
-    if <fs_outtab>-DEST_W_CNT_TRUSTED_NO_INSTNR > 0.
-      APPEND VALUE #( fname = 'DEST_W_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_outtab>-t_color.
+    if <fs_result>-DEST_H_CNT_TRUSTED_NO_INSTNR > 0.
+      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_result>-t_color.
     endif.
-    if <fs_outtab>-DEST_W_CNT_TRUSTED_NO_SYSID > 0.
-      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_outtab>-t_color.
+    if <fs_result>-DEST_H_CNT_TRUSTED_NO_SYSID > 0.
+      APPEND VALUE #( fname = 'DEST_H_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_result>-t_color.
+    endif.
+
+    if <fs_result>-DEST_W_CNT_TRUSTED_MIGRATED > 0.
+      APPEND VALUE #( fname = 'DEST_W_CNT_TRUSTED_MIGRATED' color-col = col_positive ) TO <fs_result>-t_color.
+    endif.
+    if <fs_result>-DEST_W_CNT_TRUSTED_NO_INSTNR > 0.
+      APPEND VALUE #( fname = 'DEST_W_CNT_TRUSTED_NO_INSTNR' color-col = col_negative ) TO <fs_result>-t_color.
+    endif.
+    if <fs_result>-DEST_W_CNT_TRUSTED_NO_SYSID > 0.
+      APPEND VALUE #( fname = 'DEST_3_CNT_TRUSTED_NO_SYSID' color-col = col_negative ) TO <fs_result>-t_color.
     endif.
 
   endloop.
 ENDFORM. " validate_ABAP
 
 
+*---------------------------------------------------------------------*
+*      CLASS lcl_handle_events DEFINITION
+*---------------------------------------------------------------------*
+* define a local class for handling events of cl_salv_table
+*---------------------------------------------------------------------*
+CLASS lcl_handle_events DEFINITION.
+
+  PUBLIC SECTION.
+
+    METHODS:
+      on_user_command FOR EVENT added_function OF cl_salv_events
+        IMPORTING e_salv_function,
+
+      on_double_click FOR EVENT double_click OF cl_salv_events_table
+        IMPORTING row column.
+
+*      on_single_click for event link_click of cl_salv_events_table
+*        importing row column.
+
+  PRIVATE SECTION.
+    DATA: dialogbox_status TYPE c.  "'X': does exist, SPACE: does not ex.
+
+ENDCLASS.                    "lcl_handle_events DEFINITION
+
+* main data table
+DATA: gr_alv_table      TYPE REF TO cl_salv_table.
+
+* for handling the events of cl_salv_table
+DATA: gr_alv_events     TYPE REF TO lcl_handle_events.
+
+*----------------------------------------------------------------------*
+*      CLASS lcl_handle_events IMPLEMENTATION
+*----------------------------------------------------------------------*
+* implement the events for handling the events of cl_salv_table
+*----------------------------------------------------------------------*
+CLASS lcl_handle_events IMPLEMENTATION.
+
+  METHOD on_user_command.
+*    importing e_salv_function
+
+    DATA: ls_result       TYPE ts_result,
+          lr_selections   TYPE REF TO cl_salv_selections,
+          ls_cell         TYPE salv_s_cell,
+          lt_seleced_rows TYPE salv_t_row,
+          l_row           TYPE i.
+
+    " Get selected item
+    lr_selections   = gr_alv_table->get_selections( ).
+    ls_cell         = lr_selections->get_current_cell( ).
+    lt_seleced_rows = lr_selections->get_selected_rows( ).
+
+    CASE e_salv_function.
+
+      WHEN 'PICK'. " Double click
+
+        if ls_cell-columnname(12) = 'TRUSTSY_CNT_'. " Show trusted systems
+          IF ls_cell-row > 0.
+            CLEAR ls_result.
+            READ TABLE lt_result INTO ls_result INDEX ls_cell-row.
+            IF sy-subrc = 0.
+
+              perform show_trusted_systems
+                using
+                  ls_cell-columnname
+                  ls_result-long_sid       " RFCTRUSTSY
+                  ls_result-install_number " LLICENSE_NR
+                  .
+
+            endif.
+
+          ENDIF.
+        ENDIF.
+    ENDCASE.
+
+  ENDMETHOD.                    "on_user_command
+
+  METHOD on_double_click.
+*   importing row column
+
+    "DATA: lr_Selections  type ref to cl_Salv_selections,
+    "      ls_cell        type        salv_s_cell.
+
+    " Get selected item
+    "lr_selections = gr_ALV_TABLE->get_selections( ).
+    "ls_cell = lr_selections->get_current_cell( ).
+
+    DATA: ls_result    TYPE        ts_result.
+    CLEAR ls_result.
+    READ TABLE lt_result INTO ls_result INDEX row.
+    check sy-subrc = 0.
+
+    if column(12) = 'TRUSTSY_CNT_'. " Show trusted systems
+
+      perform show_trusted_systems
+        using
+          column
+          ls_result-long_sid       " RFCTRUSTSY
+          ls_result-install_number " LLICENSE_NR
+          .
+
+    endif.
+
+  ENDMETHOD.                    "on_double_click
+
+ENDCLASS.                    "lcl_handle_events IMPLEMENTATION
+
 FORM show_result.
   DATA:
-    lr_table      TYPE REF TO cl_salv_table,               " Main ALV class
     lr_functions  TYPE REF TO cl_salv_functions_list,      " Generic and Application-Specific Functions
     lr_display    TYPE REF TO cl_salv_display_settings,    " Appearance of the ALV Output
     lr_functional TYPE REF TO cl_salv_functional_settings,
@@ -1557,6 +1693,12 @@ FORM show_result.
     "lr_aggregations      type ref to cl_salv_aggregations,
     "lr_filters           type ref to cl_salv_filters,
     "lr_print             type ref to cl_salv_print,
+    lr_selections TYPE REF TO cl_salv_selections,
+    lr_events     TYPE REF TO cl_salv_events_table,
+    "lr_hyperlinks TYPE REF TO cl_salv_hyperlinks,
+    "lr_tooltips   TYPE REF TO cl_salv_tooltips,
+    "lr_grid_header TYPE REF TO cl_salv_form_layout_grid,
+    "lr_grid_footer TYPE REF TO cl_salv_form_layout_grid,
     lr_columns    TYPE REF TO cl_salv_columns_table,       " All Column Objects
     lr_column     TYPE REF TO cl_salv_column_table,        " Columns in Simple, Two-Dimensional Tables
     lr_layout     TYPE REF TO cl_salv_layout,               " Settings for Layout
@@ -1573,18 +1715,18 @@ FORM show_result.
           EXPORTING
             list_display = abap_false "  false: grid, true: list
         IMPORTING
-          r_salv_table = lr_table
+          r_salv_table = gr_alv_table
         CHANGING
-          t_table      = lt_outtab ).
+          t_table      = lt_result ).
     CATCH cx_salv_msg.
   ENDTRY.
 
 *... activate ALV generic Functions
-  lr_functions = lr_table->get_functions( ).
+  lr_functions = gr_alv_table->get_functions( ).
   lr_functions->set_all( abap_true ).
 
 *... set the display settings
-  lr_display = lr_table->get_display_settings( ).
+  lr_display = gr_alv_table->get_display_settings( ).
   TRY.
       lr_display->set_list_header( sy-title ).
       "lr_display->set_list_header( header ).
@@ -1597,7 +1739,7 @@ FORM show_result.
   ENDTRY.
 
 *... set the functional settings
-  lr_functional = lr_table->get_functional_settings( ).
+  lr_functional = gr_alv_table->get_functional_settings( ).
   TRY.
       lr_functional->set_sort_on_header_click( abap_true ).
       "lr_functional->set_f2_code( f2code ).
@@ -1606,7 +1748,7 @@ FORM show_result.
   ENDTRY.
 
 * ...Set the layout
-  lr_layout = lr_table->get_layout( ).
+  lr_layout = gr_alv_table->get_layout( ).
   ls_layout_key-report = sy-repid.
   lr_layout->set_key( ls_layout_key ).
   lr_layout->set_initial_layout( P_LAYOUT ).
@@ -1620,7 +1762,7 @@ FORM show_result.
 
 *... sort
   TRY.
-      lr_sorts = lr_table->get_sorts( ).
+      lr_sorts = gr_alv_table->get_sorts( ).
       lr_sorts->add_sort( 'INSTALL_NUMBER' ).
       lr_sorts->add_sort( 'LONG_SID' ).
       lr_sorts->add_sort( 'SID' ).
@@ -1629,13 +1771,27 @@ FORM show_result.
   ENDTRY.
 
 *... set column appearance
-  lr_columns = lr_table->get_columns( ).
+  lr_columns = gr_alv_table->get_columns( ).
   lr_columns->set_optimize( abap_true ). " Optimize column width
 
+*... set the color of cells
   TRY.
       lr_columns->set_color_column( 'T_COLOR' ).
     CATCH cx_salv_data_error.                           "#EC NO_HANDLER
   ENDTRY.
+
+* register to the events of cl_salv_table
+  lr_events = gr_alv_table->get_event( ).
+  CREATE OBJECT gr_alv_events.
+* register to the event USER_COMMAND
+  SET HANDLER gr_alv_events->on_user_command FOR lr_events.
+* register to the event DOUBLE_CLICK
+  SET HANDLER gr_alv_events->on_double_click FOR lr_events.
+
+* set selection mode
+  lr_selections = gr_alv_table->get_selections( ).
+  lr_selections->set_selection_mode(
+  if_salv_c_selection_mode=>row_column ).
 
   TRY.
 *... convert time stamps
@@ -2050,9 +2206,151 @@ FORM show_result.
   ENDTRY.
 
 *... show it
-  lr_table->display( ).
+  gr_alv_table->display( ).
 
 ENDFORM.
+
+form show_trusted_systems
+  using
+    column      type SALV_DE_COLUMN
+    RFCTRUSTSY  type ts_result-long_sid
+    LLICENSE_NR type ts_result-install_number.
+
+    check column(12) = 'TRUSTSY_CNT_'. " Show trusted systems
+
+    data: ls_TRUSTED_SYSTEM  type ts_TRUSTED_SYSTEM.
+    read table lt_TRUSTED_SYSTEMS ASSIGNING FIELD-SYMBOL(<fs_TRUSTED_SYSTEM>)
+      WITH TABLE KEY
+        RFCTRUSTSY  = RFCTRUSTSY
+        LLICENSE_NR = LLICENSE_NR.
+    check sy-subrc = 0.
+
+    data:
+      ls_RFCSYSACL_data type ts_RFCSYSACL_data,
+      lt_RFCSYSACL_data type tt_RFCSYSACL_data.
+
+    " ALV
+    data:
+      lr_table type ref to cl_salv_table.
+
+    try.
+      cl_salv_table=>factory(
+        IMPORTING
+          r_salv_table = lr_table
+        CHANGING
+          t_table      = lt_RFCSYSACL_data ).
+      catch cx_salv_msg.
+    endtry.
+
+*... activate ALV generic Functions
+    data(lr_functions) = gr_alv_table->get_functions( ).
+    lr_functions->set_all( abap_true ).
+
+*... set the functional settings
+    data(lr_functional) = gr_alv_table->get_functional_settings( ).
+    TRY.
+        lr_functional->set_sort_on_header_click( abap_true ).
+        "lr_functional->set_f2_code( f2code ).
+        "lr_functional->set_buffer( gs_test-settings-functional-buffer ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+*... set the display settings
+    data(lr_display) = lr_table->get_display_settings( ).
+    TRY.
+        "lr_display->set_list_header( header ).
+        "lr_display->set_list_header_size( CL_SALV_DISPLAY_SETTINGS=>C_HEADER_SIZE_LARGE ).
+        lr_display->set_striped_pattern( abap_true ).
+        lr_display->set_horizontal_lines( abap_true ).
+        lr_display->set_vertical_lines( abap_true ).
+        lr_display->set_suppress_empty_data( abap_true ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+*... set column appearance
+    data(lr_columns) = lr_table->get_columns( ).
+    lr_columns->set_optimize( abap_true ). " Optimize column width
+
+    " Copy relevant data
+    case column.
+      when 'TRUSTSY_CNT_ALL'. " All trusted systems
+        lr_display->set_list_header( `All trusted systems of system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+      when 'TRUSTSY_CNT_TCD'. " Tcode active for trusted systems
+        lr_display->set_list_header( `Tcode active for trusted systems of system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where RFCTCDCHK = 'X'.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+      when 'TRUSTSY_CNT_3'.   " Migrated trusted systems
+        lr_display->set_list_header( `Migrated trusted systems of system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where RFCSLOPT(1) = '3'.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+      when 'TRUSTSY_CNT_2'.   " Old trusted systems
+        lr_display->set_list_header( `Old trusted systems of system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where RFCSLOPT(1) = '2'.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+      when 'TRUSTSY_CNT_1'.   " Very old trusted systems
+        lr_display->set_list_header( `Very old trusted systems of system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where RFCSLOPT(1) = ' '.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+    endcase.
+
+    TRY.
+      data lr_column TYPE REF TO cl_salv_column_table.        " Columns in Simple, Two-Dimensional Tables
+
+      lr_column ?= lr_columns->get_column( 'RFCSYSID' ).
+      lr_column->set_long_text( 'Trusted system' ).
+      lr_column->set_medium_text( 'Trusted system' ).
+      lr_column->set_short_text( 'Trusted').
+
+      lr_column ?= lr_columns->get_column( 'RFCTRUSTSY' ).
+      lr_column->set_long_text( 'Trusting system' ).
+      lr_column->set_medium_text( 'Trusting system' ).
+      lr_column->set_short_text( 'Trusting').
+
+      lr_column ?= lr_columns->get_column( 'RFCDEST' ).
+      lr_column->set_long_text( 'Destination to trusted system' ).
+      lr_column->set_medium_text( 'Dest. to trusted sys' ).
+      lr_column->set_short_text( 'Dest.Trust').
+
+      lr_column ?= lr_columns->get_column( 'RFCSLOPT' ).
+      lr_column->set_long_text( 'Version: 3=migrated, 2=old,  =very old' ).
+      lr_column->set_medium_text( 'Version' ).
+      lr_column->set_short_text( 'Version').
+
+      "lr_column ?= lr_columns->get_column( 'TLICENSE_NR' ).     lr_column->set_technical( abap_true ).
+      "lr_column ?= lr_columns->get_column( 'LLICENSE_NR' ).     lr_column->set_technical( abap_true ).
+      lr_column ?= lr_columns->get_column( 'RFCCREDEST' ).      lr_column->set_technical( abap_true ).
+      lr_column ?= lr_columns->get_column( 'RFCREGDEST' ).      lr_column->set_technical( abap_true ).
+      lr_column ?= lr_columns->get_column( 'RFCSNC' ).          lr_column->set_technical( abap_true ).
+      "lr_column ?= lr_columns->get_column( 'RFCSECKEY' ).       lr_column->set_technical( abap_true ).
+
+      CATCH cx_salv_not_found.
+    ENDTRY.
+
+    " Show it
+    lr_table->display( ).
+
+endform.
 
 * Convert text like 'Dec  7 2020' into a date field
 FORM convert_comp_time
