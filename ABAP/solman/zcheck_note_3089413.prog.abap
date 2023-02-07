@@ -5,13 +5,15 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
-*& 06.02.2023 A double click on a count of trusted systems shows a poupup with the details
+*& 07.02.2023 Show mutual trust relations
+*& 06.02.2023 New result field to indicate explicit selftrust defined in SMT1
+*&            A double click on a count of trusted systems shows a popup with the details
 *& 02.02.2023 Check destinations, too
 *& 02.02.2023 Initial version
 *&---------------------------------------------------------------------*
 REPORT ZCHECK_NOTE_3089413.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '06.02.2023 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '07.02.2023 FBT'.
 
 type-pools: ICON, COL, SYM.
 
@@ -110,14 +112,16 @@ TYPES:
 
     " Source store: RFCSYSACL
     TRUSTSY_cnt_all       TYPE i,
+    MUTUAL_TRUST_CNT      TYPE i,
     TRUSTSY_CNT_TCD       TYPE i,
     TRUSTSY_cnt_3         TYPE i,
     TRUSTSY_cnt_2         TYPE i,
     TRUSTSY_cnt_1         TYPE i,
+    EXPLICIT_SELFTRUST    TYPE string,
 
     " Source store: ABAP_INSTANMCE_PAHI
-    rfc_allowoldticket4tt TYPE string,
     RFC_SELFTRUST         TYPE string,
+    rfc_allowoldticket4tt TYPE string,
     rfc_sendInstNr4tt     TYPE string,
 
     " Source store: RFCDES
@@ -163,6 +167,7 @@ DATA:
 
 data: GS_ALV_LOUT_VARIANT type DISVARIANT.
 
+" Popup showing trusted systems
 types:
   begin of ts_RFCSYSACL_data,
     RFCSYSID    type RFCSSYSID,  " Trusted system
@@ -179,23 +184,30 @@ types:
     RFCSECKEY   type RFCTICKET,  " Security key (empty or '(stored)'), only available in higher versions
     RFCTCDCHK   type RFCTCDCHK,  " Tcode check
     RFCSLOPT    type RFCSLOPT,   " Options respective version
+
+    MUTUAL_TRUST type string,
+
+    t_color               type lvc_t_scol,
   end of ts_RFCSYSACL_data,
   tt_RFCSYSACL_data type STANDARD TABLE OF ts_RFCSYSACL_data WITH KEY RFCSYSID TLICENSE_NR,
+
   begin of ts_TRUSTED_SYSTEM,
     RFCTRUSTSY  type RFCSSYSID,  " Trusting system (=current system)
     LLICENSE_NR type SLIC_INST,  " Installation number of trusting system
     RFCSYSACL_data type tt_RFCSYSACL_data,
-  end of ts_TRUSTED_SYSTEM.
+  end of ts_TRUSTED_SYSTEM,
+  tt_TRUSTED_SYSTEMS type STANDARD TABLE OF ts_TRUSTED_SYSTEM WITH KEY RFCTRUSTSY LLICENSE_NR.
+
 data:
   ls_TRUSTED_SYSTEM  type ts_TRUSTED_SYSTEM,
-  lt_TRUSTED_SYSTEMS type table of ts_TRUSTED_SYSTEM.
+  lt_TRUSTED_SYSTEMS type tt_TRUSTED_SYSTEMS.
 
 *----------------------------------------------------------------------
 
 INITIALIZATION.
   sy-title = 'Check implementation status of note 3089413 for connected ABAP systems'(TIT).
 
-  ss_sid   = 'System (long sid)'.
+  ss_sid   = 'System'.
   ss_state = 'Config. store status (G/Y/R)'.
 
   PS_KERN  = 'Check Kernel'.
@@ -368,8 +380,11 @@ START-OF-SELECTION.
   PERFORM validate_kernel.
   PERFORM validate_ABAP.
 
+  PERFORM validate_mutual_trust.
+
   PERFORM show_result.
 
+*----------------------------------------------------------------------
 
 FORM get_SAP_KERNEL.
   check P_KERN = 'X'.
@@ -527,7 +542,6 @@ FORM get_SAP_KERNEL.
 
 ENDFORM. " get_SAP_KERNEL
 
-
 FORM get_ABAP_COMP_SPLEVEL.
   check P_ABAP = 'X'.
 
@@ -657,7 +671,6 @@ FORM get_ABAP_COMP_SPLEVEL.
   ENDLOOP. " lt_STORE_DIR
 
 ENDFORM. " get_ABAP_COMP_SPLEVEL
-
 
 FORM get_ABAP_NOTES.
   check P_ABAP = 'X'.
@@ -805,7 +818,6 @@ FORM get_ABAP_NOTES.
 
 ENDFORM. " get_ABAP_NOTES
 
-
 FORM get_RFCSYSACL.
   check P_TRUST = 'X'.
 
@@ -913,7 +925,7 @@ FORM get_RFCSYSACL.
 
     " Store RRFCSYSACL data
     clear ls_TRUSTED_SYSTEM.
-    ls_TRUSTED_SYSTEM-RFCTRUSTSY  = ls_store_dir-long_sid.
+    ls_TRUSTED_SYSTEM-RFCTRUSTSY  = ls_store_dir-sid.
     ls_TRUSTED_SYSTEM-LLICENSE_NR = ls_store_dir-install_number.
 
     LOOP AT lt_snapshot INTO data(lt_snapshot_elem).
@@ -943,6 +955,11 @@ FORM get_RFCSYSACL.
         endcase.
       endloop.
 
+      " Add installation number
+      if ls_RFCSYSACL_data-LLICENSE_NR is initial.
+        ls_RFCSYSACL_data-LLICENSE_NR = ls_TRUSTED_SYSTEM-LLICENSE_NR.
+      endif.
+
       " Store RRFCSYSACL data
       append ls_RFCSYSACL_data to ls_TRUSTED_SYSTEM-RFCSYSACL_data.
 
@@ -952,6 +969,7 @@ FORM get_RFCSYSACL.
         add 1 to ls_result-TRUSTSY_cnt_TCD.
       endif.
 
+      " Get version
       data version(1).
       version = ls_RFCSYSACL_data-RFCSLOPT. " get first char of the string
       case version.
@@ -959,9 +977,18 @@ FORM get_RFCSYSACL.
         when '2'. add 1 to ls_result-TRUSTSY_cnt_2.
         when ' '. add 1 to ls_result-TRUSTSY_cnt_1.
       endcase.
+
+      " Identify selftrust
+      if ls_RFCSYSACL_data-RFCSYSID = ls_RFCSYSACL_data-RFCTRUSTSY.
+        if ls_RFCSYSACL_data-LLICENSE_NR is not initial and ls_RFCSYSACL_data-LLICENSE_NR = ls_RFCSYSACL_data-TLICENSE_NR.
+          ls_result-EXPLICIT_SELFTRUST = 'Explicit selftrust'.
+        else.
+          ls_result-EXPLICIT_SELFTRUST = 'explicit selftrust'. " no check for installation number
+        endif.
+      endif.
     ENDLOOP.
 
-    " Store RRFCSYSACL data
+    " Store trusted systems
     append ls_TRUSTED_SYSTEM to lt_TRUSTED_SYSTEMS.
 
     " Store result
@@ -974,7 +1001,6 @@ FORM get_RFCSYSACL.
   ENDLOOP. " lt_STORE_DIR
 
 ENDFORM. " get_RFCSYSACL
-
 
 FORM get_RFCDES.
   check P_DEST = 'X'.
@@ -1189,7 +1215,6 @@ FORM get_RFCDES.
 
 ENDFORM. " get_RFCDES
 
-
 FORM get_ABAP_INSTANCE_PAHI.
   check P_TRUST = 'X' or P_DEST = 'X'.
 
@@ -1328,7 +1353,6 @@ FORM get_ABAP_INSTANCE_PAHI.
 
 ENDFORM. " get_ABAP_INSTANCE_PAHI
 
-
 FORM validate_kernel.
   check P_KERN = 'X'.
 
@@ -1385,7 +1409,6 @@ FORM validate_kernel.
     endif.
   endloop.
 ENDFORM. " validate_kernel
-
 
 FORM validate_ABAP.
   check P_ABAP = 'X' or P_TRUST = 'X' or P_DEST = 'X'.
@@ -1577,6 +1600,99 @@ FORM validate_ABAP.
   endloop.
 ENDFORM. " validate_ABAP
 
+FORM validate_mutual_trust.
+  check P_TRUST = 'X'.
+
+  FIELD-SYMBOLS:
+    <fs_TRUSTED_SYSTEM>   type ts_TRUSTED_SYSTEM,
+    <fs_RFCSYSACL_data>   type ts_RFCSYSACL_data,
+    <fs_TRUSTED_SYSTEM_2> type ts_TRUSTED_SYSTEM,
+    <fs_RFCSYSACL_data_2> type ts_RFCSYSACL_data,
+    <fs_result>           type ts_result.
+
+*  " Fast but only possible if LLICENSE_NR is available
+*  " For all trusting systems
+*  loop at lt_TRUSTED_SYSTEMS ASSIGNING <fs_TRUSTED_SYSTEM>.
+*
+*    " Get trusted systems
+*    loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data ASSIGNING <fs_RFCSYSACL_data>
+*      where RFCSYSID    ne <fs_TRUSTED_SYSTEM>-RFCTRUSTSY   " Ignore selftrust
+*         "or TLICENSE_NR ne <fs_TRUSTED_SYSTEM>-LLICENSE_NR
+*         .
+*
+*      " Get data of these trusted systems
+*      read table lt_TRUSTED_SYSTEMS ASSIGNING <fs_TRUSTED_SYSTEM_2>
+*        WITH TABLE KEY
+*          RFCTRUSTSY  = <fs_RFCSYSACL_data>-RFCSYSID
+*          LLICENSE_NR = <fs_RFCSYSACL_data>-TLICENSE_NR
+*          .
+*      if sy-subrc = 0.
+*
+*        " Check for mutual trust
+*        read table <fs_TRUSTED_SYSTEM_2>-RFCSYSACL_data ASSIGNING <fs_RFCSYSACL_data_2>
+*          WITH TABLE KEY
+*            RFCSYSID     = <fs_RFCSYSACL_data>-RFCTRUSTSY
+*            TLICENSE_NR  = <fs_RFCSYSACL_data>-LLICENSE_NR
+*            .
+*        if sy-subrc = 0
+*          "and <fs_RFCSYSACL_data>-RFCSYSID       = <fs_RFCSYSACL_data_2>-RFCTRUSTSY
+*          "and <fs_RFCSYSACL_data>-TLICENSE_NR    = <fs_RFCSYSACL_data_2>-LLICENSE_NR
+*          "and <fs_RFCSYSACL_data_2>-RFCSYSID     = <fs_RFCSYSACL_data>-RFCTRUSTSY
+*          "and <fs_RFCSYSACL_data_2>-TLICENSE_NR  = <fs_RFCSYSACL_data>-LLICENSE_NR
+*          .
+*          " Store mutual trust
+*          "...
+*        endif.
+*
+*      endif.
+*
+*    endloop.
+*  endloop.
+
+  " Slow, and maybe inaccurate ignoring LLICENSE_NR
+  " For all trusting systems
+  loop at lt_TRUSTED_SYSTEMS ASSIGNING <fs_TRUSTED_SYSTEM>.
+
+    " Get trusted systems
+    loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data ASSIGNING <fs_RFCSYSACL_data>
+      where RFCSYSID    ne <fs_TRUSTED_SYSTEM>-RFCTRUSTSY   " Ignore selftrust
+         "or TLICENSE_NR ne <fs_TRUSTED_SYSTEM>-LLICENSE_NR
+         .
+
+      loop at lt_TRUSTED_SYSTEMS ASSIGNING <fs_TRUSTED_SYSTEM_2>
+        where RFCTRUSTSY  = <fs_RFCSYSACL_data>-RFCSYSID
+          "and LLICENSE_NR = <fs_RFCSYSACL_data>-TLICENSE_NR
+          .
+
+        loop at <fs_TRUSTED_SYSTEM_2>-RFCSYSACL_data ASSIGNING <fs_RFCSYSACL_data_2>
+          WHERE RFCSYSID     = <fs_RFCSYSACL_data>-RFCTRUSTSY
+            "and TLICENSE_NR  = <fs_RFCSYSACL_data>-LLICENSE_NR
+            .
+
+          " Store mutual trust
+          read table lt_result ASSIGNING <fs_result>
+            with key
+              install_number = <fs_RFCSYSACL_data>-LLICENSE_NR
+              "long_sid       =
+              sid            = <fs_RFCSYSACL_data>-RFCTRUSTSY
+              .
+          if sy-subrc = 0.
+            add 1 to <fs_result>-MUTUAL_TRUST_CNT.
+            APPEND VALUE #( fname = 'MUTUAL_TRUST_CNT' color-col = col_total ) TO <fs_result>-t_color.
+          endif.
+
+          <fs_RFCSYSACL_data>-MUTUAL_TRUST   = 'mutual'.
+          <fs_RFCSYSACL_data_2>-MUTUAL_TRUST = 'mutual'.
+
+          "write: /(3) <fs_RFCSYSACL_data>-RFCSYSID,     <fs_RFCSYSACL_data>-TLICENSE_NR,   (3) <fs_RFCSYSACL_data>-RFCTRUSTSY,   <fs_RFCSYSACL_data>-LLICENSE_NR.   " <fs_RFCSYSACL_data>
+          "write:  (3) <fs_RFCSYSACL_data_2>-RFCTRUSTSY, <fs_RFCSYSACL_data_2>-LLICENSE_NR, (3) <fs_RFCSYSACL_data_2>-RFCSYSID,   <fs_RFCSYSACL_data_2>-TLICENSE_NR. " <fs_RFCSYSACL_data_2>
+
+        endloop.
+      endloop.
+    endloop.
+  endloop.
+
+endform.
 
 *---------------------------------------------------------------------*
 *      CLASS lcl_handle_events DEFINITION
@@ -1618,38 +1734,32 @@ CLASS lcl_handle_events IMPLEMENTATION.
   METHOD on_user_command.
 *    importing e_salv_function
 
-    DATA: ls_result       TYPE ts_result,
-          lr_selections   TYPE REF TO cl_salv_selections,
-          ls_cell         TYPE salv_s_cell,
-          lt_seleced_rows TYPE salv_t_row,
-          l_row           TYPE i.
-
-    " Get selected item
-    lr_selections   = gr_alv_table->get_selections( ).
-    ls_cell         = lr_selections->get_current_cell( ).
-    lt_seleced_rows = lr_selections->get_selected_rows( ).
+    " Get selected item(s)
+    data(lr_selections)   = gr_alv_table->get_selections( ).
+    data(ls_cell)         = lr_selections->get_current_cell( ).
+    data(lt_seleced_rows) = lr_selections->get_selected_rows( ).
 
     CASE e_salv_function.
 
       WHEN 'PICK'. " Double click
 
-        if ls_cell-columnname(12) = 'TRUSTSY_CNT_'. " Show trusted systems
+        if   ls_cell-columnname(12) = 'TRUSTSY_CNT_'
+          or ls_cell-columnname = 'MUTUAL_TRUST_CNT'. " Show trusted systems
+
           IF ls_cell-row > 0.
-            CLEAR ls_result.
-            READ TABLE lt_result INTO ls_result INDEX ls_cell-row.
-            IF sy-subrc = 0.
 
-              perform show_trusted_systems
-                using
-                  ls_cell-columnname
-                  ls_result-long_sid       " RFCTRUSTSY
-                  ls_result-install_number " LLICENSE_NR
-                  .
+            READ TABLE lt_result INTO data(ls_result) INDEX ls_cell-row.
+            check sy-subrc = 0.
 
-            endif.
+            perform show_trusted_systems
+              using
+                ls_cell-columnname
+                ls_result-install_number " LLICENSE_NR
+                ls_result-sid            " RFCTRUSTSY
+                .
 
           ENDIF.
-        ENDIF.
+        endif.
     ENDCASE.
 
   ENDMETHOD.                    "on_user_command
@@ -1657,27 +1767,27 @@ CLASS lcl_handle_events IMPLEMENTATION.
   METHOD on_double_click.
 *   importing row column
 
-    "DATA: lr_Selections  type ref to cl_Salv_selections,
-    "      ls_cell        type        salv_s_cell.
+    " Get selected item(s)
+    data(lr_selections) = gr_ALV_TABLE->get_selections( ).
+    data(ls_cell) = lr_selections->get_current_cell( ).
+    data(lt_seleced_rows) = lr_selections->get_selected_rows( ).
 
-    " Get selected item
-    "lr_selections = gr_ALV_TABLE->get_selections( ).
-    "ls_cell = lr_selections->get_current_cell( ).
+    if   column(12) = 'TRUSTSY_CNT_'
+      or column = 'MUTUAL_TRUST_CNT'. " Show trusted systems
 
-    DATA: ls_result    TYPE        ts_result.
-    CLEAR ls_result.
-    READ TABLE lt_result INTO ls_result INDEX row.
-    check sy-subrc = 0.
+      if row > 0.
 
-    if column(12) = 'TRUSTSY_CNT_'. " Show trusted systems
+        READ TABLE lt_result INTO data(ls_result) INDEX row.
+        check sy-subrc = 0.
 
-      perform show_trusted_systems
-        using
-          column
-          ls_result-long_sid       " RFCTRUSTSY
-          ls_result-install_number " LLICENSE_NR
-          .
+        perform show_trusted_systems
+          using
+            column
+            ls_result-install_number " LLICENSE_NR
+            ls_result-sid            " RFCTRUSTSY
+            .
 
+      endif.
     endif.
 
   ENDMETHOD.                    "on_double_click
@@ -1895,6 +2005,12 @@ FORM show_result.
       lr_column->set_short_text( 'Trusted' ).
       lr_column->set_zero( abap_false  ).
 
+      lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST_CNT' ).
+      lr_column->set_long_text( 'Mutual trust relations' ).
+      lr_column->set_medium_text( 'Mutual trust' ).
+      lr_column->set_short_text( 'Mutual' ).
+      lr_column->set_zero( abap_false  ).
+
       lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_TCD' ).
       lr_column->set_long_text( 'Tcode active for trusted systems' ).
       lr_column->set_medium_text( 'Tcode active' ).
@@ -1919,6 +2035,11 @@ FORM show_result.
       lr_column->set_short_text( 'Very old' ).
       lr_column->set_zero( abap_false  ).
 
+      lr_column ?= lr_columns->get_column( 'EXPLICIT_SELFTRUST' ).
+      lr_column->set_long_text( 'Explicit selftrust defined in SMT1' ).
+      lr_column->set_medium_text( 'Explicit selftrust' ).
+      lr_column->set_short_text( 'Explicit' ).
+
       " Profile parameter
 
       lr_column ?= lr_columns->get_column( 'RFC_ALLOWOLDTICKET4TT' ).
@@ -1927,8 +2048,8 @@ FORM show_result.
       lr_column->set_short_text( 'Allow old' ).
 
       lr_column ?= lr_columns->get_column( 'RFC_SELFTRUST' ).
-      lr_column->set_long_text( 'RFC selftrust' ).
-      lr_column->set_medium_text( 'RFC selftrust' ).
+      lr_column->set_long_text( 'RFC selftrust by profile parameter' ).
+      lr_column->set_medium_text( 'RFC selftrust by par' ).
       lr_column->set_short_text( 'Selftrust' ).
 
       lr_column ?= lr_columns->get_column( 'RFC_SENDINSTNR4TT' ).
@@ -1940,174 +2061,120 @@ FORM show_result.
       color-col = 2. " 2=light blue, 3=yellow, 4=blue, 5=green, 6=red, 7=orange
 
       lr_column ?= lr_columns->get_column( 'DEST_3_CNT_ALL' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'RFC Destinations (Type 3)' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'RFC Destinations' ).
-                                 "1234567890
       lr_column->set_short_text( 'RFC Dest.' ).
       lr_column->set_zero( abap_false  ).
       lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED'  ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'Trusted RFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'Trusted RFC Dest.' ).
-                                 "1234567890
       lr_column->set_short_text( 'Trust.RFC' ).
       lr_column->set_zero( abap_false  ).
       lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_MIGRATED' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'Migrated Trusted RFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'Migrated Trusted' ).
-                                 "1234567890
       lr_column->set_short_text( 'Migrated' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_NO_INSTNR' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'No Installation Number in Trusted Dest.' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'No Installation Nr' ).
-                                 "1234567890
       lr_column->set_short_text( 'No Inst Nr' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_NO_SYSID' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'No System ID in Trusted RFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'No System ID' ).
-                                 "1234567890
       lr_column->set_short_text( 'No Sys. ID' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_3_CNT_TRUSTED_SNC' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'SNC for Trusted RFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'SNC Trusted Dest' ).
-                                 "1234567890
       lr_column->set_short_text( 'SNC Trust.' ).
       lr_column->set_zero( abap_false  ).
 
       " Type H Destinations
 
       lr_column ?= lr_columns->get_column( 'DEST_H_CNT_ALL' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'HTTP Destinations (Type H)' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'HTTP Destinations' ).
-                                 "1234567890
       lr_column->set_short_text( 'HTTP Dest.' ).
       lr_column->set_zero( abap_false  ).
       lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED'  ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'Trusted HTTP Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'Trusted HTTPS Dest.' ).
-                                 "1234567890
       lr_column->set_short_text( 'Trust.HTTP' ).
       lr_column->set_zero( abap_false  ).
       lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_MIGRATED' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'Migrated Trusted HTTP Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'Migrated Trusted' ).
-                                 "1234567890
       lr_column->set_short_text( 'Migrated' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_NO_INSTNR' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'No Installation Number in Trusted Dest.' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'No Installation Nr' ).
-                                 "1234567890
       lr_column->set_short_text( 'No Inst Nr' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_NO_SYSID' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'No System ID in Trusted HTTP Dest.' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'No System ID' ).
-                                 "1234567890
       lr_column->set_short_text( 'No Sys. ID' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_H_CNT_TRUSTED_TLS' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'TLS for Trusted HTTP Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'TLS Trusted Dest.' ).
-                                 "1234567890
       lr_column->set_short_text( 'TLS Trust.' ).
       lr_column->set_zero( abap_false  ).
 
       " Type W Destinations
 
       lr_column ?= lr_columns->get_column( 'DEST_W_CNT_ALL' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'WebRFC Destinations (Type W)' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'WebRFC Destinations' ).
-                                 "1234567890
       lr_column->set_short_text( 'Web Dest.' ).
       lr_column->set_zero( abap_false  ).
       lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED'  ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'Trusted WebRFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'Trusted WebRFC Dest.' ).
-                                 "1234567890
       lr_column->set_short_text( 'Trust Web' ).
       lr_column->set_zero( abap_false  ).
       lr_column->set_color( color ).
 
       lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_MIGRATED' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'Migrated Trusted WebRFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'Migrated Trusted' ).
-                                 "1234567890
       lr_column->set_short_text( 'Migrated' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_INSTNR' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'No Installation Number in Trusted Dest.' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'No Installation Nr' ).
-                                 "1234567890
       lr_column->set_short_text( 'No Inst Nr' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_SYSID' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'No System ID in Trusted WebRFC Dest.' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'No System ID' ).
-                                 "1234567890
       lr_column->set_short_text( 'No Sys. ID' ).
       lr_column->set_zero( abap_false  ).
 
       lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_TLS' ).
-                                "1234567890123456789012345678901234567890
       lr_column->set_long_text( 'TLS for Trusted WebRFC Destinations' ).
-                                  "12345678901234567890
       lr_column->set_medium_text( 'TLS Trusted Dest.' ).
-                                 "1234567890
       lr_column->set_short_text( 'TLS Trust.' ).
       lr_column->set_zero( abap_false  ).
 
@@ -2162,10 +2229,12 @@ FORM show_result.
 
       if P_TRUST is initial.
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_ALL' ).       lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST_CNT' ).      lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_TCD' ).       lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_3' ).         lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_2' ).         lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_1' ).         lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'EXPLICIT_SELFTRUST' ).    lr_column->set_technical( abap_true ).
 
         lr_column ?= lr_columns->get_column( 'RFC_SELFTRUST' ).         lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'RFC_SENDINSTNR4TT' ).     lr_column->set_technical( abap_true ).
@@ -2213,10 +2282,12 @@ ENDFORM.
 form show_trusted_systems
   using
     column      type SALV_DE_COLUMN
-    RFCTRUSTSY  type ts_result-long_sid
-    LLICENSE_NR type ts_result-install_number.
+    LLICENSE_NR type ts_result-install_number
+    RFCTRUSTSY  type ts_result-sid
+    .
 
-    check column(12) = 'TRUSTSY_CNT_'. " Show trusted systems
+    check column(12) = 'TRUSTSY_CNT_'
+       or column = 'MUTUAL_TRUST_CNT'. " Show trusted systems
 
     data: ls_TRUSTED_SYSTEM  type ts_TRUSTED_SYSTEM.
     read table lt_TRUSTED_SYSTEMS ASSIGNING FIELD-SYMBOL(<fs_TRUSTED_SYSTEM>)
@@ -2243,22 +2314,13 @@ form show_trusted_systems
     endtry.
 
 *... activate ALV generic Functions
-    data(lr_functions) = gr_alv_table->get_functions( ).
+    data(lr_functions) = lr_table->get_functions( ).
     lr_functions->set_all( abap_true ).
-
-*... set the functional settings
-    data(lr_functional) = gr_alv_table->get_functional_settings( ).
-    TRY.
-        lr_functional->set_sort_on_header_click( abap_true ).
-        "lr_functional->set_f2_code( f2code ).
-        "lr_functional->set_buffer( gs_test-settings-functional-buffer ).
-      CATCH cx_salv_method_not_supported.
-    ENDTRY.
 
 *... set the display settings
     data(lr_display) = lr_table->get_display_settings( ).
     TRY.
-        "lr_display->set_list_header( header ).
+        "lr_display->set_list_header( sy-title ).
         "lr_display->set_list_header_size( CL_SALV_DISPLAY_SETTINGS=>C_HEADER_SIZE_LARGE ).
         lr_display->set_striped_pattern( abap_true ).
         lr_display->set_horizontal_lines( abap_true ).
@@ -2267,9 +2329,39 @@ form show_trusted_systems
       CATCH cx_salv_method_not_supported.
     ENDTRY.
 
+*... set the functional settings
+    data(lr_functional) = lr_table->get_functional_settings( ).
+    TRY.
+        lr_functional->set_sort_on_header_click( abap_true ).
+        "lr_functional->set_f2_code( f2code ).
+        "lr_functional->set_buffer( gs_test-settings-functional-buffer ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+* ...Set the layout
+    data(lr_layout) = lr_table->get_layout( ).
+    "ls_layout_key-report = sy-repid.
+    "lr_layout->set_key( ls_layout_key ).
+    "lr_layout->set_initial_layout( P_LAYOUT ).
+    authority-check object 'S_ALV_LAYO'
+                        id 'ACTVT' field '23'.
+    if sy-subrc = 0.
+      lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ) . "no restictions
+    else.
+      lr_layout->set_save_restriction( cl_salv_layout=>restrict_user_dependant ) . "user dependend
+    endif.
+
+*... sort
+
 *... set column appearance
     data(lr_columns) = lr_table->get_columns( ).
     lr_columns->set_optimize( abap_true ). " Optimize column width
+
+*... set the color of cells
+    TRY.
+        lr_columns->set_color_column( 'T_COLOR' ).
+      CATCH cx_salv_data_error.                           "#EC NO_HANDLER
+    ENDTRY.
 
     " Copy relevant data
     case column.
@@ -2312,7 +2404,32 @@ form show_trusted_systems
           append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
         endloop.
 
+      when 'MUTUAL_TRUST_CNT'.   " Mutual trust relations
+        lr_display->set_list_header( `Mutual trust relations with system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where MUTUAL_TRUST is not initial.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
     endcase.
+
+    " Set color
+    loop at lt_RFCSYSACL_data ASSIGNING FIELD-SYMBOL(<fs_RFCSYSACL_data>).
+      if <fs_RFCSYSACL_data>-MUTUAL_TRUST is not initial.
+        APPEND VALUE #( fname = 'MUTUAL_TRUST' color-col = col_total ) TO <fs_RFCSYSACL_data>-t_color.
+      endif.
+
+      if <fs_RFCSYSACL_data>-RFCTCDCHK is not initial.
+        APPEND VALUE #( fname = 'RFCTCDCHK' color-col = col_positive ) TO <fs_RFCSYSACL_data>-t_color.
+      endif.
+
+      if <fs_RFCSYSACL_data>-RFCSLOPT(1) = '3'.
+        APPEND VALUE #( fname = 'RFCSLOPT' color-col = col_positive ) TO <fs_RFCSYSACL_data>-t_color.
+      else.
+        APPEND VALUE #( fname = 'RFCSLOPT' color-col = col_negative ) TO <fs_RFCSYSACL_data>-t_color.
+      endif.
+    endloop.
 
     TRY.
       data lr_column TYPE REF TO cl_salv_column_table.        " Columns in Simple, Two-Dimensional Tables
@@ -2336,6 +2453,11 @@ form show_trusted_systems
       lr_column->set_long_text( 'Version: 3=migrated, 2=old,  =very old' ).
       lr_column->set_medium_text( 'Version' ).
       lr_column->set_short_text( 'Version').
+
+      lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST' ).
+      lr_column->set_long_text( 'Mutual trust relation' ).
+      lr_column->set_medium_text( 'Mutual trust' ).
+      lr_column->set_short_text( 'Mutual').
 
       "lr_column ?= lr_columns->get_column( 'TLICENSE_NR' ).     lr_column->set_technical( abap_true ).
       "lr_column ?= lr_columns->get_column( 'LLICENSE_NR' ).     lr_column->set_technical( abap_true ).
