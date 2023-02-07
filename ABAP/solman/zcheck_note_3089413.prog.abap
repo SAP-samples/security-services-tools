@@ -5,7 +5,8 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
-*& 07.02.2023 Show mutual trust relations
+*& 07.02.2023 Show trusted systems without any data in RFCSYSACL
+*&            Show mutual trust relations
 *& 06.02.2023 New result field to indicate explicit selftrust defined in SMT1
 *&            A double click on a count of trusted systems shows a popup with the details
 *& 02.02.2023 Check destinations, too
@@ -112,6 +113,7 @@ TYPES:
 
     " Source store: RFCSYSACL
     TRUSTSY_cnt_all       TYPE i,
+    NO_DATA_CNT           TYPE i,
     MUTUAL_TRUST_CNT      TYPE i,
     TRUSTSY_CNT_TCD       TYPE i,
     TRUSTSY_cnt_3         TYPE i,
@@ -185,7 +187,8 @@ types:
     RFCTCDCHK   type RFCTCDCHK,  " Tcode check
     RFCSLOPT    type RFCSLOPT,   " Options respective version
 
-    MUTUAL_TRUST type string,
+    NO_DATA      type string,    " No data found for trusted system
+    MUTUAL_TRUST type string,    " Mutual trus relation
 
     t_color               type lvc_t_scol,
   end of ts_RFCSYSACL_data,
@@ -1678,7 +1681,9 @@ FORM validate_mutual_trust.
               .
           if sy-subrc = 0.
             add 1 to <fs_result>-MUTUAL_TRUST_CNT.
-            APPEND VALUE #( fname = 'MUTUAL_TRUST_CNT' color-col = col_total ) TO <fs_result>-t_color.
+            if <fs_result>-MUTUAL_TRUST_CNT = 1.
+              APPEND VALUE #( fname = 'MUTUAL_TRUST_CNT' color-col = col_total ) TO <fs_result>-t_color.
+            endif.
           endif.
 
           <fs_RFCSYSACL_data>-MUTUAL_TRUST   = 'mutual'.
@@ -1689,6 +1694,27 @@ FORM validate_mutual_trust.
 
         endloop.
       endloop.
+
+      if sy-subrc is not initial                      " No data of trusted system found?
+        and <fs_RFCSYSACL_data>-RFCSYSID in p_sid.    " But check this only of data should be available
+
+        " Store mutual trust
+        read table lt_result ASSIGNING <fs_result>
+          with key
+            install_number = <fs_RFCSYSACL_data>-LLICENSE_NR
+            "long_sid       =
+            sid            = <fs_RFCSYSACL_data>-RFCTRUSTSY
+            .
+        if sy-subrc = 0.
+          add 1 to <fs_result>-NO_DATA_CNT.
+          if <fs_result>-MUTUAL_TRUST_CNT = 1.
+            APPEND VALUE #( fname = 'MUTUAL_TRUST_CNT' color-col = col_total ) TO <fs_result>-t_color.
+          endif.
+        endif.
+
+        <fs_RFCSYSACL_data>-NO_DATA = 'no data'.
+
+      endif.
     endloop.
   endloop.
 
@@ -1743,8 +1769,10 @@ CLASS lcl_handle_events IMPLEMENTATION.
 
       WHEN 'PICK'. " Double click
 
+        " Show trusted systems
         if   ls_cell-columnname(12) = 'TRUSTSY_CNT_'
-          or ls_cell-columnname = 'MUTUAL_TRUST_CNT'. " Show trusted systems
+          or ls_cell-columnname = 'MUTUAL_TRUST_CNT'
+          or ls_cell-columnname = 'NO_DATA_CNT'.
 
           IF ls_cell-row > 0.
 
@@ -1772,8 +1800,10 @@ CLASS lcl_handle_events IMPLEMENTATION.
     data(ls_cell) = lr_selections->get_current_cell( ).
     data(lt_seleced_rows) = lr_selections->get_selected_rows( ).
 
+    " Show trusted systems
     if   column(12) = 'TRUSTSY_CNT_'
-      or column = 'MUTUAL_TRUST_CNT'. " Show trusted systems
+      or column = 'MUTUAL_TRUST_CNT'
+      or column = 'NO_DATA_CNT'.
 
       if row > 0.
 
@@ -2005,6 +2035,12 @@ FORM show_result.
       lr_column->set_short_text( 'Trusted' ).
       lr_column->set_zero( abap_false  ).
 
+      lr_column ?= lr_columns->get_column( 'NO_DATA_CNT' ).
+      lr_column->set_long_text( 'No data of trusted system found' ).
+      lr_column->set_medium_text( 'No data found' ).
+      lr_column->set_short_text( 'No data' ).
+      lr_column->set_zero( abap_false  ).
+
       lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST_CNT' ).
       lr_column->set_long_text( 'Mutual trust relations' ).
       lr_column->set_medium_text( 'Mutual trust' ).
@@ -2229,6 +2265,7 @@ FORM show_result.
 
       if P_TRUST is initial.
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_ALL' ).       lr_column->set_technical( abap_true ).
+        lr_column ?= lr_columns->get_column( 'NO_DATA_CNT' ).           lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST_CNT' ).      lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_TCD' ).       lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'TRUSTSY_CNT_3' ).         lr_column->set_technical( abap_true ).
@@ -2286,8 +2323,10 @@ form show_trusted_systems
     RFCTRUSTSY  type ts_result-sid
     .
 
+    " Show trusted systems
     check column(12) = 'TRUSTSY_CNT_'
-       or column = 'MUTUAL_TRUST_CNT'. " Show trusted systems
+       or column = 'MUTUAL_TRUST_CNT'
+       or column = 'NO_DATA_CNT'.
 
     data: ls_TRUSTED_SYSTEM  type ts_TRUSTED_SYSTEM.
     read table lt_TRUSTED_SYSTEMS ASSIGNING FIELD-SYMBOL(<fs_TRUSTED_SYSTEM>)
@@ -2339,17 +2378,17 @@ form show_trusted_systems
     ENDTRY.
 
 * ...Set the layout
-    data(lr_layout) = lr_table->get_layout( ).
+    "data(lr_layout) = lr_table->get_layout( ).
     "ls_layout_key-report = sy-repid.
     "lr_layout->set_key( ls_layout_key ).
     "lr_layout->set_initial_layout( P_LAYOUT ).
-    authority-check object 'S_ALV_LAYO'
-                        id 'ACTVT' field '23'.
-    if sy-subrc = 0.
-      lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ) . "no restictions
-    else.
-      lr_layout->set_save_restriction( cl_salv_layout=>restrict_user_dependant ) . "user dependend
-    endif.
+    "authority-check object 'S_ALV_LAYO'
+    "                    id 'ACTVT' field '23'.
+    "if sy-subrc = 0.
+    "  lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ) . "no restictions
+    "else.
+    "  lr_layout->set_save_restriction( cl_salv_layout=>restrict_user_dependant ) . "user dependend
+    "endif.
 
 *... sort
 
@@ -2369,6 +2408,22 @@ form show_trusted_systems
         lr_display->set_list_header( `All trusted systems of system ` && RFCTRUSTSY ).
 
         loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+      when 'NO_DATA_CNT'.   " No data for trusted system found
+        lr_display->set_list_header( `No data for trusted system found of system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where NO_DATA is not initial.
+          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
+        endloop.
+
+      when 'MUTUAL_TRUST_CNT'.   " Mutual trust relations
+        lr_display->set_list_header( `Mutual trust relations with system ` && RFCTRUSTSY ).
+
+        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
+          where MUTUAL_TRUST is not initial.
           append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
         endloop.
 
@@ -2401,14 +2456,6 @@ form show_trusted_systems
 
         loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
           where RFCSLOPT(1) = ' '.
-          append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
-        endloop.
-
-      when 'MUTUAL_TRUST_CNT'.   " Mutual trust relations
-        lr_display->set_list_header( `Mutual trust relations with system ` && RFCTRUSTSY ).
-
-        loop at <fs_TRUSTED_SYSTEM>-RFCSYSACL_data into ls_RFCSYSACL_data
-          where MUTUAL_TRUST is not initial.
           append ls_RFCSYSACL_data to lt_RFCSYSACL_data.
         endloop.
 
@@ -2453,6 +2500,11 @@ form show_trusted_systems
       lr_column->set_long_text( 'Version: 3=migrated, 2=old,  =very old' ).
       lr_column->set_medium_text( 'Version' ).
       lr_column->set_short_text( 'Version').
+
+      lr_column ?= lr_columns->get_column( 'NO_DATA' ).
+      lr_column->set_long_text( 'No data of trusted system found' ).
+      lr_column->set_medium_text( 'No data found' ).
+      lr_column->set_short_text( 'No data' ).
 
       lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST' ).
       lr_column->set_long_text( 'Mutual trust relation' ).
