@@ -44,6 +44,10 @@ Updated 07.11.2022
 Show settings, and log and trace files of the RFC gateway  
 Updated 31.01.2023  
 
+- Report [`ZRSPFPAR_DYNAMIC_CD`](/ABAP/basis/zrspfpar_dynamic_cd.prog.abap)  
+Show history of dynamic profile parameters  
+New 10.02.2023  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
