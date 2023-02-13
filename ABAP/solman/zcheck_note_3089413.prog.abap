@@ -1444,7 +1444,7 @@ CLASS lcl_report IMPLEMENTATION.
 
       ELSE.
         rel   = <fs_result>-kern_rel(3).
-        patch = ls_result-kern_patchlevel.
+        patch = <fs_result>-kern_patchlevel.
 
         IF     rel = 722 AND patch < 1214
           OR   rel = 753 AND patch < 1036
