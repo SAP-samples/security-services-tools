@@ -5,6 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 14.02.2023 A double click on a count of destinations shows a popup with the details
 *& 13.02.2023 Refactoring to use local methods instead of forms
 *& 07.02.2023 Show trusted systems without any data in RFCSYSACL
 *&            Show mutual trust relations
@@ -15,7 +16,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '13.02.2023 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '14.02.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -225,6 +226,31 @@ CLASS lcl_report DEFINITION.
       ls_trusted_system  TYPE ts_trusted_system,
       lt_trusted_systems TYPE tt_trusted_systems.
 
+    " Popup showing destinations
+    TYPES:
+      BEGIN OF ts_destination_data,
+        rfcdest        TYPE rfcdest,
+        rfctype        TYPE RFCTYPE_D,
+        trusted(1),                                           " Flag for Trusted RFC
+        sysid          TYPE diagls_technical_system_sid,      " System ID of target system
+        instnr         TYPE sdiagst_store_dir-install_number, " Installation number of target system
+        encrypted(1),                                         " Flag for SNC / TLS
+
+        t_color      TYPE lvc_t_scol,
+      END OF ts_destination_data,
+      tt_destination_data TYPE STANDARD TABLE OF ts_destination_data WITH KEY rfcdest,
+
+      BEGIN OF ts_destination,
+        sid            TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
+        install_number TYPE sdiagst_store_dir-install_number,
+        destination_data    TYPE tt_destination_data,
+      END OF ts_destination,
+      tt_destinations TYPE STANDARD TABLE OF ts_destination WITH KEY sid install_number.
+
+    CLASS-DATA:
+      ls_destination  TYPE ts_destination,
+      lt_destinations TYPE tt_destinations.
+
     CLASS-METHODS:
 
       get_sap_kernel,
@@ -265,7 +291,13 @@ CLASS lcl_report DEFINITION.
         IMPORTING
           column      TYPE salv_de_column
           llicense_nr TYPE ts_result-install_number
-          rfctrustsy  TYPE ts_result-sid.
+          rfctrustsy  TYPE ts_result-sid,
+
+      show_destinations
+        IMPORTING
+          column      TYPE salv_de_column
+          install_number TYPE ts_result-install_number
+          sid         TYPE ts_result-sid.
 
     CLASS-DATA:
 
@@ -1141,7 +1173,7 @@ CLASS lcl_report IMPLEMENTATION.
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
       WHERE long_sid              IN p_sid
         AND store_main_state_type IN p_state
-      .
+        .
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO ls_result
@@ -1157,6 +1189,11 @@ CLASS lcl_report IMPLEMENTATION.
         CLEAR ls_result.
         MOVE-CORRESPONDING ls_store_dir TO ls_result.
       ENDIF.
+
+      " Store destination data
+      CLEAR ls_destination.
+      ls_destination-sid            = ls_store_dir-sid.
+      ls_destination-install_number = ls_store_dir-install_number.
 
       CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
         EXPORTING
@@ -1187,19 +1224,38 @@ CLASS lcl_report IMPLEMENTATION.
         READ TABLE lt_snapshot_elem INTO DATA(ls_rfcoptions)    INDEX 3.
         CHECK ls_rfcoptions-fieldname = 'RFCOPTIONS'.
 
-        CASE ls_rfctype-fieldvalue.
+        " Store destination data
+        DATA ls_destination_data TYPE ts_destination_data.
+        CLEAR ls_destination_data.
+        ls_destination_data-rfcdest = ls_rfcdest-fieldvalue.
+        ls_destination_data-rfctype = ls_rfctype-fieldvalue.
+
+        FIND REGEX ',\[=([^,]{3}),'    IN ls_rfcoptions-fieldvalue     " System ID
+          SUBMATCHES ls_destination_data-sysid.
+
+        FIND REGEX ',\^=([^,]{1,10}),' IN ls_rfcoptions-fieldvalue     " Installation number
+          SUBMATCHES ls_destination_data-instnr.
+
+        FIND REGEX ',Q=(Y),' IN ls_rfcoptions-fieldvalue               " Trusted
+          SUBMATCHES ls_destination_data-trusted.
+
+        FIND REGEX ',s=(Y),' IN ls_rfcoptions-fieldvalue               " SNC/TLS
+          SUBMATCHES ls_destination_data-encrypted.
+
+        append ls_destination_data to ls_destination-destination_data.
+
+        " Update count
+        CASE ls_destination_data-rfctype.
 
           WHEN '3'. " RFC destinations
             p_dest_3 = 'X'.
-            ADD 1 TO ls_result-dest_3_cnt_all.                             " All destinations
+            ADD 1 TO ls_result-dest_3_cnt_all.                         " All destinations
 
-            IF ls_rfcoptions-fieldvalue CS ',Q=Y,'.                        " Trusted destination
+            IF ls_destination_data-trusted is not initial.             " Trusted destination
               ADD 1 TO ls_result-dest_3_cnt_trusted.
 
-              FIND REGEX ',\[=[^,]{3},'    IN ls_rfcoptions-fieldvalue.    " System ID
-              IF sy-subrc = 0.
-                FIND REGEX ',\^=[^,]{1,10},' IN ls_rfcoptions-fieldvalue.  " Installation number
-                IF sy-subrc = 0.
+              IF ls_destination_data-sysid is not initial.
+                IF ls_destination_data-instnr is not initial.
                   " System ID and installation number are available
                   ADD 1 TO ls_result-dest_3_cnt_trusted_migrated.
                 ELSE.
@@ -1211,7 +1267,7 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_3_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_rfcoptions-fieldvalue CS ',s=Y,'.                      " SNC
+              IF ls_destination_data-encrypted is not initial.
                 ADD 1 TO ls_result-dest_3_cnt_trusted_snc.
               ENDIF.
             ENDIF.
@@ -1220,13 +1276,11 @@ CLASS lcl_report IMPLEMENTATION.
             p_dest_h = 'X'.
             ADD 1 TO ls_result-dest_h_cnt_all.                             " All destinations
 
-            IF ls_rfcoptions-fieldvalue CS ',Q=Y,'.                        " Trusted destination
+            IF ls_destination_data-trusted is not initial.             " Trusted destination
               ADD 1 TO ls_result-dest_h_cnt_trusted.
 
-              FIND REGEX ',\[=[^,]{3},'    IN ls_rfcoptions-fieldvalue.    " System ID
-              IF sy-subrc = 0.
-                FIND REGEX ',\^=[^,]{1,10},' IN ls_rfcoptions-fieldvalue.  " Installation number
-                IF sy-subrc = 0.
+              IF ls_destination_data-sysid is not initial.
+                IF ls_destination_data-instnr is not initial.
                   " System ID and installation number are available
                   ADD 1 TO ls_result-dest_h_cnt_trusted_migrated.
                 ELSE.
@@ -1238,7 +1292,7 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_h_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_rfcoptions-fieldvalue CS ',s=Y,'.                      " TLS
+              IF ls_destination_data-encrypted is not initial.
                 ADD 1 TO ls_result-dest_h_cnt_trusted_tls.
               ENDIF.
             ENDIF.
@@ -1247,13 +1301,11 @@ CLASS lcl_report IMPLEMENTATION.
             p_dest_w = 'X'.
             ADD 1 TO ls_result-dest_w_cnt_all.                             " All destinations
 
-            IF ls_rfcoptions-fieldvalue CS ',Q=Y,'.                        " Trusted destination
+            IF ls_destination_data-trusted is not initial.             " Trusted destination
               ADD 1 TO ls_result-dest_w_cnt_trusted.
 
-              FIND REGEX ',\[=[^,]{3},'    IN ls_rfcoptions-fieldvalue.    " System ID
-              IF sy-subrc = 0.
-                FIND REGEX ',\^=[^,]{1,10},' IN ls_rfcoptions-fieldvalue.  " Installation number
-                IF sy-subrc = 0.
+              IF ls_destination_data-sysid is not initial.
+                IF ls_destination_data-instnr is not initial.
                   " System ID and installation number are available
                   ADD 1 TO ls_result-dest_w_cnt_trusted_migrated.
                 ELSE.
@@ -1265,7 +1317,7 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_w_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_rfcoptions-fieldvalue CS ',s=Y,'.                      " TLS
+              IF ls_destination_data-encrypted is not initial.
                 ADD 1 TO ls_result-dest_w_cnt_trusted_tls.
               ENDIF.
             ENDIF.
@@ -1279,6 +1331,9 @@ CLASS lcl_report IMPLEMENTATION.
       ELSE.
         APPEND ls_result TO lt_result.
       ENDIF.
+
+      " Store destination data
+      append ls_destination to lt_destinations.
 
     ENDLOOP. " lt_STORE_DIR
 
@@ -1793,20 +1848,30 @@ CLASS lcl_report IMPLEMENTATION.
 
       WHEN 'PICK'. " Double click
 
-        " Show trusted systems
-        IF   ls_cell-columnname(12) = 'TRUSTSY_CNT_'
-          OR ls_cell-columnname = 'MUTUAL_TRUST_CNT'
-          OR ls_cell-columnname = 'NO_DATA_CNT'.
+        IF ls_cell-row > 0.
+          READ TABLE lt_result INTO DATA(ls_result) INDEX ls_cell-row.
+          CHECK sy-subrc = 0.
 
-          IF ls_cell-row > 0.
-
-            READ TABLE lt_result INTO DATA(ls_result) INDEX ls_cell-row.
-            CHECK sy-subrc = 0.
+          " Show trusted systems
+          IF   ls_cell-columnname(12) = 'TRUSTSY_CNT_'
+            OR ls_cell-columnname = 'MUTUAL_TRUST_CNT'
+            OR ls_cell-columnname = 'NO_DATA_CNT'.
 
             show_trusted_systems(
               column      = ls_cell-columnname
               llicense_nr = ls_result-install_number
               rfctrustsy  = ls_result-sid
+            ).
+
+          " Show destinations
+          ELSEIF ls_cell-columnname(11) = 'DEST_3_CNT_'
+            OR ls_cell-columnname(11) = 'DEST_H_CNT_'
+            OR ls_cell-columnname(11) = 'DEST_W_CNT_'.
+
+            show_destinations(
+              column      = ls_cell-columnname
+              install_number = ls_result-install_number
+              sid  = ls_result-sid
             ).
 
           ENDIF.
@@ -1823,20 +1888,30 @@ CLASS lcl_report IMPLEMENTATION.
     DATA(ls_cell) = lr_selections->get_current_cell( ).
     DATA(lt_seleced_rows) = lr_selections->get_selected_rows( ).
 
-    " Show trusted systems
-    IF   column(12) = 'TRUSTSY_CNT_'
-      OR column = 'MUTUAL_TRUST_CNT'
-      OR column = 'NO_DATA_CNT'.
+    IF row > 0.
+      READ TABLE lt_result INTO DATA(ls_result) INDEX row.
+      CHECK sy-subrc = 0.
 
-      IF row > 0.
-
-        READ TABLE lt_result INTO DATA(ls_result) INDEX row.
-        CHECK sy-subrc = 0.
+      " Show trusted systems
+      IF   column(12) = 'TRUSTSY_CNT_'
+        OR column = 'MUTUAL_TRUST_CNT'
+        OR column = 'NO_DATA_CNT'.
 
         show_trusted_systems(
           column      = column
           llicense_nr = ls_result-install_number
           rfctrustsy  = ls_result-sid
+        ).
+
+      " Show destinations
+      ELSEIF column(11) = 'DEST_3_CNT_'
+        OR column(11) = 'DEST_H_CNT_'
+        OR column(11) = 'DEST_W_CNT_'.
+
+        show_destinations(
+          column      = column
+          install_number = ls_result-install_number
+          sid  = ls_result-sid
         ).
 
       ENDIF.
@@ -2544,6 +2619,328 @@ CLASS lcl_report IMPLEMENTATION.
     lr_table->display( ).
 
   ENDMETHOD. " show_trusted_systems
+
+  METHOD show_destinations.
+    "IMPORTING
+    "  column      TYPE salv_de_column
+    "  install_number TYPE ts_result-install_number
+    "  sid         TYPE ts_result-sid.
+
+    " Show trusted systems
+    CHECK column(11) = 'DEST_3_CNT_'
+       OR column(11) = 'DEST_H_CNT_'
+       OR column(11) = 'DEST_W_CNT_'.
+
+    DATA: ls_destination  TYPE ts_destination.
+    READ TABLE lt_destinations ASSIGNING FIELD-SYMBOL(<fs_destination>)
+      WITH TABLE KEY
+        sid            = sid
+        install_number = install_number.
+    CHECK sy-subrc = 0.
+
+    DATA:
+      ls_destination_data TYPE ts_destination_data,
+      lt_destination_data TYPE tt_destination_data.
+
+    " ALV
+    DATA:
+      lr_table TYPE REF TO cl_salv_table.
+
+    TRY.
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = lr_table
+          CHANGING
+            t_table      = lt_destination_data ).
+      CATCH cx_salv_msg.
+    ENDTRY.
+
+*... activate ALV generic Functions
+    DATA(lr_functions) = lr_table->get_functions( ).
+    lr_functions->set_all( abap_true ).
+
+*... set the display settings
+    DATA(lr_display) = lr_table->get_display_settings( ).
+    TRY.
+        "lr_display->set_list_header( sy-title ).
+        "lr_display->set_list_header_size( CL_SALV_DISPLAY_SETTINGS=>C_HEADER_SIZE_LARGE ).
+        lr_display->set_striped_pattern( abap_true ).
+        lr_display->set_horizontal_lines( abap_true ).
+        lr_display->set_vertical_lines( abap_true ).
+        lr_display->set_suppress_empty_data( abap_true ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+*... set the functional settings
+    DATA(lr_functional) = lr_table->get_functional_settings( ).
+    TRY.
+        lr_functional->set_sort_on_header_click( abap_true ).
+        "lr_functional->set_f2_code( f2code ).
+        "lr_functional->set_buffer( gs_test-settings-functional-buffer ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+* ...Set the layout
+    "data(lr_layout) = lr_table->get_layout( ).
+    "ls_layout_key-report = sy-repid.
+    "lr_layout->set_key( ls_layout_key ).
+    "lr_layout->set_initial_layout( P_LAYOUT ).
+    "authority-check object 'S_ALV_LAYO'
+    "                    id 'ACTVT' field '23'.
+    "if sy-subrc = 0.
+    "  lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ) . "no restictions
+    "else.
+    "  lr_layout->set_save_restriction( cl_salv_layout=>restrict_user_dependant ) . "user dependend
+    "endif.
+
+*... sort
+
+*... set column appearance
+    DATA(lr_columns) = lr_table->get_columns( ).
+    lr_columns->set_optimize( abap_true ). " Optimize column width
+
+*... set the color of cells
+    TRY.
+        lr_columns->set_color_column( 'T_COLOR' ).
+      CATCH cx_salv_data_error.                         "#EC NO_HANDLER
+    ENDTRY.
+
+    " Copy relevant data
+    CASE column.
+      WHEN 'DEST_3_CNT_ALL'.
+        lr_display->set_list_header( `All RFC destinations (type 3) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = '3'.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_3_CNT_TRUSTED'.
+        lr_display->set_list_header( `Trusted RFC destinations (type 3) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = '3'
+            and trusted is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_3_CNT_TRUSTED_MIGRATED'.
+        lr_display->set_list_header( `Migrated RFC destinations (type 3) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = '3'
+            and trusted is not initial
+            and sysid   is not initial
+            and instnr  is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_3_CNT_TRUSTED_NO_INSTNR'.
+        lr_display->set_list_header( `Missing installation number in RFC destinations (type 3) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = '3'
+            and trusted is not initial
+            and sysid   is not initial
+            and instnr  is initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_3_CNT_TRUSTED_NO_SYSID'.
+        lr_display->set_list_header( `Missing system id in RFC destinations (type 3) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = '3'
+            and trusted is not initial
+            and sysid   is initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_3_CNT_TRUSTED_SNC'.
+        lr_display->set_list_header( `Encrypted trusted RFC destinations (type 3) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = '3'
+            and trusted is not initial
+            and encrypted is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+
+      WHEN 'DEST_H_CNT_ALL'.
+        lr_display->set_list_header( `All http destinations (type H) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'H'.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_H_CNT_TRUSTED'.
+        lr_display->set_list_header( `Trusted http destinations (type H) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'H'
+            and trusted is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_H_CNT_TRUSTED_MIGRATED'.
+        lr_display->set_list_header( `Migrated http destinations (type H) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'H'
+            and trusted is not initial
+            and sysid   is not initial
+            and instnr  is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_H_CNT_TRUSTED_NO_INSTNR'.
+        lr_display->set_list_header( `Missing installation number in http destinations (type H) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'H'
+            and trusted is not initial
+            and sysid   is not initial
+            and instnr  is initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_H_CNT_TRUSTED_NO_SYSID'.
+        lr_display->set_list_header( `Missing system id in http destinations (type H) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'H'
+            and trusted is not initial
+            and sysid   is initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_H_CNT_TRUSTED_TLS'.
+        lr_display->set_list_header( `Encrypted trusted http destinations (type H) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'H'
+            and trusted is not initial
+            and encrypted is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+
+      WHEN 'DEST_W_CNT_ALL'.
+        lr_display->set_list_header( `All WebRFC destinations (type W) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'W'.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_W_CNT_TRUSTED'.
+        lr_display->set_list_header( `Trusted WebRFC destinations (type W) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'W'
+            and trusted is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_W_CNT_TRUSTED_MIGRATED'.
+        lr_display->set_list_header( `Migrated WebRFC destinations (type W) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'W'
+            and trusted is not initial
+            and sysid   is not initial
+            and instnr  is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_W_CNT_TRUSTED_NO_INSTNR'.
+        lr_display->set_list_header( `Missing installation number in WebRFC destinations (type W) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'W'
+            and trusted is not initial
+            and sysid   is not initial
+            and instnr  is initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_W_CNT_TRUSTED_NO_SYSID'.
+        lr_display->set_list_header( `Missing system id in WebRFC destinations (type W) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'W'
+            and trusted is not initial
+            and sysid   is initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+      WHEN 'DEST_W_CNT_TRUSTED_TLS'.
+        lr_display->set_list_header( `Encrypted trusted WebRFC destinations (type W) of system ` && sid ).
+
+        LOOP AT <fs_destination>-destination_data INTO ls_destination_data
+          where rfctype = 'W'
+            and trusted is not initial
+            and encrypted is not initial.
+          APPEND ls_destination_data TO lt_destination_data.
+        ENDLOOP.
+
+    ENDCASE.
+
+    " Set color
+    LOOP AT lt_destination_data ASSIGNING FIELD-SYMBOL(<fs_destination_data>)
+      where trusted is not initial.
+
+      IF <fs_destination_data>-sysid IS NOT INITIAL.
+        APPEND VALUE #( fname = 'SYSID' color-col = col_positive ) TO <fs_destination_data>-t_color.
+      ELSE.
+        APPEND VALUE #( fname = 'SYSID' color-col = col_negative ) TO <fs_destination_data>-t_color.
+      ENDIF.
+      IF <fs_destination_data>-instnr IS NOT INITIAL.
+        APPEND VALUE #( fname = 'INSTNR' color-col = col_positive ) TO <fs_destination_data>-t_color.
+      ELSE.
+        APPEND VALUE #( fname = 'INSTNR' color-col = col_negative ) TO <fs_destination_data>-t_color.
+      ENDIF.
+    ENDLOOP.
+
+    TRY.
+        DATA lr_column TYPE REF TO cl_salv_column_table.        " Columns in Simple, Two-Dimensional Tables
+
+        lr_column ?= lr_columns->get_column( 'RFCDEST' ).
+        lr_column->set_long_text( 'Destination' ).
+        lr_column->set_medium_text( 'Destination' ).
+        lr_column->set_short_text( 'Dest.').
+
+        lr_column ?= lr_columns->get_column( 'RFCTYPE' ).
+
+        lr_column ?= lr_columns->get_column( 'TRUSTED' ).
+        lr_column->set_long_text( 'Trusted destination' ).
+        lr_column->set_medium_text( 'Trusted dest.' ).
+        lr_column->set_short_text( 'Trusted').
+
+        lr_column ?= lr_columns->get_column( 'SYSID' ).
+        lr_column->set_long_text( 'System ID' ).
+        lr_column->set_medium_text( 'System ID' ).
+        lr_column->set_short_text( 'System ID').
+
+        lr_column ?= lr_columns->get_column( 'INSTNR' ).
+        lr_column->set_long_text( 'Installation number' ).
+        lr_column->set_medium_text( 'Installation nr' ).
+        lr_column->set_short_text( 'Inst. nr').
+
+        lr_column ?= lr_columns->get_column( 'ENCRYPTED' ).
+        lr_column->set_long_text( 'Encrypted using SNC/TLS' ).
+        lr_column->set_medium_text( 'Encrypted (SNC/TLS)' ).
+        lr_column->set_short_text( 'Encrypted').
+
+      CATCH cx_salv_not_found.
+    ENDTRY.
+
+    " Show it
+    lr_table->display( ).
+
+  ENDMETHOD. " show_destinations
 
 ENDCLASS.                    "lcl_report IMPLEMENTATION
 
