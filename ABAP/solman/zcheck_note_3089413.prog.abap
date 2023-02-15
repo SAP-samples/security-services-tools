@@ -5,6 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 15.02.2023 Show more details about destinations
 *& 14.02.2023 A double click on a count of destinations shows a popup with the details
 *& 13.02.2023 Refactoring to use local methods instead of forms
 *& 07.02.2023 Show trusted systems without any data in RFCSYSACL
@@ -16,7 +17,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '14.02.2023 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '15.02.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -70,6 +71,170 @@ SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN COMMENT /1(60) ss_vers.
 
 *---------------------------------------------------------------------*
+
+" Main result table
+TYPES:
+  BEGIN OF ts_result,
+    " Assumption: Match entries from different stores based on install_number and landscape_id
+
+    install_number               TYPE sdiagst_store_dir-install_number,
+
+    long_sid                     TYPE diagls_tech_syst_long_sid,    "sdiagst_store_dir-long_sid,
+    sid                          TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
+    tech_system_type             TYPE diagls_technical_system_type, "sdiagst_store_dir-tech_system_type,
+    tech_system_id               TYPE diagls_id,                    "sdiagst_store_dir-tech_system_id,
+    landscape_id                 TYPE diagls_id,                    "sdiagst_store_dir-landscape_id,
+    host_full                    TYPE diagls_host_full_name,        "sdiagst_store_dir-host_full,
+    host                         TYPE diagls_host_name,             "sdiagst_store_dir-host,
+    host_id                      TYPE diagls_id,                    "sdiagst_store_dir-host_id,
+    physical_host                TYPE diagls_host_name,             "sdiagst_store_dir-physical_host,
+    instance_type                TYPE diagls_instance_type,         "sdiagst_store_dir-instance_type,
+    instance                     TYPE diagls_instance_name,         "sdiagst_store_dir-instance,
+
+    " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
+    compv_name                   TYPE sdiagst_store_dir-compv_name,
+
+    " Source store: SAP_KERNEL
+    kern_rel                     TYPE string,                               " 722_EXT_REL
+    kern_patchlevel              TYPE string,                               " 1000
+    kern_comp_time               TYPE string,                               " Jun  7 2020 15:44:10
+    kern_comp_date               TYPE sy-datum,
+
+    validate_kernel              TYPE string,
+
+    " Source store: ABAP_COMP_SPLEVEL
+    abap_release                 TYPE string,                               " 754
+    abap_sp                      TYPE string,                               " 0032
+
+    validate_abap                TYPE string,
+
+    " Source store: ABAP_NOTES
+    note_3089413                 TYPE string,
+    note_3089413_prstatus        TYPE cwbprstat,
+    note_3287611                 TYPE string,
+    note_3287611_prstatus        TYPE cwbprstat,
+
+    " Source store: RFCSYSACL
+    trustsy_cnt_all              TYPE i,
+    no_data_cnt                  TYPE i,
+    mutual_trust_cnt             TYPE i,
+    trustsy_cnt_tcd              TYPE i,
+    trustsy_cnt_3                TYPE i,
+    trustsy_cnt_2                TYPE i,
+    trustsy_cnt_1                TYPE i,
+    explicit_selftrust           TYPE string,
+
+    " Source store: ABAP_INSTANMCE_PAHI
+    rfc_selftrust                TYPE string,
+    rfc_allowoldticket4tt        TYPE string,
+    rfc_sendinstnr4tt            TYPE string,
+
+    " Source store: RFCDES
+    dest_3_cnt_all               TYPE i,
+    dest_3_cnt_trusted           TYPE i,
+    dest_3_cnt_trusted_migrated  TYPE i,
+    dest_3_cnt_trusted_no_instnr TYPE i,
+    dest_3_cnt_trusted_no_sysid  TYPE i,
+    dest_3_cnt_trusted_snc       TYPE i,
+
+    dest_h_cnt_all               TYPE i,
+    dest_h_cnt_trusted           TYPE i,
+    dest_h_cnt_trusted_migrated  TYPE i,
+    dest_h_cnt_trusted_no_instnr TYPE i,
+    dest_h_cnt_trusted_no_sysid  TYPE i,
+    dest_h_cnt_trusted_tls       TYPE i,
+
+    dest_w_cnt_all               TYPE i,
+    dest_w_cnt_trusted           TYPE i,
+    dest_w_cnt_trusted_migrated  TYPE i,
+    dest_w_cnt_trusted_no_instnr TYPE i,
+    dest_w_cnt_trusted_no_sysid  TYPE i,
+    dest_w_cnt_trusted_tls       TYPE i,
+
+    " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
+    store_id                     TYPE sdiagst_store_dir-store_id,
+    store_last_upload            TYPE sdiagst_store_dir-store_last_upload,
+    store_state                  TYPE sdiagst_store_dir-store_state,           " CMPL = ok
+    store_main_state_type        TYPE sdiagst_store_dir-store_main_state_type, " (G)reen, (Y)ello, (R)ed, (N)ot relevant
+    store_main_state             TYPE sdiagst_store_dir-store_main_state,
+    store_outdated_day           TYPE sdiagst_store_dir-store_outdated_day,
+
+    t_color                      TYPE lvc_t_scol,
+    "t_celltype                   type salv_t_int4_column,
+    "T_HYPERLINK                  type SALV_T_INT4_COLUMN,
+    "t_dropdown                   type salv_t_int4_column,
+  END OF ts_result,
+  tt_result TYPE STANDARD TABLE OF ts_result.
+
+" Popup showing trusted systems
+TYPES:
+  BEGIN OF ts_rfcsysacl_data,
+    rfcsysid     TYPE rfcssysid,  " Trusted system
+    tlicense_nr  TYPE slic_inst,  " Installation number of trusted system
+
+    rfctrustsy   TYPE rfcssysid,  " Trusting system (=current system)
+    llicense_nr  TYPE slic_inst,  " Installation number of trusting system (=current system), only available in higher versions
+
+    rfcdest      TYPE rfcdest,    " Destination to trusted system
+    rfccredest   TYPE rfcdest,    " Destination, only available in higher versions
+    rfcregdest   TYPE rfcdest,    " Destination, only available in higher versions
+
+    rfcsnc       TYPE rfcsnc,     " SNC respective TLS
+    rfcseckey    TYPE rfcticket,  " Security key (empty or '(stored)'), only available in higher versions
+    rfctcdchk    TYPE rfctcdchk,  " Tcode check
+    rfcslopt     TYPE rfcslopt,   " Options respective version
+
+    no_data      TYPE string,    " No data found for trusted system
+    mutual_trust TYPE string,    " Mutual trus relation
+
+    t_color      TYPE lvc_t_scol,
+  END OF ts_rfcsysacl_data,
+  tt_rfcsysacl_data TYPE STANDARD TABLE OF ts_rfcsysacl_data WITH KEY rfcsysid tlicense_nr,
+
+  BEGIN OF ts_trusted_system,
+    rfctrustsy     TYPE rfcssysid,  " Trusting system (=current system)
+    llicense_nr    TYPE slic_inst,  " Installation number of trusting system
+    rfcsysacl_data TYPE tt_rfcsysacl_data,
+  END OF ts_trusted_system,
+  tt_trusted_systems TYPE STANDARD TABLE OF ts_trusted_system WITH KEY rfctrustsy llicense_nr.
+
+" Popup showing destinations
+TYPES:
+  BEGIN OF ts_destination_data,
+    rfcdest       TYPE rfcdest,
+    rfctype       TYPE rfctype_d,
+
+    trusted(1),                    " Flag for Trusted RFC
+    rfcslogin     TYPE rfcslogin,   " Logon Procedure
+    serversysid   TYPE rfcsysid,    " System ID of target system
+    serverinstnr  TYPE slic_inst,   " Installation number of target system
+    check_trusted TYPE string,     " Check trusted relation in trusting system
+
+    rfchost       TYPE rfchost_ext, " Name of Target Host
+    rfcservice    TYPE rfcservice,  " Service used (TCP service, SAP System number)
+
+    rfcsysid      TYPE rfcsysid,    " System ID
+    rfcclient     TYPE rfcclient,   " Explicit logon client
+    rfcsameusr    TYPE rfcsameusr,  " Current User
+    rfcuser       TYPE rfcuser,     " Explicit user ID
+    rfcauth       TYPE rfcauth,     " Explicit password
+
+    rfcsnc        TYPE rfcsnc,      " RFC Secure Network Communication (HTTP SSL)
+    sslapplic     TYPE ssfapplssl,  " SSL Client Identity
+    noccert       TYPE char1,       " No client cert
+
+    t_color       TYPE lvc_t_scol,
+  END OF ts_destination_data,
+  tt_destination_data TYPE STANDARD TABLE OF ts_destination_data WITH KEY rfcdest,
+
+  BEGIN OF ts_destination,
+    sid              TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
+    install_number   TYPE sdiagst_store_dir-install_number,
+    destination_data TYPE tt_destination_data,
+  END OF ts_destination,
+  tt_destinations TYPE STANDARD TABLE OF ts_destination WITH KEY sid install_number.
+
+*---------------------------------------------------------------------*
 *      CLASS lcl_report DEFINITION
 *---------------------------------------------------------------------*
 CLASS lcl_report DEFINITION.
@@ -92,164 +257,19 @@ CLASS lcl_report DEFINITION.
 
   PRIVATE SECTION.
 
-    TYPES:
-
-      BEGIN OF ts_result,
-        " Assumption: Match entries from different stores based on install_number and landscape_id
-
-        install_number               TYPE sdiagst_store_dir-install_number,
-
-        long_sid                     TYPE diagls_tech_syst_long_sid,    "sdiagst_store_dir-long_sid,
-        sid                          TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
-        tech_system_type             TYPE diagls_technical_system_type, "sdiagst_store_dir-tech_system_type,
-        tech_system_id               TYPE diagls_id,                    "sdiagst_store_dir-tech_system_id,
-        landscape_id                 TYPE diagls_id,                    "sdiagst_store_dir-landscape_id,
-        host_full                    TYPE diagls_host_full_name,        "sdiagst_store_dir-host_full,
-        host                         TYPE diagls_host_name,             "sdiagst_store_dir-host,
-        host_id                      TYPE diagls_id,                    "sdiagst_store_dir-host_id,
-        physical_host                TYPE diagls_host_name,             "sdiagst_store_dir-physical_host,
-        instance_type                TYPE diagls_instance_type,         "sdiagst_store_dir-instance_type,
-        instance                     TYPE diagls_instance_name,         "sdiagst_store_dir-instance,
-
-        " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
-        compv_name                   TYPE sdiagst_store_dir-compv_name,
-
-        " Source store: SAP_KERNEL
-        kern_rel                     TYPE string,                               " 722_EXT_REL
-        kern_patchlevel              TYPE string,                               " 1000
-        kern_comp_time               TYPE string,                               " Jun  7 2020 15:44:10
-        kern_comp_date               TYPE sy-datum,
-
-        validate_kernel              TYPE string,
-
-        " Source store: ABAP_COMP_SPLEVEL
-        abap_release                 TYPE string,                               " 754
-        abap_sp                      TYPE string,                               " 0032
-
-        validate_abap                TYPE string,
-
-        " Source store: ABAP_NOTES
-        note_3089413                 TYPE string,
-        note_3089413_prstatus        TYPE cwbprstat,
-        note_3287611                 TYPE string,
-        note_3287611_prstatus        TYPE cwbprstat,
-
-        " Source store: RFCSYSACL
-        trustsy_cnt_all              TYPE i,
-        no_data_cnt                  TYPE i,
-        mutual_trust_cnt             TYPE i,
-        trustsy_cnt_tcd              TYPE i,
-        trustsy_cnt_3                TYPE i,
-        trustsy_cnt_2                TYPE i,
-        trustsy_cnt_1                TYPE i,
-        explicit_selftrust           TYPE string,
-
-        " Source store: ABAP_INSTANMCE_PAHI
-        rfc_selftrust                TYPE string,
-        rfc_allowoldticket4tt        TYPE string,
-        rfc_sendinstnr4tt            TYPE string,
-
-        " Source store: RFCDES
-        dest_3_cnt_all               TYPE i,
-        dest_3_cnt_trusted           TYPE i,
-        dest_3_cnt_trusted_migrated  TYPE i,
-        dest_3_cnt_trusted_no_instnr TYPE i,
-        dest_3_cnt_trusted_no_sysid  TYPE i,
-        dest_3_cnt_trusted_snc       TYPE i,
-
-        dest_h_cnt_all               TYPE i,
-        dest_h_cnt_trusted           TYPE i,
-        dest_h_cnt_trusted_migrated  TYPE i,
-        dest_h_cnt_trusted_no_instnr TYPE i,
-        dest_h_cnt_trusted_no_sysid  TYPE i,
-        dest_h_cnt_trusted_tls       TYPE i,
-
-        dest_w_cnt_all               TYPE i,
-        dest_w_cnt_trusted           TYPE i,
-        dest_w_cnt_trusted_migrated  TYPE i,
-        dest_w_cnt_trusted_no_instnr TYPE i,
-        dest_w_cnt_trusted_no_sysid  TYPE i,
-        dest_w_cnt_trusted_tls       TYPE i,
-
-        " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
-        store_id                     TYPE sdiagst_store_dir-store_id,
-        store_last_upload            TYPE sdiagst_store_dir-store_last_upload,
-        store_state                  TYPE sdiagst_store_dir-store_state,           " CMPL = ok
-        store_main_state_type        TYPE sdiagst_store_dir-store_main_state_type, " (G)reen, (Y)ello, (R)ed, (N)ot relevant
-        store_main_state             TYPE sdiagst_store_dir-store_main_state,
-        store_outdated_day           TYPE sdiagst_store_dir-store_outdated_day,
-
-        t_color                      TYPE lvc_t_scol,
-        "t_celltype                   type salv_t_int4_column,
-        "T_HYPERLINK                  type SALV_T_INT4_COLUMN,
-        "t_dropdown                   type salv_t_int4_column,
-      END OF ts_result,
-      tt_result TYPE STANDARD TABLE OF ts_result.
+    CLASS-DATA:
+      " main data table
+      lt_result          TYPE tt_result,
+      " details about trust relations
+      lt_trusted_systems TYPE tt_trusted_systems,
+      " details about destinations
+      lt_destinations    TYPE tt_destinations.
 
     CLASS-DATA:
-      lt_result TYPE tt_result,
-      ls_result TYPE ts_result.
-
-    " Popup showing trusted systems
-    TYPES:
-      BEGIN OF ts_rfcsysacl_data,
-        rfcsysid     TYPE rfcssysid,  " Trusted system
-        tlicense_nr  TYPE slic_inst,  " Installation number of trusted system
-
-        rfctrustsy   TYPE rfcssysid,  " Trusting system (=current system)
-        llicense_nr  TYPE slic_inst,  " Installation number of trusting system (=current system), only available in higher versions
-
-        rfcdest      TYPE rfcdest,    " Destination to trusted system
-        rfccredest   TYPE rfcdest,    " Destination, only available in higher versions
-        rfcregdest   TYPE rfcdest,    " Destination, only available in higher versions
-
-        rfcsnc       TYPE rfcsnc,     " SNC respective TLS
-        rfcseckey    TYPE rfcticket,  " Security key (empty or '(stored)'), only available in higher versions
-        rfctcdchk    TYPE rfctcdchk,  " Tcode check
-        rfcslopt     TYPE rfcslopt,   " Options respective version
-
-        no_data      TYPE string,    " No data found for trusted system
-        mutual_trust TYPE string,    " Mutual trus relation
-
-        t_color      TYPE lvc_t_scol,
-      END OF ts_rfcsysacl_data,
-      tt_rfcsysacl_data TYPE STANDARD TABLE OF ts_rfcsysacl_data WITH KEY rfcsysid tlicense_nr,
-
-      BEGIN OF ts_trusted_system,
-        rfctrustsy     TYPE rfcssysid,  " Trusting system (=current system)
-        llicense_nr    TYPE slic_inst,  " Installation number of trusting system
-        rfcsysacl_data TYPE tt_rfcsysacl_data,
-      END OF ts_trusted_system,
-      tt_trusted_systems TYPE STANDARD TABLE OF ts_trusted_system WITH KEY rfctrustsy llicense_nr.
-
-    CLASS-DATA:
-      ls_trusted_system  TYPE ts_trusted_system,
-      lt_trusted_systems TYPE tt_trusted_systems.
-
-    " Popup showing destinations
-    TYPES:
-      BEGIN OF ts_destination_data,
-        rfcdest        TYPE rfcdest,
-        rfctype        TYPE RFCTYPE_D,
-        trusted(1),                                           " Flag for Trusted RFC
-        sysid          TYPE diagls_technical_system_sid,      " System ID of target system
-        instnr         TYPE sdiagst_store_dir-install_number, " Installation number of target system
-        encrypted(1),                                         " Flag for SNC / TLS
-
-        t_color      TYPE lvc_t_scol,
-      END OF ts_destination_data,
-      tt_destination_data TYPE STANDARD TABLE OF ts_destination_data WITH KEY rfcdest,
-
-      BEGIN OF ts_destination,
-        sid            TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
-        install_number TYPE sdiagst_store_dir-install_number,
-        destination_data    TYPE tt_destination_data,
-      END OF ts_destination,
-      tt_destinations TYPE STANDARD TABLE OF ts_destination WITH KEY sid install_number.
-
-    CLASS-DATA:
-      ls_destination  TYPE ts_destination,
-      lt_destinations TYPE tt_destinations.
+      " main ALV table
+      lr_alv_table  TYPE REF TO cl_salv_table,
+      " for handling the events on the main ALV table
+      lr_alv_events TYPE REF TO lcl_report.
 
     CLASS-METHODS:
 
@@ -295,19 +315,9 @@ CLASS lcl_report DEFINITION.
 
       show_destinations
         IMPORTING
-          column      TYPE salv_de_column
+          column         TYPE salv_de_column
           install_number TYPE ts_result-install_number
-          sid         TYPE ts_result-sid.
-
-    CLASS-DATA:
-
-      ls_alv_variant TYPE disvariant,
-
-      " main data table
-      lr_alv_table   TYPE REF TO cl_salv_table,
-
-      " for handling the events of cl_salv_table
-      lr_alv_events  TYPE REF TO lcl_report.
+          sid            TYPE ts_result-sid.
 
 ENDCLASS.                    "lcl_report DEFINITION
 
@@ -328,7 +338,7 @@ CLASS lcl_report IMPLEMENTATION.
     ps_trust = 'Check Trusted Relations'.
     ps_dest  = 'Check Trusted Destinations'.
 
-    ps_lout     = 'Layout'(t18).
+    ps_lout  = 'Layout'.
 
     CONCATENATE 'Program version:'(ver) c_program_version INTO ss_vers
        SEPARATED BY space.
@@ -410,6 +420,7 @@ CLASS lcl_report IMPLEMENTATION.
   METHOD f4_p_layout.
     "CHANGING layout TYPE disvariant-variant.
 
+    DATA ls_alv_variant TYPE disvariant.
     ls_alv_variant-report  = sy-repid.
     ls_alv_variant-variant = layout.
 
@@ -436,7 +447,6 @@ CLASS lcl_report IMPLEMENTATION.
     "IMPORTING layout TYPE disvariant-variant.
 
     DATA: ls_variant TYPE disvariant.
-
     ls_variant-report  = sy-repid.
     ls_variant-variant = layout.
 
@@ -452,12 +462,9 @@ CLASS lcl_report IMPLEMENTATION.
         OTHERS        = 4.
 
     IF sy-subrc <> 0.
-*   Selected layout variant is not found
+      " Selected layout variant is not found
       MESSAGE e204(0k).
     ENDIF.
-
-    ls_alv_variant-report  = sy-repid.
-    ls_alv_variant-variant = layout.
 
   ENDMETHOD. " at_selscr_on_p_layout
 
@@ -549,7 +556,7 @@ CLASS lcl_report IMPLEMENTATION.
       .
 
       " Do we already have an entry for this system?
-      READ TABLE lt_result INTO ls_result
+      READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
           install_number = ls_store_dir-install_number
           long_sid       = ls_store_dir-long_sid
@@ -732,7 +739,7 @@ CLASS lcl_report IMPLEMENTATION.
       .
 
       " Do we already have an entry for this system?
-      READ TABLE lt_result INTO ls_result
+      READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
           install_number = ls_store_dir-install_number
           long_sid       = ls_store_dir-long_sid
@@ -857,7 +864,7 @@ CLASS lcl_report IMPLEMENTATION.
       .
 
       " Do we already have an entry for this system?
-      READ TABLE lt_result INTO ls_result
+      READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
           install_number = ls_store_dir-install_number
           long_sid       = ls_store_dir-long_sid
@@ -997,7 +1004,7 @@ CLASS lcl_report IMPLEMENTATION.
       .
 
       " Do we already have an entry for this system?
-      READ TABLE lt_result INTO ls_result
+      READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
           install_number = ls_store_dir-install_number
           long_sid       = ls_store_dir-long_sid
@@ -1030,6 +1037,7 @@ CLASS lcl_report IMPLEMENTATION.
           rc_text   = rc_text.
 
       " Store RRFCSYSACL data
+      DATA ls_trusted_system  TYPE ts_trusted_system.
       CLEAR ls_trusted_system.
       ls_trusted_system-rfctrustsy  = ls_store_dir-sid.
       ls_trusted_system-llicense_nr = ls_store_dir-install_number.
@@ -1176,7 +1184,7 @@ CLASS lcl_report IMPLEMENTATION.
         .
 
       " Do we already have an entry for this system?
-      READ TABLE lt_result INTO ls_result
+      READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
           install_number = ls_store_dir-install_number
           long_sid       = ls_store_dir-long_sid
@@ -1191,6 +1199,7 @@ CLASS lcl_report IMPLEMENTATION.
       ENDIF.
 
       " Store destination data
+      DATA ls_destination  TYPE ts_destination.
       CLEAR ls_destination.
       ls_destination-sid            = ls_store_dir-sid.
       ls_destination-install_number = ls_store_dir-install_number.
@@ -1230,19 +1239,105 @@ CLASS lcl_report IMPLEMENTATION.
         ls_destination_data-rfcdest = ls_rfcdest-fieldvalue.
         ls_destination_data-rfctype = ls_rfctype-fieldvalue.
 
-        FIND REGEX ',\[=([^,]{3}),'    IN ls_rfcoptions-fieldvalue     " System ID
-          SUBMATCHES ls_destination_data-sysid.
+        " Interpret tokens similar to function RFCDES2RFCDISPLAY
 
-        FIND REGEX ',\^=([^,]{1,10}),' IN ls_rfcoptions-fieldvalue     " Installation number
-          SUBMATCHES ls_destination_data-instnr.
-
-        FIND REGEX ',Q=(Y),' IN ls_rfcoptions-fieldvalue               " Trusted
+        FIND REGEX 'Q=(Y),' IN ls_rfcoptions-fieldvalue              " Trusted
           SUBMATCHES ls_destination_data-trusted.
+        IF ls_destination_data-trusted = 'Y'.
+          ls_destination_data-trusted = 'X'. " show checkbox instead of value
+        ENDIF.
+        FIND REGEX 'Q=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Logon Procedure (Y = Trusted)
+          SUBMATCHES ls_destination_data-rfcslogin.
 
-        FIND REGEX ',s=(Y),' IN ls_rfcoptions-fieldvalue               " SNC/TLS
-          SUBMATCHES ls_destination_data-encrypted.
+        FIND REGEX '\[=([^,]{3}),'    IN ls_rfcoptions-fieldvalue    " System ID for trusted connection
+          SUBMATCHES ls_destination_data-serversysid.
 
-        append ls_destination_data to ls_destination-destination_data.
+        FIND REGEX '\^=([^,]{1,10}),' IN ls_rfcoptions-fieldvalue    " Installation number for trusted connection
+          SUBMATCHES ls_destination_data-serverinstnr.
+
+
+        FIND REGEX 'H=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Name of Target Host
+          SUBMATCHES ls_destination_data-rfchost.
+
+        FIND REGEX 'S=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Service used (TCP service, SAP System number)
+          SUBMATCHES ls_destination_data-rfcservice.
+
+
+        FIND REGEX 'I=([^,]*),'       IN ls_rfcoptions-fieldvalue    " System ID
+          SUBMATCHES ls_destination_data-rfcsysid.
+
+        FIND REGEX 'M=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit logon client
+          SUBMATCHES ls_destination_data-rfcclient.
+
+        FIND REGEX 'U=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit user
+          SUBMATCHES ls_destination_data-rfcuser.
+        CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
+        IF ls_destination_data-rfcuser = logon_screen_token.
+          ls_destination_data-rfcuser = 'logon screen'.
+        ENDIF.
+
+        FIND REGEX 'u=(Y),'           IN ls_rfcoptions-fieldvalue    " Same user flag
+          SUBMATCHES ls_destination_data-rfcsameusr.
+        IF ls_destination_data-rfcsameusr = 'Y'.
+          ls_destination_data-rfcsameusr = 'X'. " show checkbox instead of value
+
+          ls_destination_data-rfcuser = 'same user'.
+        ENDIF.
+
+        FIND REGEX 'v=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+          SUBMATCHES ls_destination_data-rfcauth.
+        FIND REGEX 'V=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+          SUBMATCHES ls_destination_data-rfcauth.
+        FIND REGEX 'P=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+          SUBMATCHES ls_destination_data-rfcauth.
+        CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
+        IF ls_destination_data-rfcauth = sec_storage_token.
+          ls_destination_data-rfcauth = 'stored password'.
+        ENDIF.
+
+
+        FIND REGEX 's=(Y),'           IN ls_rfcoptions-fieldvalue    " SNC/TLS
+          SUBMATCHES ls_destination_data-rfcsnc.
+        IF ls_destination_data-rfcsnc = 'Y'.
+          ls_destination_data-rfcsnc = 'X'. " show checkbox instead of value
+        ENDIF.
+        FIND REGEX 't=([^,]*),'       IN ls_rfcoptions-fieldvalue    " SSL Client Identity
+          SUBMATCHES ls_destination_data-sslapplic.
+        FIND REGEX '/=([^,]*),'       IN ls_rfcoptions-fieldvalue    " No client cert
+          SUBMATCHES ls_destination_data-noccert.
+
+        " Check trusting relation
+        IF    p_trust                          IS NOT INITIAL
+          AND ls_destination_data-trusted      IS NOT INITIAL
+          AND ls_destination_data-serversysid  IS NOT INITIAL
+          AND ls_destination_data-serverinstnr IS NOT INITIAL.
+
+          " Get data from trusting system
+          READ TABLE lt_trusted_systems ASSIGNING FIELD-SYMBOL(<fs_trusted_system>)
+            WITH TABLE KEY
+              rfctrustsy  = ls_destination_data-serversysid
+              llicense_nr = ls_destination_data-serverinstnr.
+          IF sy-subrc IS INITIAL.
+            " Is the current system a trusted system?
+            READ TABLE <fs_trusted_system>-rfcsysacl_data ASSIGNING FIELD-SYMBOL(<fs_rfcsysacl_data>)
+              WITH TABLE KEY
+                rfcsysid    = ls_destination-sid
+                tlicense_nr = ls_destination-install_number.
+            IF sy-subrc IS INITIAL.
+              CASE <fs_rfcsysacl_data>-rfcslopt.
+                WHEN space. ls_destination_data-check_trusted = `very old`.
+                WHEN '2'.   ls_destination_data-check_trusted = `old`.
+                WHEN '3'.   ls_destination_data-check_trusted = `migrated`.
+              ENDCASE.
+            ELSE.
+              ls_destination_data-check_trusted = 'missing'.
+            ENDIF.
+          ELSE.
+            " No data available for trusting system
+          ENDIF.
+        ENDIF.
+
+        APPEND ls_destination_data TO ls_destination-destination_data.
 
         " Update count
         CASE ls_destination_data-rfctype.
@@ -1251,11 +1346,11 @@ CLASS lcl_report IMPLEMENTATION.
             p_dest_3 = 'X'.
             ADD 1 TO ls_result-dest_3_cnt_all.                         " All destinations
 
-            IF ls_destination_data-trusted is not initial.             " Trusted destination
+            IF ls_destination_data-trusted IS NOT INITIAL.             " Trusted destination
               ADD 1 TO ls_result-dest_3_cnt_trusted.
 
-              IF ls_destination_data-sysid is not initial.
-                IF ls_destination_data-instnr is not initial.
+              IF ls_destination_data-serversysid IS NOT INITIAL.
+                IF ls_destination_data-serverinstnr IS NOT INITIAL.
                   " System ID and installation number are available
                   ADD 1 TO ls_result-dest_3_cnt_trusted_migrated.
                 ELSE.
@@ -1267,7 +1362,7 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_3_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_destination_data-encrypted is not initial.
+              IF ls_destination_data-rfcsnc IS NOT INITIAL.
                 ADD 1 TO ls_result-dest_3_cnt_trusted_snc.
               ENDIF.
             ENDIF.
@@ -1276,11 +1371,11 @@ CLASS lcl_report IMPLEMENTATION.
             p_dest_h = 'X'.
             ADD 1 TO ls_result-dest_h_cnt_all.                             " All destinations
 
-            IF ls_destination_data-trusted is not initial.             " Trusted destination
+            IF ls_destination_data-trusted IS NOT INITIAL.             " Trusted destination
               ADD 1 TO ls_result-dest_h_cnt_trusted.
 
-              IF ls_destination_data-sysid is not initial.
-                IF ls_destination_data-instnr is not initial.
+              IF ls_destination_data-serversysid IS NOT INITIAL.
+                IF ls_destination_data-serverinstnr IS NOT INITIAL.
                   " System ID and installation number are available
                   ADD 1 TO ls_result-dest_h_cnt_trusted_migrated.
                 ELSE.
@@ -1292,7 +1387,7 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_h_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_destination_data-encrypted is not initial.
+              IF ls_destination_data-rfcsnc IS NOT INITIAL.
                 ADD 1 TO ls_result-dest_h_cnt_trusted_tls.
               ENDIF.
             ENDIF.
@@ -1301,11 +1396,11 @@ CLASS lcl_report IMPLEMENTATION.
             p_dest_w = 'X'.
             ADD 1 TO ls_result-dest_w_cnt_all.                             " All destinations
 
-            IF ls_destination_data-trusted is not initial.             " Trusted destination
+            IF ls_destination_data-trusted IS NOT INITIAL.             " Trusted destination
               ADD 1 TO ls_result-dest_w_cnt_trusted.
 
-              IF ls_destination_data-sysid is not initial.
-                IF ls_destination_data-instnr is not initial.
+              IF ls_destination_data-serversysid IS NOT INITIAL.
+                IF ls_destination_data-serverinstnr IS NOT INITIAL.
                   " System ID and installation number are available
                   ADD 1 TO ls_result-dest_w_cnt_trusted_migrated.
                 ELSE.
@@ -1317,7 +1412,7 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_w_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_destination_data-encrypted is not initial.
+              IF ls_destination_data-rfcsnc IS NOT INITIAL.
                 ADD 1 TO ls_result-dest_w_cnt_trusted_tls.
               ENDIF.
             ENDIF.
@@ -1333,7 +1428,7 @@ CLASS lcl_report IMPLEMENTATION.
       ENDIF.
 
       " Store destination data
-      append ls_destination to lt_destinations.
+      APPEND ls_destination TO lt_destinations.
 
     ENDLOOP. " lt_STORE_DIR
 
@@ -1409,7 +1504,7 @@ CLASS lcl_report IMPLEMENTATION.
       .
 
       " Do we already have an entry for this system?
-      READ TABLE lt_result INTO ls_result
+      READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
           install_number = ls_store_dir-install_number
           long_sid       = ls_store_dir-long_sid
@@ -1582,7 +1677,7 @@ CLASS lcl_report IMPLEMENTATION.
           OR   rel = 702 AND sp < 26
           OR   rel = 731 AND sp < 33
           OR   rel = 740 AND sp < 30
-          OR   rel = 750 AND sp < 26
+          OR   rel = 750 AND sp < 27
           OR   rel = 751 AND sp < 16
           OR   rel = 752 AND sp < 12
           OR   rel = 753 AND sp < 10
@@ -1604,6 +1699,7 @@ CLASS lcl_report IMPLEMENTATION.
 
         ELSEIF rel = 750 AND sp < 27
           OR   rel = 751 AND sp < 17
+          OR   rel = 752 AND sp < 13
           .
           <fs_result>-validate_abap = 'Note required'.
           APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_result>-t_color.
@@ -1863,7 +1959,7 @@ CLASS lcl_report IMPLEMENTATION.
               rfctrustsy  = ls_result-sid
             ).
 
-          " Show destinations
+            " Show destinations
           ELSEIF ls_cell-columnname(11) = 'DEST_3_CNT_'
             OR ls_cell-columnname(11) = 'DEST_H_CNT_'
             OR ls_cell-columnname(11) = 'DEST_W_CNT_'.
@@ -1903,7 +1999,7 @@ CLASS lcl_report IMPLEMENTATION.
           rfctrustsy  = ls_result-sid
         ).
 
-      " Show destinations
+        " Show destinations
       ELSEIF column(11) = 'DEST_3_CNT_'
         OR column(11) = 'DEST_H_CNT_'
         OR column(11) = 'DEST_W_CNT_'.
@@ -2579,11 +2675,13 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column->set_long_text( 'Trusted system' ).
         lr_column->set_medium_text( 'Trusted system' ).
         lr_column->set_short_text( 'Trusted').
+        lr_column->set_key( abap_true ).
 
         lr_column ?= lr_columns->get_column( 'RFCTRUSTSY' ).
         lr_column->set_long_text( 'Trusting system' ).
         lr_column->set_medium_text( 'Trusting system' ).
         lr_column->set_short_text( 'Trusting').
+        lr_column->set_key( abap_true ).
 
         lr_column ?= lr_columns->get_column( 'RFCDEST' ).
         lr_column->set_long_text( 'Destination to trusted system' ).
@@ -2711,7 +2809,7 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `All RFC destinations (type 3) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = '3'.
+          WHERE rfctype = '3'.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2719,8 +2817,8 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Trusted RFC destinations (type 3) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = '3'
-            and trusted is not initial.
+          WHERE rfctype = '3'
+            AND trusted IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2728,10 +2826,10 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Migrated RFC destinations (type 3) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = '3'
-            and trusted is not initial
-            and sysid   is not initial
-            and instnr  is not initial.
+          WHERE rfctype = '3'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS NOT INITIAL
+            AND serverinstnr IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2739,10 +2837,10 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Missing installation number in RFC destinations (type 3) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = '3'
-            and trusted is not initial
-            and sysid   is not initial
-            and instnr  is initial.
+          WHERE rfctype = '3'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS NOT INITIAL
+            AND serverinstnr IS INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2750,9 +2848,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Missing system id in RFC destinations (type 3) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = '3'
-            and trusted is not initial
-            and sysid   is initial.
+          WHERE rfctype = '3'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2760,9 +2858,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Encrypted trusted RFC destinations (type 3) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = '3'
-            and trusted is not initial
-            and encrypted is not initial.
+          WHERE rfctype = '3'
+            AND trusted IS NOT INITIAL
+            AND rfcsnc IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2771,7 +2869,7 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `All http destinations (type H) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'H'.
+          WHERE rfctype = 'H'.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2779,8 +2877,8 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Trusted http destinations (type H) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'H'
-            and trusted is not initial.
+          WHERE rfctype = 'H'
+            AND trusted IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2788,10 +2886,10 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Migrated http destinations (type H) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'H'
-            and trusted is not initial
-            and sysid   is not initial
-            and instnr  is not initial.
+          WHERE rfctype = 'H'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS NOT INITIAL
+            AND serverinstnr IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2799,10 +2897,10 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Missing installation number in http destinations (type H) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'H'
-            and trusted is not initial
-            and sysid   is not initial
-            and instnr  is initial.
+          WHERE rfctype = 'H'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS NOT INITIAL
+            AND serverinstnr IS INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2810,9 +2908,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Missing system id in http destinations (type H) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'H'
-            and trusted is not initial
-            and sysid   is initial.
+          WHERE rfctype = 'H'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2820,9 +2918,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Encrypted trusted http destinations (type H) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'H'
-            and trusted is not initial
-            and encrypted is not initial.
+          WHERE rfctype = 'H'
+            AND trusted IS NOT INITIAL
+            AND rfcsnc IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2831,7 +2929,7 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `All WebRFC destinations (type W) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'W'.
+          WHERE rfctype = 'W'.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2839,8 +2937,8 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Trusted WebRFC destinations (type W) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'W'
-            and trusted is not initial.
+          WHERE rfctype = 'W'
+            AND trusted IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2848,10 +2946,10 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Migrated WebRFC destinations (type W) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'W'
-            and trusted is not initial
-            and sysid   is not initial
-            and instnr  is not initial.
+          WHERE rfctype = 'W'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS NOT INITIAL
+            AND serverinstnr IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2859,10 +2957,10 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Missing installation number in WebRFC destinations (type W) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'W'
-            and trusted is not initial
-            and sysid   is not initial
-            and instnr  is initial.
+          WHERE rfctype = 'W'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS NOT INITIAL
+            AND serverinstnr IS INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2870,9 +2968,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Missing system id in WebRFC destinations (type W) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'W'
-            and trusted is not initial
-            and sysid   is initial.
+          WHERE rfctype = 'W'
+            AND trusted      IS NOT INITIAL
+            AND serversysid  IS INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2880,9 +2978,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_display->set_list_header( `Encrypted trusted WebRFC destinations (type W) of system ` && sid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
-          where rfctype = 'W'
-            and trusted is not initial
-            and encrypted is not initial.
+          WHERE rfctype = 'W'
+            AND trusted IS NOT INITIAL
+            AND rfcsnc IS NOT INITIAL.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -2890,18 +2988,26 @@ CLASS lcl_report IMPLEMENTATION.
 
     " Set color
     LOOP AT lt_destination_data ASSIGNING FIELD-SYMBOL(<fs_destination_data>)
-      where trusted is not initial.
+      WHERE trusted IS NOT INITIAL.
 
-      IF <fs_destination_data>-sysid IS NOT INITIAL.
-        APPEND VALUE #( fname = 'SYSID' color-col = col_positive ) TO <fs_destination_data>-t_color.
+      IF <fs_destination_data>-serversysid IS NOT INITIAL.
+        APPEND VALUE #( fname = 'SERVERSYSID' color-col = col_positive ) TO <fs_destination_data>-t_color.
       ELSE.
-        APPEND VALUE #( fname = 'SYSID' color-col = col_negative ) TO <fs_destination_data>-t_color.
+        APPEND VALUE #( fname = 'SERVERSYSID' color-col = col_negative ) TO <fs_destination_data>-t_color.
       ENDIF.
-      IF <fs_destination_data>-instnr IS NOT INITIAL.
-        APPEND VALUE #( fname = 'INSTNR' color-col = col_positive ) TO <fs_destination_data>-t_color.
+
+      IF <fs_destination_data>-serverinstnr IS NOT INITIAL.
+        APPEND VALUE #( fname = 'SERVERINSTNR' color-col = col_positive ) TO <fs_destination_data>-t_color.
       ELSE.
-        APPEND VALUE #( fname = 'INSTNR' color-col = col_negative ) TO <fs_destination_data>-t_color.
+        APPEND VALUE #( fname = 'SERVERINSTNR' color-col = col_negative ) TO <fs_destination_data>-t_color.
       ENDIF.
+
+      CASE <fs_destination_data>-check_trusted.
+        WHEN 'missing'.   APPEND VALUE #( fname = 'CHECK_TRUSTED' color-col = col_negative ) TO <fs_destination_data>-t_color.
+        WHEN 'very old'
+          OR 'old'.       APPEND VALUE #( fname = 'CHECK_TRUSTED' color-col = col_total )    TO <fs_destination_data>-t_color.
+        WHEN 'migrated'.  APPEND VALUE #( fname = 'CHECK_TRUSTED' color-col = col_positive ) TO <fs_destination_data>-t_color.
+      ENDCASE.
     ENDLOOP.
 
     TRY.
@@ -2910,29 +3016,82 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column ?= lr_columns->get_column( 'RFCDEST' ).
         lr_column->set_long_text( 'Destination' ).
         lr_column->set_medium_text( 'Destination' ).
-        lr_column->set_short_text( 'Dest.').
+        lr_column->set_short_text( 'Dest.' ).
+        lr_column->set_key( abap_true ).
 
         lr_column ?= lr_columns->get_column( 'RFCTYPE' ).
 
         lr_column ?= lr_columns->get_column( 'TRUSTED' ).
         lr_column->set_long_text( 'Trusted destination' ).
         lr_column->set_medium_text( 'Trusted dest.' ).
-        lr_column->set_short_text( 'Trusted').
+        lr_column->set_short_text( 'Trusted' ).
+        lr_column->set_cell_type( if_salv_c_cell_type=>checkbox ).
 
-        lr_column ?= lr_columns->get_column( 'SYSID' ).
+        lr_column ?= lr_columns->get_column( 'RFCSLOGIN' ).
+        lr_column->set_long_text( 'Logon Procedure (A, B, Y)' ).
+        lr_column->set_medium_text( 'Logon Procedure' ).
+        lr_column->set_short_text( 'LogonProc.' ).
+        lr_column->set_visible( abap_false ).
+
+        lr_column ?= lr_columns->get_column( 'SERVERSYSID' ).
         lr_column->set_long_text( 'System ID' ).
         lr_column->set_medium_text( 'System ID' ).
-        lr_column->set_short_text( 'System ID').
+        lr_column->set_short_text( 'System ID' ).
 
-        lr_column ?= lr_columns->get_column( 'INSTNR' ).
+        lr_column ?= lr_columns->get_column( 'SERVERINSTNR' ).
         lr_column->set_long_text( 'Installation number' ).
         lr_column->set_medium_text( 'Installation nr' ).
-        lr_column->set_short_text( 'Inst. nr').
+        lr_column->set_short_text( 'Inst. nr' ).
 
-        lr_column ?= lr_columns->get_column( 'ENCRYPTED' ).
+        lr_column ?= lr_columns->get_column( 'CHECK_TRUSTED' ).
+        lr_column->set_long_text( 'Check trusted relation in trusting sys.' ).
+        lr_column->set_medium_text( 'Check trusted rel.' ).
+        lr_column->set_short_text( 'CheckTrust' ).
+        IF p_trust IS INITIAL.
+          lr_column->set_technical( abap_true ).
+        ENDIF.
+
+        lr_column ?= lr_columns->get_column( 'RFCHOST' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCSERVICE' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCSYSID' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCCLIENT' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCSAMEUSR' ).
+        lr_column->set_long_text( 'Same user' ).
+        lr_column->set_medium_text( 'Same user' ).
+        lr_column->set_short_text( 'Same user' ).
+        lr_column->set_cell_type( if_salv_c_cell_type=>checkbox ).
+
+        lr_column ?= lr_columns->get_column( 'RFCUSER' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCAUTH' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCSNC' ).
         lr_column->set_long_text( 'Encrypted using SNC/TLS' ).
         lr_column->set_medium_text( 'Encrypted (SNC/TLS)' ).
-        lr_column->set_short_text( 'Encrypted').
+        lr_column->set_short_text( 'Encrypted' ).
+        lr_column->set_cell_type( if_salv_c_cell_type=>checkbox ).
+
+        lr_column ?= lr_columns->get_column( 'SSLAPPLIC' ).
+
+        lr_column ?= lr_columns->get_column( 'NOCCERT' ).
+        lr_column->set_long_text( 'Send no client certificate' ).
+        lr_column->set_medium_text( 'No client cert.' ).
+        lr_column->set_short_text( 'No Cl.Cert' ).
+
+        " Hide TLS columns for type 3 destinations
+        IF column+5(1) = '3'. " 'DEST_3_CNT_ALL'
+
+          lr_column ?= lr_columns->get_column( 'SSLAPPLIC' ).
+          lr_column->set_visible( abap_false ).
+
+          lr_column ?= lr_columns->get_column( 'NOCCERT' ).
+          lr_column->set_visible( abap_false ).
+
+        ENDIF.
 
       CATCH cx_salv_not_found.
     ENDTRY.
