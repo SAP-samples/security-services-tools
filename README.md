@@ -71,7 +71,7 @@ Updated 28.08.2020
 - Report [`ZCHECK_NOTE_3089413`](/ABAP/solman/zcheck_note_3089413.prog.abap)  
 Check the implementation status of note [3089413](https://launchpad.support.sap.com/#/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
-Updated 15.02.2023 Show more details about destinations  
+Updated 16.02.2023 Show count of migrated trusted destinations per trust relation  
 
 ### Configuration Validation
 

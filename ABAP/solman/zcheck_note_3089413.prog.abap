@@ -5,6 +5,8 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 16.02.2023 Show count of migrated trusted destinations per trust relation
+*&            ABAPLINT corrections, optimized performance
 *& 15.02.2023 Show more details about destinations
 *& 14.02.2023 A double click on a count of destinations shows a popup with the details
 *& 13.02.2023 Refactoring to use local methods instead of forms
@@ -17,7 +19,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '15.02.2023 FBT'.
+CONSTANTS c_program_version(30) TYPE c VALUE '16.02.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -169,25 +171,27 @@ TYPES:
 " Popup showing trusted systems
 TYPES:
   BEGIN OF ts_rfcsysacl_data,
-    rfcsysid     TYPE rfcssysid,  " Trusted system
-    tlicense_nr  TYPE slic_inst,  " Installation number of trusted system
+    rfcsysid         TYPE rfcssysid,  " Trusted system
+    tlicense_nr      TYPE slic_inst,  " Installation number of trusted system
 
-    rfctrustsy   TYPE rfcssysid,  " Trusting system (=current system)
-    llicense_nr  TYPE slic_inst,  " Installation number of trusting system (=current system), only available in higher versions
+    rfctrustsy       TYPE rfcssysid,  " Trusting system (=current system)
+    llicense_nr      TYPE slic_inst,  " Installation number of trusting system (=current system), only available in higher versions
 
-    rfcdest      TYPE rfcdest,    " Destination to trusted system
-    rfccredest   TYPE rfcdest,    " Destination, only available in higher versions
-    rfcregdest   TYPE rfcdest,    " Destination, only available in higher versions
+    rfcslopt         TYPE rfcslopt,   " Options respective version
+    no_data          TYPE string,    " No data found for trusted system
+    mutual_trust     TYPE string,    " Mutual trust relation
 
-    rfcsnc       TYPE rfcsnc,     " SNC respective TLS
-    rfcseckey    TYPE rfcticket,  " Security key (empty or '(stored)'), only available in higher versions
-    rfctcdchk    TYPE rfctcdchk,  " Tcode check
-    rfcslopt     TYPE rfcslopt,   " Options respective version
+    rfcdest          TYPE rfcdest,    " Destination to trusted system
+    rfccredest       TYPE rfcdest,    " Destination, only available in higher versions
+    rfcregdest       TYPE rfcdest,    " Destination, only available in higher versions
 
-    no_data      TYPE string,    " No data found for trusted system
-    mutual_trust TYPE string,    " Mutual trus relation
+    rfcsnc           TYPE rfcsnc,     " SNC respective TLS
+    rfcseckey        TYPE rfcticket,  " Security key (empty or '(stored)'), only available in higher versions
+    rfctcdchk        TYPE rfctcdchk,  " Tcode check
 
-    t_color      TYPE lvc_t_scol,
+    trusted_dest_cnt TYPE i,          " Count of migrated trusted destinations in trusted system
+
+    t_color          TYPE lvc_t_scol,
   END OF ts_rfcsysacl_data,
   tt_rfcsysacl_data TYPE STANDARD TABLE OF ts_rfcsysacl_data WITH KEY rfcsysid tlicense_nr,
 
@@ -296,6 +300,10 @@ CLASS lcl_report DEFINITION.
 
       validate_mutual_trust,
 
+      count_dest_per_trust,
+
+      validate_trust_for_dest,
+
       show_result,
 
       on_user_command FOR EVENT added_function OF cl_salv_events
@@ -376,7 +384,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       STATS_FROM        =
 *       STATS_TO          =
 *       DISPLAY           = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL      = ' '
       IMPORTING
         technical_systems = lt_technical_systems
@@ -479,7 +487,8 @@ CLASS lcl_report IMPLEMENTATION.
 
     validate_kernel( ).
     validate_abap( ).
-
+    count_dest_per_trust( ).
+    validate_trust_for_dest( ).
     validate_mutual_trust( ).
 
     show_result( ).
@@ -499,11 +508,11 @@ CLASS lcl_report IMPLEMENTATION.
       rc                TYPE  i,
       rc_text           TYPE  natxt.
 
-    DATA: tabix TYPE i.
+    DATA tabix TYPE i.
 
     CALL FUNCTION 'DIAGST_GET_STORES'
       EXPORTING
-        " The “System Filter” parameters allow to get all Stores of a system or technical system.
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
         " Some combinations of the four parameters are not allowed.
         " The function will return an error code in such a case.
 *       SID                   = ' '
@@ -535,7 +544,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
         " Others
 *       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL          = ' '
       IMPORTING
 *       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
@@ -681,12 +690,12 @@ CLASS lcl_report IMPLEMENTATION.
       rc                TYPE  i,
       rc_text           TYPE  natxt.
 
-    DATA: tabix TYPE i.
+    DATA tabix TYPE i.
 
     " Using a SEARCH_STRING for SAP_BASIS should not speed up processing, as this component exists always
     CALL FUNCTION 'DIAGST_GET_STORES'
       EXPORTING
-        " The “System Filter” parameters allow to get all Stores of a system or technical system.
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
         " Some combinations of the four parameters are not allowed.
         " The function will return an error code in such a case.
 *       SID                   = ' '
@@ -718,7 +727,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
         " Others
 *       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL          = ' '
       IMPORTING
 *       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
@@ -806,12 +815,12 @@ CLASS lcl_report IMPLEMENTATION.
       rc                TYPE  i,
       rc_text           TYPE  natxt.
 
-    DATA: tabix TYPE i.
+    DATA tabix TYPE i.
 
     " Maybe it' faster to call it twice including a SEARCH_STRING for both note numbers.
     CALL FUNCTION 'DIAGST_GET_STORES'
       EXPORTING
-        " The “System Filter” parameters allow to get all Stores of a system or technical system.
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
         " Some combinations of the four parameters are not allowed.
         " The function will return an error code in such a case.
 *       SID                   = ' '
@@ -843,7 +852,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
         " Others
 *       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL          = ' '
       IMPORTING
 *       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
@@ -947,11 +956,11 @@ CLASS lcl_report IMPLEMENTATION.
       rc                TYPE  i,
       rc_text           TYPE  natxt.
 
-    DATA: tabix TYPE i.
+    DATA tabix TYPE i.
 
     CALL FUNCTION 'DIAGST_GET_STORES'
       EXPORTING
-        " The “System Filter” parameters allow to get all Stores of a system or technical system.
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
         " Some combinations of the four parameters are not allowed.
         " The function will return an error code in such a case.
 *       SID                   = ' '
@@ -983,7 +992,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
         " Others
 *       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL          = ' '
       IMPORTING
 *       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
@@ -1127,11 +1136,11 @@ CLASS lcl_report IMPLEMENTATION.
       rc                TYPE  i,
       rc_text           TYPE  natxt.
 
-    DATA: tabix TYPE i.
+    DATA tabix TYPE i.
 
     CALL FUNCTION 'DIAGST_GET_STORES'
       EXPORTING
-        " The “System Filter” parameters allow to get all Stores of a system or technical system.
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
         " Some combinations of the four parameters are not allowed.
         " The function will return an error code in such a case.
 *       SID                   = ' '
@@ -1163,7 +1172,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
         " Others
 *       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL          = ' '
       IMPORTING
 *       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
@@ -1239,103 +1248,109 @@ CLASS lcl_report IMPLEMENTATION.
         ls_destination_data-rfcdest = ls_rfcdest-fieldvalue.
         ls_destination_data-rfctype = ls_rfctype-fieldvalue.
 
-        " Interpret tokens similar to function RFCDES2RFCDISPLAY
-
-        FIND REGEX 'Q=(Y),' IN ls_rfcoptions-fieldvalue              " Trusted
-          SUBMATCHES ls_destination_data-trusted.
-        IF ls_destination_data-trusted = 'Y'.
-          ls_destination_data-trusted = 'X'. " show checkbox instead of value
-        ENDIF.
-        FIND REGEX 'Q=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Logon Procedure (Y = Trusted)
-          SUBMATCHES ls_destination_data-rfcslogin.
-
-        FIND REGEX '\[=([^,]{3}),'    IN ls_rfcoptions-fieldvalue    " System ID for trusted connection
-          SUBMATCHES ls_destination_data-serversysid.
-
-        FIND REGEX '\^=([^,]{1,10}),' IN ls_rfcoptions-fieldvalue    " Installation number for trusted connection
-          SUBMATCHES ls_destination_data-serverinstnr.
-
-
-        FIND REGEX 'H=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Name of Target Host
-          SUBMATCHES ls_destination_data-rfchost.
-
-        FIND REGEX 'S=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Service used (TCP service, SAP System number)
-          SUBMATCHES ls_destination_data-rfcservice.
-
-
-        FIND REGEX 'I=([^,]*),'       IN ls_rfcoptions-fieldvalue    " System ID
-          SUBMATCHES ls_destination_data-rfcsysid.
-
-        FIND REGEX 'M=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit logon client
-          SUBMATCHES ls_destination_data-rfcclient.
-
-        FIND REGEX 'U=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit user
-          SUBMATCHES ls_destination_data-rfcuser.
-        CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
-        IF ls_destination_data-rfcuser = logon_screen_token.
-          ls_destination_data-rfcuser = 'logon screen'.
-        ENDIF.
-
-        FIND REGEX 'u=(Y),'           IN ls_rfcoptions-fieldvalue    " Same user flag
-          SUBMATCHES ls_destination_data-rfcsameusr.
-        IF ls_destination_data-rfcsameusr = 'Y'.
-          ls_destination_data-rfcsameusr = 'X'. " show checkbox instead of value
-
-          ls_destination_data-rfcuser = 'same user'.
-        ENDIF.
-
-        FIND REGEX 'v=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
-          SUBMATCHES ls_destination_data-rfcauth.
-        FIND REGEX 'V=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
-          SUBMATCHES ls_destination_data-rfcauth.
-        FIND REGEX 'P=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
-          SUBMATCHES ls_destination_data-rfcauth.
-        CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
-        IF ls_destination_data-rfcauth = sec_storage_token.
-          ls_destination_data-rfcauth = 'stored password'.
-        ENDIF.
-
-
-        FIND REGEX 's=(Y),'           IN ls_rfcoptions-fieldvalue    " SNC/TLS
-          SUBMATCHES ls_destination_data-rfcsnc.
-        IF ls_destination_data-rfcsnc = 'Y'.
-          ls_destination_data-rfcsnc = 'X'. " show checkbox instead of value
-        ENDIF.
-        FIND REGEX 't=([^,]*),'       IN ls_rfcoptions-fieldvalue    " SSL Client Identity
-          SUBMATCHES ls_destination_data-sslapplic.
-        FIND REGEX '/=([^,]*),'       IN ls_rfcoptions-fieldvalue    " No client cert
-          SUBMATCHES ls_destination_data-noccert.
-
-        " Check trusting relation
-        IF    p_trust                          IS NOT INITIAL
-          AND ls_destination_data-trusted      IS NOT INITIAL
-          AND ls_destination_data-serversysid  IS NOT INITIAL
-          AND ls_destination_data-serverinstnr IS NOT INITIAL.
-
-          " Get data from trusting system
-          READ TABLE lt_trusted_systems ASSIGNING FIELD-SYMBOL(<fs_trusted_system>)
-            WITH TABLE KEY
-              rfctrustsy  = ls_destination_data-serversysid
-              llicense_nr = ls_destination_data-serverinstnr.
-          IF sy-subrc IS INITIAL.
-            " Is the current system a trusted system?
-            READ TABLE <fs_trusted_system>-rfcsysacl_data ASSIGNING FIELD-SYMBOL(<fs_rfcsysacl_data>)
-              WITH TABLE KEY
-                rfcsysid    = ls_destination-sid
-                tlicense_nr = ls_destination-install_number.
-            IF sy-subrc IS INITIAL.
-              CASE <fs_rfcsysacl_data>-rfcslopt.
-                WHEN space. ls_destination_data-check_trusted = `very old`.
-                WHEN '2'.   ls_destination_data-check_trusted = `old`.
-                WHEN '3'.   ls_destination_data-check_trusted = `migrated`.
-              ENDCASE.
-            ELSE.
-              ls_destination_data-check_trusted = 'missing'.
-            ENDIF.
-          ELSE.
-            " No data available for trusting system
-          ENDIF.
-        ENDIF.
+        " Interpret tokens similar to function RFCDES2RFCDISPLAY (multiple FIND REGEX are slower that SPLIT+LOOP+CASE)
+*        FIND REGEX 'Q=(Y),' IN ls_rfcoptions-fieldvalue              " Trusted
+*          SUBMATCHES ls_destination_data-trusted.
+*        IF ls_destination_data-trusted = 'Y'.
+*          ls_destination_data-trusted = 'X'. " show checkbox instead of value
+*        ENDIF.
+*        FIND REGEX 'Q=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Logon Procedure (Y = Trusted)
+*          SUBMATCHES ls_destination_data-rfcslogin.
+*
+*        FIND REGEX '\[=([^,]{3}),'    IN ls_rfcoptions-fieldvalue    " System ID for trusted connection
+*          SUBMATCHES ls_destination_data-serversysid.
+*
+*        FIND REGEX '\^=([^,]{1,10}),' IN ls_rfcoptions-fieldvalue    " Installation number for trusted connection
+*          SUBMATCHES ls_destination_data-serverinstnr.
+*
+*
+*        FIND REGEX 'H=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Name of Target Host
+*          SUBMATCHES ls_destination_data-rfchost.
+*
+*        FIND REGEX 'S=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Service used (TCP service, SAP System number)
+*          SUBMATCHES ls_destination_data-rfcservice.
+*
+*
+*        FIND REGEX 'I=([^,]*),'       IN ls_rfcoptions-fieldvalue    " System ID
+*          SUBMATCHES ls_destination_data-rfcsysid.
+*
+*        FIND REGEX 'M=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit logon client
+*          SUBMATCHES ls_destination_data-rfcclient.
+*
+*        FIND REGEX 'U=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit user
+*          SUBMATCHES ls_destination_data-rfcuser.
+*        CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
+*        IF ls_destination_data-rfcuser = logon_screen_token.
+*          ls_destination_data-rfcuser = 'logon screen'.
+*        ENDIF.
+*
+*        FIND REGEX 'u=(Y),'           IN ls_rfcoptions-fieldvalue    " Same user flag
+*          SUBMATCHES ls_destination_data-rfcsameusr.
+*        IF ls_destination_data-rfcsameusr = 'Y'.
+*          ls_destination_data-rfcsameusr = 'X'. " show checkbox instead of value
+*
+*          ls_destination_data-rfcuser = 'same user'.
+*        ENDIF.
+*
+*        FIND REGEX 'v=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+*          SUBMATCHES ls_destination_data-rfcauth.
+*        FIND REGEX 'V=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+*          SUBMATCHES ls_destination_data-rfcauth.
+*        FIND REGEX 'P=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+*          SUBMATCHES ls_destination_data-rfcauth.
+*        CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
+*        IF ls_destination_data-rfcauth = sec_storage_token.
+*          ls_destination_data-rfcauth = 'stored password'.
+*        ENDIF.
+*
+*
+*        FIND REGEX 's=(Y),'           IN ls_rfcoptions-fieldvalue    " SNC/TLS
+*          SUBMATCHES ls_destination_data-rfcsnc.
+*        IF ls_destination_data-rfcsnc = 'Y'.
+*          ls_destination_data-rfcsnc = 'X'. " show checkbox instead of value
+*        ENDIF.
+*        FIND REGEX 't=([^,]*),'       IN ls_rfcoptions-fieldvalue    " SSL Client Identity
+*          SUBMATCHES ls_destination_data-sslapplic.
+*        FIND REGEX '/=([^,]*),'       IN ls_rfcoptions-fieldvalue    " No client cert
+*          SUBMATCHES ls_destination_data-noccert.
+        split ls_rfcoptions-fieldvalue at ',' into table data(tokens).
+        loop at tokens into data(token).
+          split token at '=' into data(key) data(value).
+          case key.
+            when 'Q'. move value to ls_destination_data-rfcslogin.     " Logon Procedure (Y = Trusted)
+                      if value = 'Y'.
+                        ls_destination_data-trusted = 'X'.             " show checkbox instead of value
+                      endif.
+            when '['. move value to ls_destination_data-serversysid.   " System ID for trusted connection
+            when '^'. move value to ls_destination_data-serverinstnr.  " Installation number for trusted connection
+            when 'H'. move value to ls_destination_data-rfchost.       " Name of Target Host
+            when 'S'. move value to ls_destination_data-rfcservice.    " Service used (TCP service, SAP System number)
+            when 'I'. move value to ls_destination_data-rfcsysid.      " System ID
+            when 'M'. move value to ls_destination_data-rfcclient.     " Explicit logon client
+            when 'U'. move value to ls_destination_data-rfcuser.       " Explicit user
+                      CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
+                      IF ls_destination_data-rfcuser = logon_screen_token.
+                        ls_destination_data-rfcuser = 'logon screen'.
+                      ENDIF.
+            when 'u'. move value to ls_destination_data-rfcsameusr.    " Same user flag
+                      IF ls_destination_data-rfcsameusr = 'Y'.
+                        ls_destination_data-rfcsameusr = 'X'.          " show checkbox instead of value
+                        ls_destination_data-rfcuser = 'same user'.
+                      ENDIF.
+            when 'v' or 'V' or 'P'.
+                      move value to ls_destination_data-rfcauth.       " Explicit password
+                      CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
+                      IF ls_destination_data-rfcauth = sec_storage_token.
+                        ls_destination_data-rfcauth = 'stored password'.
+                      ENDIF.
+            when 's'. move value to ls_destination_data-rfcsnc.        " SNC/TLS
+                      IF ls_destination_data-rfcsnc = 'Y'.
+                        ls_destination_data-rfcsnc = 'X'.              " show checkbox instead of value
+                      ENDIF.
+            when 't'. move value to ls_destination_data-sslapplic.     " SSL Client Identity
+            when '/'. move value to ls_destination_data-noccert.       " No client cert
+          endcase.
+        endloop.
 
         APPEND ls_destination_data TO ls_destination-destination_data.
 
@@ -1447,11 +1462,11 @@ CLASS lcl_report IMPLEMENTATION.
       rc                TYPE  i,
       rc_text           TYPE  natxt.
 
-    DATA: tabix TYPE i.
+    DATA tabix TYPE i.
 
     CALL FUNCTION 'DIAGST_GET_STORES'
       EXPORTING
-        " The “System Filter” parameters allow to get all Stores of a system or technical system.
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
         " Some combinations of the four parameters are not allowed.
         " The function will return an error code in such a case.
 *       SID                   = ' '
@@ -1483,7 +1498,7 @@ CLASS lcl_report IMPLEMENTATION.
 *       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
         " Others
 *       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to ‘X’ will display the result.
+        " Setting this parameter to 'X' will display the result.
 *       CALLING_APPL          = ' '
       IMPORTING
 *       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
@@ -1727,23 +1742,22 @@ CLASS lcl_report IMPLEMENTATION.
 
       " Validate notes
       "   Undefined Implementation State
-      " -	Cannot be implemented
-      " E	Completely implemented
-      " N	Can be implemented
-      " O	Obsolete
-      " U	Incompletely implemented
-      " V	Obsolete version implemented
+      " - Cannot be implemented
+      " E Completely implemented
+      " N Can be implemented
+      " O Obsolete
+      " U Incompletely implemented
+      " V Obsolete version implemented
       CASE <fs_result>-note_3089413_prstatus.
         WHEN 'E' OR '-'.
           APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
         WHEN 'N' OR 'O' OR 'U' OR 'V'.
           APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
         WHEN OTHERS.
-          IF     <fs_result>-note_3089413 = 'ok'.
-            APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
-          ELSEIF <fs_result>-note_3089413 = 'required'.
-            APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
-          ENDIF.
+          CASE <fs_result>-note_3089413.
+            WHEN 'ok'.       APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
+            WHEN 'required'. APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+          ENDCASE.
       ENDCASE.
       CASE <fs_result>-note_3287611_prstatus.
         WHEN 'E' OR '-'.
@@ -1751,11 +1765,10 @@ CLASS lcl_report IMPLEMENTATION.
         WHEN 'N' OR 'O' OR 'U' OR 'V'.
           APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
         WHEN OTHERS.
-          IF     <fs_result>-note_3287611 = 'ok'.
-            APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_result>-t_color.
-          ELSEIF <fs_result>-note_3287611 = 'required'.
-            APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
-          ENDIF.
+          CASE <fs_result>-note_3287611.
+            WHEN 'ok'.       APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_result>-t_color.
+            WHEN 'required'. APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+          ENDCASE.
       ENDCASE.
 
       " Validate trusted systems
@@ -1775,11 +1788,10 @@ CLASS lcl_report IMPLEMENTATION.
       ENDIF.
 
       " Validate rfc/selftrust
-      IF <fs_result>-rfc_selftrust = '0'.
-        APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_positive ) TO <fs_result>-t_color.
-      ELSEIF <fs_result>-rfc_selftrust = '1'.
-        APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_total ) TO <fs_result>-t_color.
-      ENDIF.
+      CASE <fs_result>-rfc_selftrust.
+        WHEN '0'. APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_positive ) TO <fs_result>-t_color.
+        WHEN '1'. APPEND VALUE #( fname = 'RFC_SELFTRUST' color-col = col_total )    TO <fs_result>-t_color.
+      ENDCASE.
 
       " Validate trusted destinations
       IF <fs_result>-dest_3_cnt_trusted_migrated > 0.
@@ -1931,6 +1943,78 @@ CLASS lcl_report IMPLEMENTATION.
     ENDLOOP.
 
   ENDMETHOD. " validate_mutual_trust
+
+
+  METHOD count_dest_per_trust.
+    CHECK p_trust IS NOT INITIAL AND p_dest IS NOT INITIAL.
+
+    " Count migrated destinations in trusted systems which point to a trusting system
+    LOOP AT lt_trusted_systems ASSIGNING FIELD-SYMBOL(<fs_trusted_system>).
+      LOOP AT <fs_trusted_system>-rfcsysacl_data ASSIGNING FIELD-SYMBOL(<fs_rfcsysacl_data>).
+
+        READ TABLE lt_destinations ASSIGNING FIELD-SYMBOL(<fs_destination>)
+          WITH TABLE KEY
+            sid            = <fs_rfcsysacl_data>-rfcsysid
+            install_number = <fs_rfcsysacl_data>-tlicense_nr.
+        IF sy-subrc IS INITIAL.
+          LOOP AT <fs_destination>-destination_data ASSIGNING FIELD-SYMBOL(<fs_destination_data>)
+            WHERE trusted IS NOT INITIAL
+              AND serversysid  = <fs_trusted_system>-rfctrustsy
+              AND serverinstnr = <fs_trusted_system>-llicense_nr.
+
+            ADD 1 TO <fs_rfcsysacl_data>-trusted_dest_cnt.
+
+            IF <fs_rfcsysacl_data>-trusted_dest_cnt = 1.
+              APPEND VALUE #( fname = 'TRUSTED_DEST_CNT' color-col = col_positive ) TO <fs_rfcsysacl_data>-t_color.
+            ENDIF.
+
+          ENDLOOP.
+        ELSE.
+          " No data available for trusting system
+        ENDIF.
+
+      ENDLOOP.
+    ENDLOOP.
+
+  ENDMETHOD. " count_dest_per_trust
+
+  METHOD validate_trust_for_dest.
+    CHECK p_trust IS NOT INITIAL AND p_dest IS NOT INITIAL.
+
+    " Check migrated trusted destinations if there exist a trust relation in the target system for the clling system
+    LOOP AT lt_destinations ASSIGNING FIELD-SYMBOL(<fs_destination>).
+      LOOP AT <fs_destination>-destination_data ASSIGNING FIELD-SYMBOL(<fs_destination_data>)
+        WHERE trusted      IS NOT INITIAL
+          AND serversysid  IS NOT INITIAL
+          AND serverinstnr IS NOT INITIAL.
+
+        " Get data from trusting system
+        READ TABLE lt_trusted_systems ASSIGNING FIELD-SYMBOL(<fs_trusted_system>)
+          WITH TABLE KEY
+            rfctrustsy  = <fs_destination_data>-serversysid
+            llicense_nr = <fs_destination_data>-serverinstnr.
+        IF sy-subrc IS INITIAL.
+          " Is the current system a trusted system?
+          READ TABLE <fs_trusted_system>-rfcsysacl_data ASSIGNING FIELD-SYMBOL(<fs_rfcsysacl_data>)
+            WITH TABLE KEY
+              rfcsysid    = <fs_destination>-sid
+              tlicense_nr = <fs_destination>-install_number.
+          IF sy-subrc IS INITIAL.
+            CASE <fs_rfcsysacl_data>-rfcslopt.
+              WHEN space. <fs_destination_data>-check_trusted = `very old`.
+              WHEN '2'.   <fs_destination_data>-check_trusted = `old`.
+              WHEN '3'.   <fs_destination_data>-check_trusted = `migrated`.
+            ENDCASE.
+          ELSE.
+            <fs_destination_data>-check_trusted = 'missing'.
+          ENDIF.
+        ELSE.
+          " No data available for trusting system
+        ENDIF.
+
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD. " validate_trust_for_dest
 
   METHOD on_user_command.
 *    importing e_salv_function
@@ -2518,7 +2602,7 @@ CLASS lcl_report IMPLEMENTATION.
        OR column = 'MUTUAL_TRUST_CNT'
        OR column = 'NO_DATA_CNT'.
 
-    DATA: ls_trusted_system  TYPE ts_trusted_system.
+    DATA ls_trusted_system  TYPE ts_trusted_system.
     READ TABLE lt_trusted_systems ASSIGNING FIELD-SYMBOL(<fs_trusted_system>)
       WITH TABLE KEY
         rfctrustsy  = rfctrustsy
@@ -2674,24 +2758,19 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column ?= lr_columns->get_column( 'RFCSYSID' ).
         lr_column->set_long_text( 'Trusted system' ).
         lr_column->set_medium_text( 'Trusted system' ).
-        lr_column->set_short_text( 'Trusted').
+        lr_column->set_short_text( 'Trusted' ).
         lr_column->set_key( abap_true ).
 
         lr_column ?= lr_columns->get_column( 'RFCTRUSTSY' ).
         lr_column->set_long_text( 'Trusting system' ).
         lr_column->set_medium_text( 'Trusting system' ).
-        lr_column->set_short_text( 'Trusting').
+        lr_column->set_short_text( 'Trusting' ).
         lr_column->set_key( abap_true ).
-
-        lr_column ?= lr_columns->get_column( 'RFCDEST' ).
-        lr_column->set_long_text( 'Destination to trusted system' ).
-        lr_column->set_medium_text( 'Dest. to trusted sys' ).
-        lr_column->set_short_text( 'Dest.Trust').
 
         lr_column ?= lr_columns->get_column( 'RFCSLOPT' ).
         lr_column->set_long_text( 'Version: 3=migrated, 2=old,  =very old' ).
         lr_column->set_medium_text( 'Version' ).
-        lr_column->set_short_text( 'Version').
+        lr_column->set_short_text( 'Version' ).
 
         lr_column ?= lr_columns->get_column( 'NO_DATA' ).
         lr_column->set_long_text( 'No data of trusted system found' ).
@@ -2701,7 +2780,19 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column ?= lr_columns->get_column( 'MUTUAL_TRUST' ).
         lr_column->set_long_text( 'Mutual trust relation' ).
         lr_column->set_medium_text( 'Mutual trust' ).
-        lr_column->set_short_text( 'Mutual').
+        lr_column->set_short_text( 'Mutual' ).
+
+        lr_column ?= lr_columns->get_column( 'RFCDEST' ).
+        lr_column->set_long_text( 'Destination to trusted system' ).
+        lr_column->set_medium_text( 'Dest. to trusted sys' ).
+        lr_column->set_short_text( 'Dest.Trust' ).
+        lr_column->set_visible( abap_false ).
+
+        lr_column ?= lr_columns->get_column( 'TRUSTED_DEST_CNT' ).
+        lr_column->set_long_text( 'Count of migrated trusted destinations' ).
+        lr_column->set_medium_text( 'Trusted destinations' ).
+        lr_column->set_short_text( 'TrustDest.' ).
+        lr_column->set_zero( abap_false  ).
 
         "lr_column ?= lr_columns->get_column( 'TLICENSE_NR' ).     lr_column->set_technical( abap_true ).
         "lr_column ?= lr_columns->get_column( 'LLICENSE_NR' ).     lr_column->set_technical( abap_true ).
@@ -2729,7 +2820,7 @@ CLASS lcl_report IMPLEMENTATION.
        OR column(11) = 'DEST_H_CNT_'
        OR column(11) = 'DEST_W_CNT_'.
 
-    DATA: ls_destination  TYPE ts_destination.
+    DATA ls_destination  TYPE ts_destination.
     READ TABLE lt_destinations ASSIGNING FIELD-SYMBOL(<fs_destination>)
       WITH TABLE KEY
         sid            = sid
@@ -3119,7 +3210,7 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.
   lcl_report=>f4_p_layout( CHANGING layout = p_layout ).
 
 AT SELECTION-SCREEN ON p_layout.
-  CHECK NOT p_layout IS INITIAL.
+  CHECK p_layout IS NOT INITIAL.
   lcl_report=>at_selscr_on_p_layout( p_layout ).
 
 START-OF-SELECTION.
