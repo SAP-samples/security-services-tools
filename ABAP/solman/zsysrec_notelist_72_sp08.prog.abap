@@ -4,9 +4,12 @@
 *----------------------------------------------------------------------*
 
 *-----------------------------------------------------------------------
-* Author: Frank Buchholz, SAP AGS Security Services
-* http://scn.sap.com/community/security/blog/2011/07/18/report-zsysrecnotelist--show-results-of-system-recommendation
+* Author: Frank Buchholz, SAP CoE Security Services
+* Source: https://github.com/SAP-samples/security-services-tools
+* Documentation:
+* https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/
 *
+* 17.02.2023 Some ABAPlint corrections, optimized value help
 * 28.02.2019 perform DISPLAY_NOTE_TEXT updated for ST-A/PI Release 01T_731, SP 1
 * 06.08.2018 Separation between SAP and user status
 * 17.04.2018 Prepare for License Audit notes
@@ -41,10 +44,10 @@ report RSYSREC_NOTELIST
   message-id AGSNO_MESSAGE
   line-size 1023.
 
-constants: C_PROGRAM_VERSION(30) type C value '06.08.2018 SolMan 7.2 SP 08'.
+constants C_PROGRAM_VERSION(30) type C value '17.02.2023 FBT'.
 
 
-type-pools: AGSNO.
+type-pools AGSNO.
 
 type-pools: ICON, COL, SYM.
 
@@ -72,19 +75,19 @@ selection-screen begin of block SYS with frame title TEXT001.
 * System name
 selection-screen begin of line.
 selection-screen comment 1(25) SS_SYS for field S_SYS.
-select-options: S_SYS   for SL_SYS.
+select-options S_SYS   for SL_SYS.
 selection-screen end of line.
 
 * System type
 selection-screen begin of line.
 selection-screen comment 1(25) SS_TYPE for field S_TYPE.
-select-options: S_TYPE  for SL_TYPE.
+select-options S_TYPE  for SL_TYPE.
 selection-screen end of line.
 
 * Favorite
 selection-screen begin of line.
 selection-screen comment 1(28) SS_FAVO for field S_FAVO.
-parameters: S_FAVO as checkbox.             " System Favorite
+parameters S_FAVO as checkbox.             " System Favorite
 selection-screen end of line.
 
 selection-screen end of block SYS.
@@ -94,38 +97,38 @@ selection-screen begin of block NS with frame title TEXT002.
 * Note
 selection-screen begin of line.
 selection-screen comment 1(25) SS_NOTE for field S_NOTE.
-select-options: S_NOTE  for SL_NOTE.
+select-options S_NOTE  for SL_NOTE.
 selection-screen end of line.
 
 * Priority
 selection-screen begin of line.
 selection-screen comment 1(25) SS_PRIO for field S_PRIO.
-select-options: S_PRIO  for SL_PRIO.
+select-options S_PRIO  for SL_PRIO.
 selection-screen end of line.
 
 * Application Component
 selection-screen begin of line.
 selection-screen comment 1(25) SS_THEMK for field S_THEMK.
-select-options: S_THEMK for SL_THEMK
+select-options S_THEMK for SL_THEMK
                 matchcode object H_AKH_COMP. " AGS_AKH_COMPONENT or H_AKH_COMP or H_AKH_COMPONENT
 selection-screen end of line.
 
 * Software Component
 selection-screen begin of line.
 selection-screen comment 1(25) SS_COMP for field S_COMP.
-select-options: S_COMP  for SL_COMP matchcode object H_CVERS.
+select-options S_COMP  for SL_COMP matchcode object H_CVERS.
 selection-screen end of line.
 
 * Release date from
 selection-screen begin of line.
 selection-screen comment 1(28) SS_FROM for field S_FROM.
-parameters: S_FROM type SY-DATUM.
+parameters S_FROM type SY-DATUM.
 selection-screen end of line.
 
 * Release date to
 selection-screen begin of line.
 selection-screen comment 1(28) SS_TO   for field S_TO.
-parameters: S_TO   type SY-DATUM. " default sy-datum.
+parameters S_TO   type SY-DATUM. " default sy-datum.
 selection-screen end of line.
 
 selection-screen end of block NS.
@@ -135,7 +138,7 @@ selection-screen begin of block SR with frame title TEXT004.
 * User status
 selection-screen begin of line.
 selection-screen comment 1(25) SS_STAT for field S_STAT.
-select-options: S_STAT  for SL_STAT.
+select-options S_STAT  for SL_STAT.
 selection-screen end of line.
 
 selection-screen end of block SR.
@@ -144,37 +147,37 @@ selection-screen begin of block NT with frame title TEXT003.
 
 selection-screen begin of line.
 selection-screen comment 1(28) SS_GRP1 for field S_GROUP1.
-parameters: S_GROUP1 as checkbox default 'X'. " Security notes
+parameters S_GROUP1 as checkbox default 'X'. " Security notes
 selection-screen end of line.
 
 selection-screen begin of line.
 selection-screen comment 1(28) SS_GRP2 for field S_GROUP2.
-parameters: S_GROUP2 as checkbox.             " Hot News
+parameters S_GROUP2 as checkbox.             " Hot News
 selection-screen end of line.
 
 selection-screen begin of line.
 selection-screen comment 1(28) SS_GRP3 for field S_GROUP3.
-parameters: S_GROUP3 as checkbox.             " Performance notes
+parameters S_GROUP3 as checkbox.             " Performance notes
 selection-screen end of line.
 
 selection-screen begin of line.
 selection-screen comment 1(28) SS_GRP4 for field S_GROUP4.
-parameters: S_GROUP4 as checkbox.             " Legal change notes
+parameters S_GROUP4 as checkbox.             " Legal change notes
 selection-screen end of line.
 
 selection-screen begin of line.
 selection-screen comment 1(28) SS_GRP6 for field S_GROUP6.
-parameters: S_GROUP6 as checkbox.             " License Audit relevant notes
+parameters S_GROUP6 as checkbox.             " License Audit relevant notes
 selection-screen end of line.
 
 selection-screen begin of line.
 selection-screen comment 1(28) SS_GRP5 for field S_GROUP5.
-parameters: S_GROUP5 as checkbox.             " Correction notes
+parameters S_GROUP5 as checkbox.             " Correction notes
 selection-screen end of line.
 
 *selection-screen begin of line.
 *SELECTION-SCREEN COMMENT 1(29) ss_grp6 for field s_group6.
-*parameters: s_group6 as checkbox.             " Java patch notes
+*parameters s_group6 as checkbox.             " Java patch notes
 *selection-screen end of line.
 
 selection-screen end of block NT.
@@ -222,7 +225,7 @@ selection-screen end of line.
 selection-screen begin of line.
 selection-screen comment 1(30) PS_STAT1. " for field PS_STAT.
 selection-screen pushbutton 32(40) PS_STAT user-command FC06 visible length 4.
-parameters P_FC06(1) type C no-display.
+parameters P_FC06(1) type C." no-display.
 selection-screen end of line.
 
 * Customizing table DNOC_USERCFG, Transaction SM30_DNOC_USERCFG_SR
@@ -364,13 +367,13 @@ data: LT_URLS_FOR_NOTES type TT_URLS_FOR_NOTES,
       LS_T_HYPERLINK    type SALV_S_INT4_COLUMN.
 
 
-data: GS_ALV_LOUT_VARIANT type DISVARIANT.
+data GS_ALV_LOUT_VARIANT type DISVARIANT.
 
 *----------------------------------------------------------------------*
 
 initialization.
 
-  data: FUNCTXT type SMP_DYNTXT.
+  data FUNCTXT type SMP_DYNTXT.
 
   FUNCTXT-ICON_ID   = ICON_WD_APPLICATION.
   FUNCTXT-QUICKINFO = 'System Recommendations'(001).
@@ -439,9 +442,9 @@ initialization.
   PS_RFC1     = 'SolMan-READ destination is used'(091).
 * ps_RFC      = 'Check RFC destination (ABAP)'(037).
   PS_REQ      = 'Get required notes (ABAP)'(092).
-  PS_REQ1     = 'SAP-OSS destination is used'(093).
+  PS_REQ1     = '(might be slow)'(093).
   PS_SD       = 'Get side effect notes (ABAP)'(094).
-  PS_SD1      = 'SAP-OSS destination is used'(095).
+  PS_SD1      = '(might be slow)'(095).
   PS_UPL      = '# month to read UPL data'(042).
 
   PS_STAT     = ICON_STATUS_OVERVIEW. "'STAT'.
@@ -552,17 +555,17 @@ at selection-screen.
 
     when 'FC03'.
 *     Show job log
-      call function 'AUTHORITY_CHECK_TCODE'
-        exporting
-          TCODE  = 'SM37'
-        exceptions
-          OK     = 0
-          NOT_OK = 2
-          others = 3.
-      if SY-SUBRC <> 0.
-        message S119(ED) with 'SM37'.
-        exit.
-      endif.
+*      call function 'AUTHORITY_CHECK_TCODE'
+*        exporting
+*          TCODE  = 'SM37'
+*        exceptions
+*          OK     = 0
+*          NOT_OK = 2
+*          others = 3.
+*      if SY-SUBRC <> 0.
+*        message S119(ED) with 'SM37'.
+*        RETURN.
+*      endif.
       clear: LS_BDC, LT_BDC.
       LS_BDC-PROGRAM  = 'SAPLBTCH'.
       LS_BDC-DYNPRO   = '2170'.
@@ -605,23 +608,27 @@ at selection-screen.
 *      ls_bdc-FNAM     = 'OKCODE'.            "Submit
 *      ls_bdc-FVAL     = 'DOIT'.
 *      append ls_bdc to lt_bdc.
-      call transaction 'SM37'
-        using LT_BDC.
-
+      try.
+          call transaction 'SM37' WITH AUTHORITY-CHECK
+            using LT_BDC.
+        catch cx_sy_authorization_error.
+          message S119(ED) with 'SM37'.
+          RETURN.
+      endtry.
 
     when 'FC04'.
 *     Show application log
-      call function 'AUTHORITY_CHECK_TCODE'
-        exporting
-          TCODE  = 'SLG1'
-        exceptions
-          OK     = 0
-          NOT_OK = 2
-          others = 3.
-      if SY-SUBRC <> 0.
-        message S119(ED) with 'SLG1'.
-        exit.
-      endif.
+*      call function 'AUTHORITY_CHECK_TCODE'
+*        exporting
+*          TCODE  = 'SLG1'
+*        exceptions
+*          OK     = 0
+*          NOT_OK = 2
+*          others = 3.
+*      if SY-SUBRC <> 0.
+*        message S119(ED) with 'SLG1'.
+*        RETURN.
+*      endif.
       clear: LS_BDC, LT_BDC.
       LS_BDC-PROGRAM  = 'SAPLSLG3'.
       LS_BDC-DYNPRO   = '0100'.
@@ -643,9 +650,13 @@ at selection-screen.
 *      ls_bdc-FNAM     = 'OK_CODE'.            "Submit
 *      ls_bdc-FVAL     = 'SELE'.
 *      append ls_bdc to lt_bdc.
-      call transaction 'SLG1'
-        using LT_BDC.
-
+      try.
+          call transaction 'SLG1' WITH AUTHORITY-CHECK
+            using LT_BDC.
+        catch cx_sy_authorization_error.
+          message S119(ED) with 'SLG1'.
+          RETURN.
+      endtry.
 
     when 'FC05'.
 *     Call BW query
@@ -741,7 +752,7 @@ at selection-screen.
 *                with SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
 *      endif.
 
-      call method CL_AGS_SYSREC_UTIL=>SM30_DNOC_USERCFG_SYSREC( ).
+      CL_AGS_SYSREC_UTIL=>SM30_DNOC_USERCFG_SYSREC( ).
 
 
     when 'FC08'.
@@ -927,8 +938,8 @@ form CALL_URL
       NO_APPLICATION        = 2
       NOT_ALLOW_APPLICATION = 3
       WRONG_URL             = 4
-      NO_AUTHORITY          = 4
-      others                = 5.
+      NO_AUTHORITY          = 5
+      others                = 6.
   if SY-SUBRC ne 0.
     LV_SSO_ACTIVE = ABAP_FALSE.
   endif.
@@ -1054,31 +1065,33 @@ form SHOW_CONFIGURATION.
   SELECT_VALUES-JOBGROUP  = '%'.
   SELECT_VALUES-ABAPNAME  = 'AGSNO_RPT_COLLECT_DATA'.
   P_STATUS_CLAUSE         = ''.
-  select distinct * from V_OP into table LT_JOBLIST
+  select distinct * from V_OP into table @LT_JOBLIST
     where
         (
-                (
-                   ( SDLSTRTDT = SELECT_VALUES-FROM_DATE
-                and  SDLSTRTTM >= SELECT_VALUES-FROM_TIME )
-                or  SDLSTRTDT > SELECT_VALUES-FROM_DATE
-                )
-                and
-                (
-                   ( SDLSTRTDT = SELECT_VALUES-TO_DATE
-                and SDLSTRTTM <= SELECT_VALUES-TO_TIME )
-                or  SDLSTRTDT < SELECT_VALUES-TO_DATE
-                )
-                or
-                (
-                  SDLSTRTDT eq 'NO_DATE' and
-                  EVENTID   eq SPACE
-                )
+          (
+            (
+              (     SDLSTRTDT =  @SELECT_VALUES-FROM_DATE
+                and SDLSTRTTM >= @SELECT_VALUES-FROM_TIME )
+              or SDLSTRTDT > @SELECT_VALUES-FROM_DATE
+            )
+            and
+            (
+              (     SDLSTRTDT =  @SELECT_VALUES-TO_DATE
+                and SDLSTRTTM <= @SELECT_VALUES-TO_TIME )
+              or SDLSTRTDT < @SELECT_VALUES-TO_DATE
+            )
+          )
+          or
+          (
+                SDLSTRTDT eq 'NO_DATE'
+            and EVENTID   eq @SPACE
+          )
         )
-        and JOBNAME  like SELECT_VALUES-JOBNAME escape '#'
-        and SDLUNAME like SELECT_VALUES-USERNAME
-        and JOBCOUNT like SELECT_VALUES-JOBCOUNT
-        and JOBGROUP like SELECT_VALUES-JOBGROUP
-        and PROGNAME like SELECT_VALUES-ABAPNAME
+        and JOBNAME  like @SELECT_VALUES-JOBNAME escape '#'
+        and SDLUNAME like @SELECT_VALUES-USERNAME
+        and JOBCOUNT like @SELECT_VALUES-JOBCOUNT
+        and JOBGROUP like @SELECT_VALUES-JOBGROUP
+        and PROGNAME like @SELECT_VALUES-ABAPNAME
         and (P_STATUS_CLAUSE).
   loop at LT_JOBLIST into LS_JOBLIST.
     write: / LS_JOBLIST-JOBNAME   color col_key,
@@ -1110,10 +1123,10 @@ form SHOW_CONFIGURATION.
         LS_AGSSR_CONFSYS type AGSSR_CONFSYS.
 
 * Get active systems
-  select * from AGSSR_CONFSYS into table LT_AGSSR_CONFSYS
-    where CHK_FLAG = AGSNO_C_TRUE
-     and  system_name in s_SYS
-      and system_type in s_TYPE
+  select * from AGSSR_CONFSYS into table @LT_AGSSR_CONFSYS
+    where CHK_FLAG = @AGSNO_C_TRUE
+     and  system_name in @s_SYS
+      and system_type in @s_TYPE
     order by primary key.
 
 * Get UPL availability
@@ -1131,9 +1144,7 @@ form SHOW_CONFIGURATION.
   endtry.
   if 1 = 1.
     try.
-        call method LO_OBJ->GET_AVAILABLE_SYSTEMS
-          importing
-            ET_SYSTEMS = LT_UPL_SYSTEMS.
+        LO_OBJ->GET_AVAILABLE_SYSTEMS( importing ET_SYSTEMS = LT_UPL_SYSTEMS ).
       catch CX_AGS_CC_QUERY_EXEC_ERROR into LO_EX_QUERY.
         write: /(30) 'GET_AVAILABLE_SYSTEMS' color col_negative, LO_EX_QUERY->GET_TEXT( ).
     endtry.
@@ -1145,9 +1156,10 @@ form SHOW_CONFIGURATION.
           (10) 'Type'(071),
           (24) 'Role'(072),
           (24) 'Priority'(073),
+          (6)  'Active',
           (10) 'Date'(074),
           (8)  'Time'(075),
-          (32) 'RFC Destination'(076),
+          "(32) 'RFC Destination'(076), " Might take ages in case of defect READ destinations
           (15) 'UPL available'(079),
           (15) 'Month'(080),
           (10) 'Favorite'(077),
@@ -1184,9 +1196,9 @@ form SHOW_CONFIGURATION.
     read table GT_SYSTEM_ROLES into LS_KV
       with key SR_KEY = LS_SYSTEM_INFO-ROLE.
     if SY-SUBRC = 0.
-      write: (24)  LS_KV-SR_VALUE.
+      write (24)  LS_KV-SR_VALUE.
     else.
-      write: (24)  LS_SYSTEM_INFO-ROLE.
+      write (24)  LS_SYSTEM_INFO-ROLE.
     endif.
 
 *   Show system priority
@@ -1194,9 +1206,16 @@ form SHOW_CONFIGURATION.
     read table GT_SYSTEM_PRIORITIES into LS_KV
       with key SR_KEY = LS_SYSTEM_INFO-PRIORITY.
     if SY-SUBRC = 0.
-      write: (24)  LS_KV-SR_VALUE.
+      write (24)  LS_KV-SR_VALUE.
     else.
-      write: (24)  LS_SYSTEM_INFO-PRIORITY.
+      write (24)  LS_SYSTEM_INFO-PRIORITY.
+    endif.
+
+*   Show active flag
+    if LS_AGSSR_CONFSYS-CHK_FLAG = 'T'.
+      write (6) LS_AGSSR_CONFSYS-CHK_FLAG color col_positive.
+    else.
+      write (6) LS_AGSSR_CONFSYS-CHK_FLAG color col_negative.
     endif.
 
 *   Show date of recommendations
@@ -1210,6 +1229,9 @@ form SHOW_CONFIGURATION.
              L_TIME using edit mask '__:__:__'.
 
 *   Show RFC Destination for ABAP systems
+    " Function AGSNO_GET_READ_RFC could take ages in case of not-working READ destinations
+    " The wait time depends on dnoc_usercfg parameter agssn_sysrec_max_rfc_time = SYSREC_MAX_RFC_TIME
+    if 1 = 0.
     data: L_RFC type  RFCDEST.
     clear L_RFC.
     if LS_AGSSR_CONFSYS-SYSTEM_TYPE = 'ABAP'.
@@ -1223,6 +1245,7 @@ form SHOW_CONFIGURATION.
       endif.
     endif.
     write (32) L_RFC.
+    endif.
 
 *   Show UPL availability
     if LS_AGSSR_CONFSYS-SYSTEM_TYPE = 'ABAP' and 1 = 1.
@@ -1251,7 +1274,7 @@ form SHOW_CONFIGURATION.
           if max_month < LS_UPL_MONTH-MONTH. max_month = LS_UPL_MONTH-MONTH. endif.
         endloop.
         if min_month = '999999' or max_month = '000000'.
-          write: (15) 'error' color col_negative.
+          write (15) 'error' color col_negative.
         else.
           write: min_month(4) no-gap, '.' no-gap, min_month+4(2) no-gap,
                  '-' no-gap,
@@ -1268,10 +1291,10 @@ form SHOW_CONFIGURATION.
 *   Show Favorite
     data LS_AGSSR_SYSFAVO type AGSSR_SYSFAVO.
     clear LS_AGSSR_SYSFAVO.
-    select single * from AGSSR_SYSFAVO into LS_AGSSR_SYSFAVO
-      where USER_NAME = SY-UNAME
-        and SYSTEM_NAME = LS_AGSSR_CONFSYS-SYSTEM_NAME
-        and SYSTEM_TYPE = LS_AGSSR_CONFSYS-SYSTEM_TYPE.
+    select single * from AGSSR_SYSFAVO into @LS_AGSSR_SYSFAVO
+      where USER_NAME   = @SY-UNAME
+        and SYSTEM_NAME = @LS_AGSSR_CONFSYS-SYSTEM_NAME
+        and SYSTEM_TYPE = @LS_AGSSR_CONFSYS-SYSTEM_TYPE.
     if SY-SUBRC = 0.
       write (10) 'Favorite'(066).
     else.
@@ -1341,7 +1364,7 @@ endif.
                ls_DNOC_USERCFG-value =   'HSPL'.
                ls_DNOC_USERCFGT-descr =  'note types (HSPLC)'.
 
-      when  2. ls_DNOC_USERCFG-field =   agssn_sysrec_last_monthyear . " 'SYSREC_LAST_MONTHYEAR',
+      when  2. ls_DNOC_USERCFG-field =   agssn_sysrec_last_monthyear. " 'SYSREC_LAST_MONTHYEAR',
                ls_DNOC_USERCFG-value =   '2009_01'.
                ls_DNOC_USERCFGT-descr =  'start month for notes selection'.
 
@@ -1366,53 +1389,57 @@ endif.
                ls_DNOC_USERCFG-value =   7.
                ls_DNOC_USERCFGT-descr =  'days'.
 
-      when  8. ls_DNOC_USERCFG-field =   agssn_sysrec_rfc_call.        " 'SYSREC_RFC_CALL',
-               ls_DNOC_USERCFGT-descr =  'RFC instead of webservice call to SAP BAckbone ( |X)'.
+      when  8. ls_DNOC_USERCFG-field =   agssn_sysrec_max_rfc_time.    " 'SYSREC_MAX_RFC_TIME',
+               ls_DNOC_USERCFGT-descr =  'Max waiting time for RFC call to backend system'.
+
+      when  9. ls_DNOC_USERCFG-field =   agssn_sysrec_rfc_call.        " 'SYSREC_RFC_CALL',
+               ls_DNOC_USERCFGT-descr =  'RFC instead of webservice call to SAP Backbone ( |X)'.
 *     display all systems at one time
-      when  9. ls_DNOC_USERCFG-field =   'SYSREC_DIS_ALL'.
+      when 10. ls_DNOC_USERCFG-field =   'SYSREC_DIS_ALL'.
                ls_DNOC_USERCFGT-descr =  'display all systems on system statistics list ( |X)'.
 *     BPCA
-      when 10. ls_DNOC_USERCFG-field =   agssn_sysrec_bpca_user.       " 'SYSREC_BPCA_USER',
+      when 11. ls_DNOC_USERCFG-field =   agssn_sysrec_bpca_user.       " 'SYSREC_BPCA_USER',
                ls_DNOC_USERCFGT-descr =  'BPCA requests from all users ( |X)'.
-      when 11. ls_DNOC_USERCFG-field =   agssn_sysrec_bpca_date.       " 'SYSREC_BPCA_DATE',
+      when 12. ls_DNOC_USERCFG-field =   agssn_sysrec_bpca_date.       " 'SYSREC_BPCA_DATE',
                ls_DNOC_USERCFGT-descr =  'from date for BPCA requests'.
 *     Charm
-      when 12. ls_DNOC_USERCFG-field =   agssn_sysrec_charm_log_type.  " 'SYSREC_CHARM_LOG_TYPE',
+      when 13. ls_DNOC_USERCFG-field =   agssn_sysrec_charm_log_type.  " 'SYSREC_CHARM_LOG_TYPE',
                ls_DNOC_USERCFGT-descr =  'text Id for ChaRM log'.
-      when 13. ls_DNOC_USERCFG-field =   agssn_sysrec_charm_user.      " 'SYSREC_CHARM_USER',
+      when 14. ls_DNOC_USERCFG-field =   agssn_sysrec_charm_user.      " 'SYSREC_CHARM_USER',
                ls_DNOC_USERCFGT-descr =  'ChaRM requests from all users ( |X)'.
-      when 14. ls_DNOC_USERCFG-field =   agssn_sysrec_charm_date.      " 'SYSREC_CHARM_DATE',
+      when 15. ls_DNOC_USERCFG-field =   agssn_sysrec_charm_date.      " 'SYSREC_CHARM_DATE',
                ls_DNOC_USERCFGT-descr =  'from date for ChaRM requests'.
 *     Object list
-      when 15. ls_DNOC_USERCFG-field =   agssn_sysrec_object_exp.      " 'SYSREC_OBJECT_EXP',
+      when 16. ls_DNOC_USERCFG-field =   agssn_sysrec_object_exp.      " 'SYSREC_OBJECT_EXP',
                ls_DNOC_USERCFG-value =   14.
                ls_DNOC_USERCFGT-descr =  'days until object list expires'.
-      when 16. ls_DNOC_USERCFG-field =   agssn_sysrec_req_exp.         " 'SYSREC_REQ_EXP',
+      when 17. ls_DNOC_USERCFG-field =   agssn_sysrec_req_exp.         " 'SYSREC_REQ_EXP',
                ls_DNOC_USERCFG-value =   14.
                ls_DNOC_USERCFGT-descr =  'days until required notes expire'.
 *     Side effect notes
-      when 17. ls_DNOC_USERCFG-field =   agssn_sysrec_side_effect.     " 'SYSREC_SIDE_EFFECT',
+      when 18. ls_DNOC_USERCFG-field =   agssn_sysrec_side_effect.     " 'SYSREC_SIDE_EFFECT',
                ls_DNOC_USERCFG-value =   14.
                ls_DNOC_USERCFGT-descr =  'days until side effect notes expire'.
 
-*     when 18. ls_DNOC_USERCFG-field =   agssn_sysrec_engine_version.  " 'SYSREC_ENGINE_VERSION',
-*     when 19. ls_DNOC_USERCFG-field =   agssn_sysrec_migrate_flag.    " 'SYSREC_MIGRATE_FLAG',
-      when 20. ls_DNOC_USERCFG-field =   'URL_DISPLAY_NOTE'. " see method IF_EX_DNO_NOTE~DISPLAY_NOTE or GET_NOTE_URL_BY_NOTE_ID
-      when 21. ls_DNOC_USERCFG-field =   'URL_SEARCH_NOTE'.
-      when 22. exit.
+*     when 19. ls_DNOC_USERCFG-field =   agssn_sysrec_engine_version.  " 'SYSREC_ENGINE_VERSION',
+*     when 20. ls_DNOC_USERCFG-field =   agssn_sysrec_migrate_flag.    " 'SYSREC_MIGRATE_FLAG',
+      when 21. ls_DNOC_USERCFG-field =   'URL_DISPLAY_NOTE'. " see method IF_EX_DNO_NOTE~DISPLAY_NOTE or GET_NOTE_URL_BY_NOTE_ID
+      when 22. ls_DNOC_USERCFG-field =   'URL_SEARCH_NOTE'.
+      when 23. exit.
     endcase.
     check ls_DNOC_USERCFG-field is not initial.
 
   select * from DNOC_USERCFG
-    into CORRESPONDING FIELDS OF ls_DNOC_USERCFG
-    where FIELD = ls_DNOC_USERCFG-field
-    order by field uname lfdnr.
+    into CORRESPONDING FIELDS OF @ls_DNOC_USERCFG
+    where FIELD = @ls_DNOC_USERCFG-field
+    order by field, uname, lfdnr.
 
-    select single * from DNOC_USERCFGT into ls_DNOC_USERCFGT
-      where LANGUAGE = sy-langu
-        and field = ls_DNOC_USERCFGT-FIELD
-        and uname = ls_DNOC_USERCFGT-uname
-        and lfdnr = ls_DNOC_USERCFGT-lfdnr.
+    clear ls_DNOC_USERCFGT.
+    select single * from DNOC_USERCFGT into @ls_DNOC_USERCFGT
+      where LANGUAGE = @sy-langu
+        and field    = @ls_DNOC_USERCFGT-FIELD
+        and uname    = @ls_DNOC_USERCFGT-uname
+        and lfdnr    = @ls_DNOC_USERCFGT-lfdnr.
 *   Show custom value
     write: /    ls_DNOC_USERCFG-field color col_total,
                 ls_DNOC_USERCFG-UNAME,
@@ -1497,9 +1524,7 @@ form SHOW_UPL_EXECUTION_TIME.
       TEXT       = L_MSG.
   get run time field T0.
   try.
-      call method LO_OBJ->GET_AVAILABLE_SYSTEMS
-        importing
-          ET_SYSTEMS = LT_SYSTEMS.
+      LO_OBJ->GET_AVAILABLE_SYSTEMS( importing ET_SYSTEMS = LT_SYSTEMS ).
     catch CX_AGS_CC_QUERY_EXEC_ERROR into LO_EX.
       write: /(30) 'GET_AVAILABLE_SYSTEMS' color col_negative, LO_EX->GET_TEXT( ).
   endtry.
@@ -1558,7 +1583,7 @@ form SHOW_UPL_EXECUTION_TIME.
   append LS_R3TR_OBJECTS to LT_R3TR_OBJECTS.
 
 * Check all systems
-  describe table LT_SYSTEMS lines L_CNT_SYSTEMS.
+  L_CNT_SYSTEMS = lines( LT_SYSTEMS ).
   loop at LT_SYSTEMS into LS_SYSTEMS
     where SYSTEM_ID in s_SYS.
     L_PERCENT = SY-TABIX * 100 / L_CNT_SYSTEMS.
@@ -1668,7 +1693,7 @@ form GET_AVAILABLE_SYSTEMS
 * see class CL_AGS_CC_SCMON_DATA method GET_AVAILABLE_SYSTEMS
 * Execution time optimization: call only AGS_CC_GET_UPL_SYSTEMS_M to get systems with month data only
 
-  data : MSG             type CHAR255,
+  data:  MSG             type CHAR255,
          LF_RFC_DEST(32) type C,
          LT_SYSTEMS      type E2E_SID_TT.
 *         lt_sys          TYPE ags_cc_upl_data_system_av_t.
@@ -1676,12 +1701,10 @@ form GET_AVAILABLE_SYSTEMS
   data: LO_EX  type ref to CX_SM_BW_ACCESS.
 
   try.
-      call method CL_SM_BW_ACCESS=>GET_WRITE_BW_DESTINATION
-        receiving
-          WRITE_RFC_DEST = LF_RFC_DEST. " Logical Destination (Specified in Function Call)
+      CL_SM_BW_ACCESS=>GET_WRITE_BW_DESTINATION( receiving WRITE_RFC_DEST = LF_RFC_DEST ). " Logical Destination (Specified in Function Call)
     catch CX_SM_BW_ACCESS into LO_EX.
       write: /(30) 'GET_WRITE_BW_DESTINATION' color col_negative, LO_EX->GET_TEXT( ).
-      exit.
+      RETURN.
   endtry.
 
   call function 'AGS_CC_GET_UPL_SYSTEMS_M'
@@ -1706,41 +1729,37 @@ endform. " GET_AVAILABLE_SYSTEMS
 *----------------------------------------------------------------------*
 
 at selection-screen on value-request for S_SYS-LOW.
-  perform F4_SYS using 'S_SYS-LOW'.
+  perform F4_SYS.
 
 at selection-screen on value-request for S_SYS-HIGH.
-  perform F4_SYS using 'S_SYS-HIGH'.
+  perform F4_SYS.
 
 *
-form F4_SYS using L_DYNPROFIELD  type HELP_INFO-DYNPROFLD.
+form F4_SYS.
 
-  data: PROGNAME      type SY-REPID,
-        DYNNUM        type SY-DYNNR,
-        DYNPRO_VALUES type table of DYNPREAD,
-        FIELD_VALUE   like line of DYNPRO_VALUES,
-        FIELD_TAB     type table of DFIES  with header line,
-        begin of VALUE_TAB occurs 0,
-          SYSTEM_NAME   type SMSY_SUBSYS_NAME,
-          SYSTEM_TYPE   type SMSY_SYSTYPE,
-          ROLE_TEXT     type DD07V-DDTEXT, "AGS_SR_S_LMDB_SYSTEM-ROLE,
-          PRIORITY_TEXT type DD07V-DDTEXT, "AGS_SR_S_LMDB_SYSTEM-PRIORITY,
-          LAST_CHK_DATE type SY-DATUM, "TIMESTAMP,
-          LAST_CHK_TIME type SY-UZEIT, "TIMESTAMP,
-          FAVORITE      type TEXT10,
-        end of VALUE_TAB.
+  TYPES:
+    BEGIN OF ts_f4_value,
+      SYSTEM_NAME   type SMSY_SUBSYS_NAME,
+      SYSTEM_TYPE   type SMSY_SYSTYPE,
+      ROLE_TEXT     type DD07V-DDTEXT, "AGS_SR_S_LMDB_SYSTEM-ROLE,
+      PRIORITY_TEXT type DD07V-DDTEXT, "AGS_SR_S_LMDB_SYSTEM-PRIORITY,
+      LAST_CHK_DATE type SY-DATUM, "TIMESTAMP,
+      LAST_CHK_TIME type SY-UZEIT, "TIMESTAMP,
+      FAVORITE      type TEXT10,
+    END OF ts_f4_value.
 
-  data: LS_SYSTEM_INFO   type AGS_SR_S_LMDB_SYSTEM.
+  DATA:
+    f4_value     TYPE          ts_f4_value,
+    f4_value_tab TYPE TABLE OF ts_f4_value.
 
-  PROGNAME = SY-REPID.
-  DYNNUM   = SY-DYNNR.
+  data LS_SYSTEM_INFO   type AGS_SR_S_LMDB_SYSTEM.
 
-  data: LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM,
-        LS_SYSTEM type  AGSNOTE_API_S_CHKED_SYSTEM.
-  data: LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
+  data: LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM.
+  data LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
   call function 'AGSNO_API_GET_CHKED_SYSTEMS'
     importing
       ET_SYSTEM = LT_SYSTEM.
-  loop at LT_SYSTEM into LS_SYSTEM.
+  loop at LT_SYSTEM into data(LS_SYSTEM).
     clear LS_SYSTEM_INFO.
     try.
         call function 'AGSNO_GET_SYSTEM_INFO'
@@ -1755,172 +1774,199 @@ form F4_SYS using L_DYNPROFIELD  type HELP_INFO-DYNPROFLD.
         write: /(30) 'AGSNO_GET_SYSTEM_INFO' color col_negative, LO_EX->GET_TEXT( ).
     endtry.
 
-    VALUE_TAB-SYSTEM_NAME   = LS_SYSTEM-SYSTEM_NAME.
-    VALUE_TAB-SYSTEM_TYPE   = LS_SYSTEM-SYSTEM_TYPE.
+    f4_VALUE-SYSTEM_NAME   = LS_SYSTEM-SYSTEM_NAME.
+    f4_VALUE-SYSTEM_TYPE   = LS_SYSTEM-SYSTEM_TYPE.
 
-    data: LS_KV type AGS_SR_S_KV.
+    data LS_KV type AGS_SR_S_KV.
     read table GT_SYSTEM_ROLES into LS_KV
       with key SR_KEY = LS_SYSTEM_INFO-ROLE.
     if SY-SUBRC = 0.
-      VALUE_TAB-ROLE_TEXT     = LS_KV-SR_VALUE.
+      f4_VALUE-ROLE_TEXT     = LS_KV-SR_VALUE.
     else.
-      VALUE_TAB-ROLE_TEXT     = LS_SYSTEM_INFO-ROLE.
+      f4_VALUE-ROLE_TEXT     = LS_SYSTEM_INFO-ROLE.
     endif.
 
     read table GT_SYSTEM_PRIORITIES into LS_KV
       with key SR_KEY = LS_SYSTEM_INFO-PRIORITY.
     if SY-SUBRC = 0.
-      VALUE_TAB-PRIORITY_TEXT = LS_KV-SR_VALUE.
+      f4_VALUE-PRIORITY_TEXT = LS_KV-SR_VALUE.
     else.
-      VALUE_TAB-PRIORITY_TEXT = LS_SYSTEM_INFO-PRIORITY.
+      f4_VALUE-PRIORITY_TEXT = LS_SYSTEM_INFO-PRIORITY.
     endif.
 
     convert time stamp LS_SYSTEM-LAST_CHK
         time zone SY-ZONLO
-        into date VALUE_TAB-LAST_CHK_DATE
-             time VALUE_TAB-LAST_CHK_TIME.
+        into date f4_VALUE-LAST_CHK_DATE
+             time f4_VALUE-LAST_CHK_TIME.
 
     data LS_AGSSR_SYSFAVO type AGSSR_SYSFAVO.
-    select single * from AGSSR_SYSFAVO into LS_AGSSR_SYSFAVO
-      where USER_NAME   = SY-UNAME
-        and SYSTEM_NAME = LS_SYSTEM-SYSTEM_NAME
-        and SYSTEM_TYPE = LS_SYSTEM-SYSTEM_TYPE.
+    select single * from AGSSR_SYSFAVO into @LS_AGSSR_SYSFAVO
+      where USER_NAME   = @SY-UNAME
+        and SYSTEM_NAME = @LS_SYSTEM-SYSTEM_NAME
+        and SYSTEM_TYPE = @LS_SYSTEM-SYSTEM_TYPE.
     if SY-SUBRC = 0.
-      VALUE_TAB-FAVORITE = 'Favorite'(066).
+      f4_VALUE-FAVORITE = 'Favorite'(066).
     else.
-      VALUE_TAB-FAVORITE = SPACE.
+      f4_VALUE-FAVORITE = SPACE.
     endif.
 
-    append VALUE_TAB.
+    append f4_VALUE to f4_VALUE_TAB.
   endloop.
-  sort VALUE_TAB by SYSTEM_NAME SYSTEM_TYPE.
+  sort f4_VALUE_TAB by SYSTEM_NAME SYSTEM_TYPE.
 
+  DATA(progname) = sy-repid.
+  DATA(dynnum)   = sy-dynnr.
+  DATA field TYPE dynfnam.
+  DATA stepl TYPE sy-stepl.
+  GET CURSOR FIELD field LINE stepl.
+  DATA return_tab TYPE TABLE OF ddshretval.
   call function 'F4IF_INT_TABLE_VALUE_REQUEST'
     exporting
       RETFIELD        = 'SYSTEM_NAME'
-      DYNPPROG        = PROGNAME
-      DYNPNR          = DYNNUM
-      DYNPROFIELD     = L_DYNPROFIELD
-      VALUE_ORG       = 'S'
+      dynpprog        = progname
+      dynpnr          = dynnum
+      dynprofield     = field
+      stepl           = stepl
+      value_org       = 'S'
     tables
 *     field_tab       = field_tab
-      VALUE_TAB       = VALUE_TAB
+      VALUE_TAB       = f4_VALUE_TAB
+      return_tab      = return_tab " surprisingly required to get lower case values
     exceptions
       PARAMETER_ERROR = 1
       NO_VALUES_FOUND = 2.
   if SY-SUBRC <> 0.
 * Implement suitable error handling here
   endif.
-endform.                                                    "F4_SYS
+endform. " F4_SYS
 
 at selection-screen on value-request for S_TYPE-LOW.
-  perform F4_TYPE using 'S_TYPE-LOW'.
+  perform F4_TYPE.
 
 at selection-screen on value-request for S_TYPE-HIGH.
-  perform F4_TYPE using 'S_TYPE-HIGH'.
+  perform F4_TYPE.
 *
-form F4_TYPE using L_DYNPROFIELD  type HELP_INFO-DYNPROFLD.
+form F4_TYPE.
 
-  data: PROGNAME      type SY-REPID,
-        DYNNUM        type SY-DYNNR,
-        DYNPRO_VALUES type table of DYNPREAD,
-        FIELD_VALUE   like line of DYNPRO_VALUES,
-        FIELD_TAB     type table of DFIES  with header line,
-        begin of VALUE_TAB occurs 0,
-          SYSTEM_TYPE type  SMSY_SYSTYPE,
-        end of VALUE_TAB.
+  TYPES:
+    BEGIN OF ts_f4_value,
+      SYSTEM_TYPE type  SMSY_SYSTYPE,
+    END OF ts_f4_value.
 
-  PROGNAME = SY-REPID.
-  DYNNUM   = SY-DYNNR.
+  DATA:
+    f4_value     TYPE          ts_f4_value,
+    f4_value_tab TYPE TABLE OF ts_f4_value.
 
-  data: LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM,
-        LS_SYSTEM type  AGSNOTE_API_S_CHKED_SYSTEM.
+  data: LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM.
   call function 'AGSNO_API_GET_CHKED_SYSTEMS'
     importing
       ET_SYSTEM = LT_SYSTEM.
-  loop at LT_SYSTEM into LS_SYSTEM.
-    VALUE_TAB-SYSTEM_TYPE  = LS_SYSTEM-SYSTEM_TYPE.
-    collect VALUE_TAB.
+  loop at LT_SYSTEM into data(LS_SYSTEM).
+    f4_VALUE-SYSTEM_TYPE  = LS_SYSTEM-SYSTEM_TYPE.
+    collect f4_VALUE into f4_VALUE_TAB.
   endloop.
-  sort VALUE_TAB by SYSTEM_TYPE.
+  sort f4_VALUE_TAB by SYSTEM_TYPE.
 
+  DATA(progname) = sy-repid.
+  DATA(dynnum)   = sy-dynnr.
+  DATA field TYPE dynfnam.
+  DATA stepl TYPE sy-stepl.
+  GET CURSOR FIELD field LINE stepl.
+  DATA return_tab TYPE TABLE OF ddshretval.
   call function 'F4IF_INT_TABLE_VALUE_REQUEST'
     exporting
       RETFIELD        = 'SYSTEM_TYPE'
-      DYNPPROG        = PROGNAME
-      DYNPNR          = DYNNUM
-      DYNPROFIELD     = L_DYNPROFIELD
-      VALUE_ORG       = 'S'
+      dynpprog        = progname
+      dynpnr          = dynnum
+      dynprofield     = field
+      stepl           = stepl
+      value_org       = 'S'
     tables
 *     field_tab       = field_tab
-      VALUE_TAB       = VALUE_TAB
+      VALUE_TAB       = f4_VALUE_TAB
+      return_tab      = return_tab " surprisingly required to get lower case values
     exceptions
       PARAMETER_ERROR = 1
       NO_VALUES_FOUND = 2.
   if SY-SUBRC <> 0.
 * Implement suitable error handling here
   endif.
-endform.                                                    "F4_TYPE
+endform. " F4_TYPE
 
 at selection-screen on value-request for S_STAT-LOW.
-  perform F4_STAT using 'S_STAT-LOW'.
+  perform F4_STAT.
 
 at selection-screen on value-request for S_STAT-HIGH.
-  perform F4_STAT using 'S_STAT-HIGH'.
+  perform F4_STAT.
 *
-form F4_STAT using L_DYNPROFIELD  type HELP_INFO-DYNPROFLD.
+form F4_STAT.
 
-  data: PROGNAME      type SY-REPID,
-        DYNNUM        type SY-DYNNR,
-        DYNPRO_VALUES type table of DYNPREAD,
-        FIELD_VALUE   like line of DYNPRO_VALUES,
-        FIELD_TAB     type table of DFIES  with header line,
-        begin of VALUE_TAB occurs 0,
-          STATUS_ID    type AGSSR_STATUS-STATUS_ID,
-          STATUS_TEXT  type AGSSR_STATUS-STATUS_TEXT,
-          STATUS_LTEXT type AGSSR_STATUS-STATUS_LTEXT,
-        end of VALUE_TAB.
+  TYPES:
+    BEGIN OF ts_f4_value,
+      STATUS_ID    type AGSSR_STATUS-STATUS_ID,
+      STATUS_TEXT  type AGSSR_STATUS-STATUS_TEXT,
+      STATUS_LTEXT type AGSSR_STATUS-STATUS_LTEXT,
+    END OF ts_f4_value.
 
-  PROGNAME = SY-REPID.
-  DYNNUM   = SY-DYNNR.
+  DATA:
+    f4_value     TYPE          ts_f4_value,
+    f4_value_tab TYPE TABLE OF ts_f4_value.
 
-  select STATUS_ID STATUS_TEXT STATUS_LTEXT
+  select STATUS_ID, STATUS_TEXT, STATUS_LTEXT
     from AGSSR_STATUS
-    into table VALUE_TAB
-    where LANGU = SY-LANGU
+    into table @F4_VALUE_TAB
+    where LANGU = @SY-LANGU
     order by primary key.
   if SY-SUBRC ne 0.
-    select STATUS_ID STATUS_TEXT STATUS_LTEXT
+    select STATUS_ID, STATUS_TEXT, STATUS_LTEXT
       from AGSSR_STATUS
-      into table VALUE_TAB
+      into table @F4_VALUE_TAB
       where LANGU = 'E'       "English is secondary language
       order by primary key.
   endif.
 
+  read table F4_VALUE_TAB TRANSPORTING NO FIELDS
+   WITH KEY
+     status_id = 'SAPINITSTA'.
+  if sy-subrc is not initial.
+    F4_VALUE-STATUS_ID    = 'SAPINITSTA'.
+    F4_VALUE-STATUS_TEXT  = 'Initial user status'(030).
+    F4_VALUE-STATUS_LTEXT = 'Initial user status'(030).
+    insert F4_VALUE into F4_VALUE_TAB index 1.
+  endif.
+
+  DATA(progname) = sy-repid.
+  DATA(dynnum)   = sy-dynnr.
+  DATA field TYPE dynfnam.
+  DATA stepl TYPE sy-stepl.
+  GET CURSOR FIELD field LINE stepl.
+  DATA return_tab TYPE TABLE OF ddshretval.
   call function 'F4IF_INT_TABLE_VALUE_REQUEST'
     exporting
       RETFIELD        = 'STATUS_ID'
-      DYNPPROG        = PROGNAME
-      DYNPNR          = DYNNUM
-      DYNPROFIELD     = L_DYNPROFIELD
-      VALUE_ORG       = 'S'
+      dynpprog        = progname
+      dynpnr          = dynnum
+      dynprofield     = field
+      stepl           = stepl
+      value_org       = 'S'
     tables
 *     field_tab       = field_tab
-      VALUE_TAB       = VALUE_TAB
+      VALUE_TAB       = F4_VALUE_TAB
+      return_tab      = return_tab " surprisingly required to get lower case values
     exceptions
       PARAMETER_ERROR = 1
       NO_VALUES_FOUND = 2.
   if SY-SUBRC <> 0.
 * Implement suitable error handling here
   endif.
-endform.                                                    "F4_STAT
+endform. " F4_STAT
 
 *----------------------------------------------------------------------*
 *  AT SELECTION-SCREEN ON p_layout
 *----------------------------------------------------------------------*
 
 at selection-screen on P_LAYOUT.
-  check not P_LAYOUT is initial.
+  check P_LAYOUT is not initial.
   perform HANDLE_AT_SELSCR_ON_P_LAYOUT using P_LAYOUT SY-REPID 'A'.
 *
 form HANDLE_AT_SELSCR_ON_P_LAYOUT
@@ -1928,7 +1974,7 @@ form HANDLE_AT_SELSCR_ON_P_LAYOUT
          ID_REPID   type SY-REPID
          ID_SAVE    type C.
 
-  data: LS_VARIANT type DISVARIANT.
+  data LS_VARIANT type DISVARIANT.
 
   LS_VARIANT-REPORT  = ID_REPID.
   LS_VARIANT-VARIANT = ID_VARNAME.
@@ -1995,12 +2041,12 @@ start-of-selection.
 * Show configuration status
   if P_FC06 = 'X'.
     perform SHOW_CONFIGURATION.
-    exit.
+    RETURN.
   endif.
 
   if P_FC09 = 'X'.
     perform SHOW_STATUS_COMMENTS.
-    exit.
+    RETURN.
   endif.
 
 * Check authorizations (clear selection if no authorization)
@@ -2142,9 +2188,9 @@ endform. " CHECK_AUTHORIZATIONS
 
 form AGSNO_API_GET_RECOMM_NOTES.
 
-  data: LS_NOTELIST         type TS_NOTELIST.
+  data LS_NOTELIST         type TS_NOTELIST.
 
-  field-symbols: <LS_NOTELIST> type TS_NOTELIST.
+  field-symbols <LS_NOTELIST> type TS_NOTELIST.
 
   data: LV_NOTE_TYPS  type AGSNOTE_NOTE_TYPS,
         LV_CORR_TYPS  type AGSNOTE_CORR_TYPS,
@@ -2154,7 +2200,7 @@ form AGSNO_API_GET_RECOMM_NOTES.
   data: LT_NOTE_TYPES type range of AGSSR_NOTE-NOTE_TYPES,
         LS_NOTE_TYPES like line of LT_NOTE_TYPES.
 
-  data: LS_URLS_FOR_NOTES type TS_URLS_FOR_NOTES.
+  data LS_URLS_FOR_NOTES type TS_URLS_FOR_NOTES.
 
 * Prepare date range
   if S_TO is initial.
@@ -2194,55 +2240,55 @@ form AGSNO_API_GET_RECOMM_NOTES.
 *  ENDIF.
 
   clear: LS_NOTELIST, LV_NOTE_TYPS, LV_CORR_TYPS, LV_HAS_KERNEL, LV_IS_INDEP.
-  select S~SYSTEM_NAME
-         S~SYSTEM_TYPE
-         N~NOTE_NUMBER
-         N~NOTE_VERSION
-         N~PRIORITY
-         N~CATEGORY
-         N~SEC_CATEGORY
-         N~THEMK
-         N~RELEASE_DATE
-         N~NOTE_TYPES
-         N~IS_INDEP
-         S~CORR_TYPES
-         S~HAS_KERNEL
+  select S~SYSTEM_NAME,
+         S~SYSTEM_TYPE,
+         N~NOTE_NUMBER,
+         N~NOTE_VERSION,
+         N~PRIORITY,
+         N~CATEGORY,
+         N~SEC_CATEGORY,
+         N~THEMK,
+         N~RELEASE_DATE,
+         N~NOTE_TYPES,
+         N~IS_INDEP,
+         S~CORR_TYPES,
+         S~HAS_KERNEL,
          S~SPNAME
          from AGSSR_SYSNOTE as S
          inner join AGSSR_NOTE as N
            on S~NOTE_NUMBER = N~NOTE_NUMBER
          into
-         (LS_NOTELIST-SYSTEM_NAME,
-          LS_NOTELIST-SYSTEM_TYPE,
-          LS_NOTELIST-NOTE_NUMBER,
-          LS_NOTELIST-NOTE_VERSION,
-          LS_NOTELIST-PRIORITY_ID,
-          LS_NOTELIST-CATEGORY_ID,
-          LS_NOTELIST-SEC_CATEGORY,
-          LS_NOTELIST-THEMK,
-          LS_NOTELIST-RELEASE_DATE,
-          LV_NOTE_TYPS,
-          LV_IS_INDEP,
-          LV_CORR_TYPS,
-          LV_HAS_KERNEL,
-          LS_NOTELIST-SPN)
-      where S~SYSTEM_NAME  in S_SYS
-        and S~SYSTEM_TYPE  in S_TYPE
-        and N~NOTE_NUMBER  in S_NOTE
-        and N~PRIORITY     in S_PRIO
-        and N~THEMK        in S_THEMK
-        and N~RELEASE_DATE >= S_FROM
-        and N~RELEASE_DATE <= S_TO
-        and N~NOTE_TYPES   in LT_NOTE_TYPES
+         (@LS_NOTELIST-SYSTEM_NAME,
+          @LS_NOTELIST-SYSTEM_TYPE,
+          @LS_NOTELIST-NOTE_NUMBER,
+          @LS_NOTELIST-NOTE_VERSION,
+          @LS_NOTELIST-PRIORITY_ID,
+          @LS_NOTELIST-CATEGORY_ID,
+          @LS_NOTELIST-SEC_CATEGORY,
+          @LS_NOTELIST-THEMK,
+          @LS_NOTELIST-RELEASE_DATE,
+          @LV_NOTE_TYPS,
+          @LV_IS_INDEP,
+          @LV_CORR_TYPS,
+          @LV_HAS_KERNEL,
+          @LS_NOTELIST-SPN)
+      where S~SYSTEM_NAME  in @S_SYS
+        and S~SYSTEM_TYPE  in @S_TYPE
+        and N~NOTE_NUMBER  in @S_NOTE
+        and N~PRIORITY     in @S_PRIO
+        and N~THEMK        in @S_THEMK
+        and N~RELEASE_DATE >= @S_FROM
+        and N~RELEASE_DATE <= @S_TO
+        and N~NOTE_TYPES   in @LT_NOTE_TYPES
       .
 
 *   Check user favorite
     data LS_AGSSR_SYSFAVO type AGSSR_SYSFAVO.
     if S_FAVO = 'X'.
-      select single * from AGSSR_SYSFAVO into LS_AGSSR_SYSFAVO
-        where USER_NAME   = SY-UNAME
-          and SYSTEM_NAME = LS_NOTELIST-SYSTEM_NAME
-          and SYSTEM_TYPE = LS_NOTELIST-SYSTEM_TYPE.
+      select single * from AGSSR_SYSFAVO into @LS_AGSSR_SYSFAVO
+        where USER_NAME   = @SY-UNAME
+          and SYSTEM_NAME = @LS_NOTELIST-SYSTEM_NAME
+          and SYSTEM_TYPE = @LS_NOTELIST-SYSTEM_TYPE.
       if SY-SUBRC ne 0.
         continue.
       endif.
@@ -2254,14 +2300,14 @@ form AGSNO_API_GET_RECOMM_NOTES.
 *   LAST_SUSER
 *   FLAG_REVIEW
 *   OLD_SSTATUS
-    select single LAST_SSTATUS LAST_SUSER
-                  LAST_STATUS  LAST_USER
+    select single LAST_SSTATUS, LAST_SUSER,
+                  LAST_STATUS,  LAST_USER
       from AGSSR_SYSNOTES
-      into (LS_NOTELIST-SSTATUS, LS_NOTELIST-SUSER,
-            LS_NOTELIST-STATUS,  LS_NOTELIST-USER)
-      where SYSTEM_NAME = LS_NOTELIST-SYSTEM_NAME
-        and SYSTEM_TYPE = LS_NOTELIST-SYSTEM_TYPE
-        and NOTE_NUMBER = LS_NOTELIST-NOTE_NUMBER.
+      into (@LS_NOTELIST-SSTATUS, @LS_NOTELIST-SUSER,
+            @LS_NOTELIST-STATUS,  @LS_NOTELIST-USER)
+      where SYSTEM_NAME = @LS_NOTELIST-SYSTEM_NAME
+        and SYSTEM_TYPE = @LS_NOTELIST-SYSTEM_TYPE
+        and NOTE_NUMBER = @LS_NOTELIST-NOTE_NUMBER.
     if SY-SUBRC <> 0.
       LS_NOTELIST-SSTATUS =  agssn_status_new. "'NEW'.
       LS_NOTELIST-SUSER   = ''.
@@ -2274,13 +2320,13 @@ form AGSNO_API_GET_RECOMM_NOTES.
 * NEW  New
 * SAPREVIEWF SAP review (agssn_status_review)
 * INP  New version available
-    select single STATUS_TEXT from AGSSR_STATUS into LS_NOTELIST-SSTATUS_TEXT
-      where LANGU = SY-LANGU
-        and STATUS_ID = LS_NOTELIST-SSTATUS.
+    select single STATUS_TEXT from AGSSR_STATUS into @LS_NOTELIST-SSTATUS_TEXT
+      where LANGU = @SY-LANGU
+        and STATUS_ID = @LS_NOTELIST-SSTATUS.
     if SY-SUBRC ne 0.
-      select single STATUS_TEXT from AGSSR_STATUS into LS_NOTELIST-SSTATUS_TEXT
+      select single STATUS_TEXT from AGSSR_STATUS into @LS_NOTELIST-SSTATUS_TEXT
        where LANGU = 'E'       "English is secondary language
-         and STATUS_ID = LS_NOTELIST-SSTATUS.
+         and STATUS_ID = @LS_NOTELIST-SSTATUS.
       if SY-SUBRC ne 0.
         LS_NOTELIST-SSTATUS_TEXT = LS_NOTELIST-SSTATUS.
       endif.
@@ -2293,16 +2339,16 @@ form AGSNO_API_GET_RECOMM_NOTES.
 * IMP  To Be Implemented
 * NOR  Irrelevant
 * PSP  Postponed
-    select single STATUS_TEXT from AGSSR_STATUS into LS_NOTELIST-STATUS_TEXT
-      where LANGU = SY-LANGU
-        and STATUS_ID = LS_NOTELIST-STATUS.
+    select single STATUS_TEXT from AGSSR_STATUS into @LS_NOTELIST-STATUS_TEXT
+      where LANGU = @SY-LANGU
+        and STATUS_ID = @LS_NOTELIST-STATUS.
     if SY-SUBRC ne 0.
-      select single STATUS_TEXT from AGSSR_STATUS into LS_NOTELIST-STATUS_TEXT
+      select single STATUS_TEXT from AGSSR_STATUS into @LS_NOTELIST-STATUS_TEXT
        where LANGU = 'E'       "English is secondary language
-         and STATUS_ID = LS_NOTELIST-STATUS.
+         and STATUS_ID = @LS_NOTELIST-STATUS.
       if SY-SUBRC ne 0.
         if LS_NOTELIST-STATUS = agssn_status_und.  "'SAPINITSTA'.
-          LS_NOTELIST-STATUS_TEXT = 'Initial user status'.
+          LS_NOTELIST-STATUS_TEXT = 'Initial user status'(030).
         else.
           LS_NOTELIST-STATUS_TEXT = LS_NOTELIST-STATUS.
         endif.
@@ -2310,26 +2356,26 @@ form AGSNO_API_GET_RECOMM_NOTES.
     endif.
 
 *   Get short text of application component
-    select single TK_LTEXT from AGSSR_THEMK into LS_NOTELIST-THEMK_TEXT
-      where LANGU = SY-LANGU
-        and TK_ID = LS_NOTELIST-THEMK.
+    select single TK_LTEXT from AGSSR_THEMK into @LS_NOTELIST-THEMK_TEXT
+      where LANGU = @SY-LANGU
+        and TK_ID = @LS_NOTELIST-THEMK.
     if SY-SUBRC ne 0.
-      select single TK_LTEXT from AGSSR_THEMK into LS_NOTELIST-THEMK_TEXT
+      select single TK_LTEXT from AGSSR_THEMK into @LS_NOTELIST-THEMK_TEXT
         where LANGU = 'E'       "English is secondary language
-          and TK_ID = LS_NOTELIST-THEMK.
+          and TK_ID = @LS_NOTELIST-THEMK.
       if SY-SUBRC ne 0.
         LS_NOTELIST-THEMK_TEXT = LS_NOTELIST-THEMK.
       endif.
     endif.
 
 *   Get short text of security category
-    select single SC_STEXT from AGSSR_SEC_CAT into LS_NOTELIST-SEC_CATEGORY_TEXT
-      where LANGU = SY-LANGU
-        and SC_ID = LS_NOTELIST-SEC_CATEGORY.
+    select single SC_STEXT from AGSSR_SEC_CAT into @LS_NOTELIST-SEC_CATEGORY_TEXT
+      where LANGU = @SY-LANGU
+        and SC_ID = @LS_NOTELIST-SEC_CATEGORY.
     if SY-SUBRC ne 0.
-      select single SC_STEXT from AGSSR_SEC_CAT into LS_NOTELIST-SEC_CATEGORY_TEXT
+      select single SC_STEXT from AGSSR_SEC_CAT into @LS_NOTELIST-SEC_CATEGORY_TEXT
         where LANGU = 'E'       "English is secondary language
-          and SC_ID = LS_NOTELIST-SEC_CATEGORY.
+          and SC_ID = @LS_NOTELIST-SEC_CATEGORY.
       if SY-SUBRC ne 0.
         LS_NOTELIST-SEC_CATEGORY_TEXT = LS_NOTELIST-SEC_CATEGORY.
       endif.
@@ -2351,10 +2397,10 @@ form AGSNO_API_GET_RECOMM_NOTES.
           L_TIMEC(8)       type C,
           l_technical_comment type c.
     select * from AGSSR_SYSNOTEC
-      into l_AGSSR_SYSNOTEC
-       where  SYSTEM_NAME = LS_NOTELIST-SYSTEM_NAME
-          and SYSTEM_TYPE = LS_NOTELIST-SYSTEM_TYPE
-          and NOTE_NUMBER = LS_NOTELIST-NOTE_NUMBER
+      into @l_AGSSR_SYSNOTEC
+       where  SYSTEM_NAME = @LS_NOTELIST-SYSTEM_NAME
+          and SYSTEM_TYPE = @LS_NOTELIST-SYSTEM_TYPE
+          and NOTE_NUMBER = @LS_NOTELIST-NOTE_NUMBER
       order by CREATED_AT descending.
 
 *     1st entry -> latest comment
@@ -2385,13 +2431,13 @@ form AGSNO_API_GET_RECOMM_NOTES.
         LS_NOTELIST-USER_STATUS         = l_AGSSR_SYSNOTEC-STATUS_TO.
 
 *   Get short text of status
-    select single STATUS_TEXT from AGSSR_STATUS into LS_NOTELIST-USER_STATUS_TEXT
-      where LANGU = SY-LANGU
-        and STATUS_ID = LS_NOTELIST-USER_STATUS.
+    select single STATUS_TEXT from AGSSR_STATUS into @LS_NOTELIST-USER_STATUS_TEXT
+      where LANGU = @SY-LANGU
+        and STATUS_ID = @LS_NOTELIST-USER_STATUS.
     if SY-SUBRC ne 0.
-      select single STATUS_TEXT from AGSSR_STATUS into LS_NOTELIST-USER_STATUS_TEXT
+      select single STATUS_TEXT from AGSSR_STATUS into @LS_NOTELIST-USER_STATUS_TEXT
        where LANGU = 'E'       "English is secondary language
-         and STATUS_ID = LS_NOTELIST-USER_STATUS.
+         and STATUS_ID = @LS_NOTELIST-USER_STATUS.
       if SY-SUBRC ne 0.
         LS_NOTELIST-STATUS_TEXT = LS_NOTELIST-USER_STATUS.
       endif.
@@ -2416,7 +2462,7 @@ form AGSNO_API_GET_RECOMM_NOTES.
 
 *   Get system data
     data LS_SYSTEM_INFO type  AGS_SR_S_LMDB_SYSTEM.
-    data: LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
+    data LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
     if   LS_NOTELIST-SYSTEM_NAME ne LS_SYSTEM_INFO-SYSTEM_NAME
       or LS_NOTELIST-SYSTEM_TYPE ne LS_SYSTEM_INFO-SYSTEM_TYPE.
       try.
@@ -2473,15 +2519,15 @@ form AGSNO_API_GET_RECOMM_NOTES.
 *   Get short text of note
     select single SHORT_TEXT
       from AGSSR_TNOTE
-      into LS_NOTELIST-SHORT_TEXT
-      where LANGU       = SY-LANGU
-        and NOTE_NUMBER = LS_NOTELIST-NOTE_NUMBER.
+      into @LS_NOTELIST-SHORT_TEXT
+      where LANGU       = @SY-LANGU
+        and NOTE_NUMBER = @LS_NOTELIST-NOTE_NUMBER.
     if SY-SUBRC ne 0 and SY-LANGU ne 'E'.
       select single SHORT_TEXT
         from AGSSR_TNOTE
-        into LS_NOTELIST-SHORT_TEXT
+        into @LS_NOTELIST-SHORT_TEXT
         where LANGU       = 'E'
-          and NOTE_NUMBER = LS_NOTELIST-NOTE_NUMBER.
+          and NOTE_NUMBER = @LS_NOTELIST-NOTE_NUMBER.
     endif.
 
 *   Get License Audit Attributes
@@ -2489,8 +2535,8 @@ form AGSNO_API_GET_RECOMM_NOTES.
       clear: LS_NOTELIST-AUDIT_ATTRIBUTE, LS_NOTELIST-AUDIT_ATTRIBUTE_TEXT.
       SELECT SINGLE AUDIT_ATTRIBUTE
         FROM AGSSR_NOTEAUDITA
-        INTO LS_NOTELIST-AUDIT_ATTRIBUTE
-        WHERE note_number = LS_NOTELIST-NOTE_NUMBER.
+        INTO @LS_NOTELIST-AUDIT_ATTRIBUTE
+        WHERE note_number = @LS_NOTELIST-NOTE_NUMBER.
       if sy-subrc = 0.
 *       see table AGSSR_MESUATTRI
 *       C EMC     Engine Measurement Correction
@@ -2502,9 +2548,9 @@ form AGSNO_API_GET_RECOMM_NOTES.
 *       T MTI     Measurement Tools Info
         select single LONG_TEXT
           from AGSSR_MESUATTRI
-          into LS_NOTELIST-AUDIT_ATTRIBUTE_TEXT
-          where SHORT_TEXT = LS_NOTELIST-AUDIT_ATTRIBUTE
-            and LANGU      = SY-LANGU.
+          into @LS_NOTELIST-AUDIT_ATTRIBUTE_TEXT
+          where SHORT_TEXT = @LS_NOTELIST-AUDIT_ATTRIBUTE
+            and LANGU      = @SY-LANGU.
         if sy-subrc ne 0.
 *         Unknown value or multi value
           LS_NOTELIST-AUDIT_ATTRIBUTE_TEXT = LS_NOTELIST-AUDIT_ATTRIBUTE.
@@ -2784,12 +2830,12 @@ form GET_SNOTE_IMPL_STATUS
     TT_SYS_IMPL_NOTE type sorted table of TS_SYS_IMPL_NOTE
       with unique key SYSTEM_NAME SYSTEM_TYPE.
 
-  statics: ST_SYS_IMPL_NOTE type TT_SYS_IMPL_NOTE.
+  statics ST_SYS_IMPL_NOTE type TT_SYS_IMPL_NOTE.
   field-symbols <LS_SYS_IMPL_NOTE> type TS_SYS_IMPL_NOTE.
   data: LS_SYS_IMPL_NOTE type TS_SYS_IMPL_NOTE,
         LS_IMPL_NOTE     type AGS_SR_S_IMPL_NOTE.
 
-  data: l_tabix type sy-tabix.
+  data l_tabix type sy-tabix.
 
 * Try to get it from cache
   read table ST_SYS_IMPL_NOTE assigning <LS_SYS_IMPL_NOTE>
@@ -2842,11 +2888,11 @@ form GET_KERNEL_REL
     TT_SYS_KERN_REL type sorted table of TS_SYS_KERN_REL
       with unique key SYSTEM_NAME SYSTEM_TYPE.
 
-  statics: ST_SYS_KERN_REL type TT_SYS_KERN_REL.
+  statics ST_SYS_KERN_REL type TT_SYS_KERN_REL.
   field-symbols <LS_SYS_KERN_REL> type TS_SYS_KERN_REL.
-  data: LS_SYS_KERN_REL type TS_SYS_KERN_REL.
+  data LS_SYS_KERN_REL type TS_SYS_KERN_REL.
 
-  data: l_tabix type sy-tabix.
+  data l_tabix type sy-tabix.
 
   clear: L_KERN_REL, L_KERN_PATCHLEVEL.
 
@@ -2895,10 +2941,10 @@ form GET_KERNEL_REL
           others                = 3.
       if SY-SUBRC ne 0.
         concatenate L_SYSTEM_NAME ':' L_MSG into L_TEXT separated by SPACE. "#EC NOTEXT
-        call method CL_AGSNO_LOGGER=>WRITE_TEXT(
-            IV_SUBOBJ = CL_AGSNO_LOGGER=>C_SUBOBJECT_CHECK
-            IV_MSGTY  = 'W'
-            IV_MSGTXT = L_TEXT ).
+        CL_AGSNO_LOGGER=>WRITE_TEXT(
+          IV_SUBOBJ = CL_AGSNO_LOGGER=>C_SUBOBJECT_CHECK
+          IV_MSGTY = 'W'
+          IV_MSGTXT = L_TEXT ).
       endif.
       check SY-SUBRC = 0.
 
@@ -2967,66 +3013,66 @@ endform. " GET_KERNEL_REL
 
 form SHOW_NOTELIST.
 
-  data: LS_NOTELIST         type TS_NOTELIST.
+  data LS_NOTELIST         type TS_NOTELIST.
 
   loop at GT_NOTELIST into LS_NOTELIST.
     write: /     LS_NOTELIST-SYSTEM_NAME  color col_group,
                  LS_NOTELIST-SYSTEM_TYPE  color col_group,
 
                  LS_NOTELIST-NOTE_NUMBER  color col_key,
-                 LS_NOTELIST-NOTE_VERSION ,
-                 LS_NOTELIST-RELEASE_DATE ,
-                 LS_NOTELIST-SHORT_TEXT   ,
+                 LS_NOTELIST-NOTE_VERSION,
+                 LS_NOTELIST-RELEASE_DATE,
+                 LS_NOTELIST-SHORT_TEXT,
 
-           /     LS_NOTELIST-THEMK        ,
-                 LS_NOTELIST-THEMK_TEXT   ,
+           /     LS_NOTELIST-THEMK,
+                 LS_NOTELIST-THEMK_TEXT,
 
-           /     LS_NOTELIST-PRIORITY_ID  ,
-                 LS_NOTELIST-PRIORITY     ,
+           /     LS_NOTELIST-PRIORITY_ID,
+                 LS_NOTELIST-PRIORITY,
 
-           /     LS_NOTELIST-CATEGORY_ID  ,
-                 LS_NOTELIST-CATEGORY     ,
+           /     LS_NOTELIST-CATEGORY_ID,
+                 LS_NOTELIST-CATEGORY,
 
-           /     LS_NOTELIST-SEC_CATEGORY ,
+           /     LS_NOTELIST-SEC_CATEGORY,
                  LS_NOTELIST-SEC_CATEGORY_TEXT,
 *                 ls_notelist-SEC_CATEGORY_LTEXT,
 
-           /     LS_NOTELIST-DISPLAY_URL  ,
+           /     LS_NOTELIST-DISPLAY_URL,
 
-*                 ls_notelist-sw_comp_tbl  ,
+*                 ls_notelist-sw_comp_tbl,
 
-           /     LS_NOTELIST-STATUS       ,
-                 LS_NOTELIST-STATUS_TEXT  ,
+           /     LS_NOTELIST-STATUS,
+                 LS_NOTELIST-STATUS_TEXT,
 *                 ls_notelist-status_ltext ,
 
-                 LS_NOTELIST-USER         ,
+                 LS_NOTELIST-USER,
 
-           /     LS_NOTELIST-SSTATUS       ,
-                 LS_NOTELIST-SSTATUS_TEXT  ,
-*                 ls_notelist-Sstatus_ltext ,
+           /     LS_NOTELIST-SSTATUS,
+                 LS_NOTELIST-SSTATUS_TEXT,
+*                 ls_notelist-Sstatus_ltext,
 
-                 LS_NOTELIST-SUSER         ,
+                 LS_NOTELIST-SUSER,
 
-           /     LS_NOTELIST-PROC_STATUS  ,
-                 LS_NOTELIST-IMPL_STATUS ,
-                 LS_NOTELIST-IMPL_NOTE_VERSION ,
+           /     LS_NOTELIST-PROC_STATUS,
+                 LS_NOTELIST-IMPL_STATUS,
+                 LS_NOTELIST-IMPL_NOTE_VERSION,
 
-           /     LS_NOTELIST-AUTO         ,
-                 LS_NOTELIST-M            ,
-                 LS_NOTELIST-PRE          ,
-                 LS_NOTELIST-POST         ,
-                 LS_NOTELIST-MANUAL       ,
-                 LS_NOTELIST-SPN          ,
-                 LS_NOTELIST-IS_KERNEL    ,
-                 LS_NOTELIST-IS_INDEP     ,
+           /     LS_NOTELIST-AUTO,
+                 LS_NOTELIST-M,
+                 LS_NOTELIST-PRE,
+                 LS_NOTELIST-POST,
+                 LS_NOTELIST-MANUAL,
+                 LS_NOTELIST-SPN,
+                 LS_NOTELIST-IS_KERNEL,
+                 LS_NOTELIST-IS_INDEP,
                  LS_NOTELIST-REQUIRED_NOTES,
                  LS_NOTELIST-SIDEEFFECT_NOTES,
 
-           /     LS_NOTELIST-NOTE_TYPE_S  , " Security
-                 LS_NOTELIST-NOTE_TYPE_H  , " HotNews
-                 LS_NOTELIST-NOTE_TYPE_P  , " Performance
-                 LS_NOTELIST-NOTE_TYPE_L  , " Legal
-                 LS_NOTELIST-NOTE_TYPE_C  . " Correction
+           /     LS_NOTELIST-NOTE_TYPE_S, " Security
+                 LS_NOTELIST-NOTE_TYPE_H, " HotNews
+                 LS_NOTELIST-NOTE_TYPE_P, " Performance
+                 LS_NOTELIST-NOTE_TYPE_L, " Legal
+                 LS_NOTELIST-NOTE_TYPE_C. " Correction
 
   endloop.
 
@@ -3052,7 +3098,7 @@ class LCL_HANDLE_EVENTS definition.
 *        importing row column.
 
   private section.
-    data: DIALOGBOX_STATUS type C.  "'X': does exist, SPACE: does not ex.
+    data DIALOGBOX_STATUS type C.  "'X': does exist, SPACE: does not ex.
 
 endclass.                    "lcl_handle_events DEFINITION
 
@@ -3096,7 +3142,7 @@ class LCL_HANDLE_EVENTS implementation.
               perform DISPLAY_NOTE_TEXT in program (L_PROGNAME_NXS)
                 using LS_NOTELIST-NOTE_NUMBER
                       "SPACE " not valid in ST-A/PI Release 01T_731, SP 1
-					  .
+                .
             endif.
           endif.
         endif.
@@ -3130,7 +3176,7 @@ class LCL_HANDLE_EVENTS implementation.
   l_textline2  = ''.
   l_textline3  = ''.
 
-  DESCRIBE TABLE LT_SELECED_ROWS LINES l_sel_cnt.
+  l_sel_cnt = lines( LT_SELECED_ROWS ).
   if l_sel_cnt = 1.
     l_textline1 = '1 entry selected'(025).
     l_textline1 = 'Current status:'(026).
@@ -3141,15 +3187,15 @@ class LCL_HANDLE_EVENTS implementation.
     concatenate l_answer 'entries selected'(027)
       into l_textline1 SEPARATED BY space.
   else.
-    exit. "nothing selected
+    RETURN. "nothing selected
   endif.
 
 * Get status list
   if lt_AGSSR_STATUS is initial.
     select *
       from AGSSR_STATUS
-      into table lt_AGSSR_STATUS
-      where langu = sy-langu
+      into table  @lt_AGSSR_STATUS
+      where langu = @sy-langu
       ORDER BY PRIMARY KEY.
 
     clear lt_SPOPLI.
@@ -3197,7 +3243,7 @@ class LCL_HANDLE_EVENTS implementation.
             .
   IF SY-SUBRC <> 0.
 * Implement suitable error handling here
-    exit. " Cancel status maintenance
+    RETURN. " Cancel status maintenance
   ENDIF.
   check l_ANSWER ne 'A'. " cancel
   l_index = l_answer.
@@ -3261,10 +3307,10 @@ class LCL_HANDLE_EVENTS implementation.
 *   FLAG_REVIEW
 *   OLD_SSTATUS
     DATA: ls_sysnotes TYPE agssr_sysnotes.
-    select single * from agssr_sysnotes into ls_sysnotes
-      where system_name = ls_NOTELIST-system_name
-        and system_type = ls_NOTELIST-system_type
-        and note_number = ls_NOTELIST-note_number.
+    select single * from agssr_sysnotes into @ls_sysnotes
+      where system_name = @ls_NOTELIST-system_name
+        and system_type = @ls_NOTELIST-system_type
+        and note_number = @ls_NOTELIST-note_number.
     if sy-subrc = 0 and ls_sysnotes-last_status <> ls_AGSSR_STATUS-STATUS_ID.
       ls_sysnotes-last_status = ls_AGSSR_STATUS-STATUS_ID.
       ls_sysnotes-last_user   = sy-uname.
@@ -3314,7 +3360,7 @@ class LCL_HANDLE_EVENTS implementation.
         perform DISPLAY_NOTE_TEXT in program (L_PROGNAME_NXS)
           using LS_NOTELIST-NOTE_NUMBER
                 "SPACE " not valid in ST-A/PI Release 01T_731, SP 1
-				.
+          .
       endif.
     endif.
 
@@ -3355,24 +3401,19 @@ FORM agsno_create_comment
 *    GET TIME STAMP FIELD ls_sysnotec-created_at.
     ls_sysnotec-created_at = CREATED_AT.
 
-    DATA: lt_sysnotec  TYPE TABLE OF agssr_sysnotec.
-    DATA: ls_sysnotect TYPE agssr_sysnotec.
+    DATA lt_sysnotec  TYPE TABLE OF agssr_sysnotec.
+    DATA ls_sysnotect TYPE agssr_sysnotec.
 
-    SELECT * FROM agssr_sysnotec INTO TABLE lt_sysnotec
-      WHERE system_name = ls_sysnotec-system_name
-        AND system_type = ls_sysnotec-system_type
-        AND note_number = ls_sysnotec-note_number.
-
+    SELECT * FROM agssr_sysnotec INTO TABLE @lt_sysnotec
+      WHERE system_name = @ls_sysnotec-system_name
+        AND system_type = @ls_sysnotec-system_type
+        AND note_number = @ls_sysnotec-note_number
+      ORDER BY created_at DESCENDING.
     IF sy-subrc <> 0.
-
       ls_sysnotec-status_from = 'NEW'.
-
     ELSE.
-
-      SORT lt_sysnotec BY created_at DESCENDING.
       READ TABLE lt_sysnotec INDEX 1 INTO ls_sysnotect.
       ls_sysnotec-status_from = ls_sysnotect-status_to.
-
     ENDIF.
 
 *    ls_sysnotec-status_to = ls_sysnotec-status_from.
@@ -3380,7 +3421,7 @@ FORM agsno_create_comment
 
     ls_sysnotec-comment_text = comment_text.
 
-    INSERT agssr_sysnotec FROM ls_sysnotec.
+    INSERT agssr_sysnotec FROM @ls_sysnotec.
 
   ENDLOOP.
 
@@ -3390,7 +3431,7 @@ ENDFORM. " agsno_create_comment
 form GET_PROGNAME_NXS
   changing L_PROGNAME_NXS type SY-REPID.
 
-  statics: LF_PROGNAME_NXS type SY-REPID.
+  statics LF_PROGNAME_NXS type SY-REPID.
 
   if LF_PROGNAME_NXS is initial.
 *   Check if ST-A/PI is installed
@@ -3432,7 +3473,7 @@ form ALV_SHOW_NOTELIST.
   data: LS_COLOR_SID  type LVC_S_COLO,
         LS_COLOR_NOTE type LVC_S_COLO.
 
-  data: LS_URLS_FOR_NOTES type TS_URLS_FOR_NOTES.
+  data LS_URLS_FOR_NOTES type TS_URLS_FOR_NOTES.
 
 * Create an ALV table for grid display
   try.
@@ -3452,7 +3493,7 @@ form ALV_SHOW_NOTELIST.
                    LV_MESSAGE-MSGV3 LV_MESSAGE-MSGV4.
   endtry.
 
-  data: L_REPID like SY-REPID.
+  data L_REPID like SY-REPID.
   L_REPID = SY-REPID.
   call function 'RS_CUA_STATUS_CHECK'
     exporting
@@ -3485,16 +3526,16 @@ form ALV_SHOW_NOTELIST.
   LR_FUNCTIONS_LIST->SET_GRAPHICS( IF_SALV_C_BOOL_SAP=>FALSE ).
 
 * Set the layout
-  LR_LAYOUT = GR_ALV_TABLE->GET_LAYOUT( ) .
+  LR_LAYOUT = GR_ALV_TABLE->GET_LAYOUT( ).
   LS_KEY-REPORT = SY-REPID.
   LR_LAYOUT->SET_KEY( LS_KEY ).
   LR_LAYOUT->SET_INITIAL_LAYOUT( P_LAYOUT ).
   authority-check object 'S_ALV_LAYO'
                       id 'ACTVT' field '23'.
   if SY-SUBRC = 0.
-    LR_LAYOUT->SET_SAVE_RESTRICTION( 3 ) . "no restictions
+    LR_LAYOUT->SET_SAVE_RESTRICTION( 3 ). "no restictions
   else.
-    LR_LAYOUT->SET_SAVE_RESTRICTION( 2 ) . "user dependend
+    LR_LAYOUT->SET_SAVE_RESTRICTION( 2 ). "user dependend
   endif.
 
 * Set the columns visible
@@ -3653,7 +3694,7 @@ form ALV_SHOW_NOTELIST.
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'THEMK_TEXT' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Appl.area'(S06) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Application area'(m06) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Application area text'(l06) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Application area text'(l06) ).
       LR_COLUMN->SET_VISIBLE( IF_SALV_C_BOOL_SAP=>FALSE ).
 
 *     Priority
@@ -3706,9 +3747,9 @@ form ALV_SHOW_NOTELIST.
 
 *     SAP-Status
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'SSTATUS' ).
-      LR_COLUMN->SET_SHORT_TEXT( 'SAP Status'(s56) ).
-      LR_COLUMN->SET_MEDIUM_TEXT( 'SAP SysRec Status'(m56) ).
-      LR_COLUMN->SET_LONG_TEXT( 'SAP System Recommendations Status'(l56) ).
+      LR_COLUMN->SET_SHORT_TEXT( 'SAP Status'(s66) ).
+      LR_COLUMN->SET_MEDIUM_TEXT( 'SAP SysRec Status'(m66) ).
+      LR_COLUMN->SET_LONG_TEXT( 'SAP System Recommendations Status'(l66) ).
       LR_COLUMN->SET_VISIBLE( IF_SALV_C_BOOL_SAP=>FALSE ).
 
 *     SAP-Status
@@ -3969,31 +4010,31 @@ form ALV_SHOW_NOTELIST.
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'NOTE_TYPE_H' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Hot News'(S24) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Hot News'(m24) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Hot News'(l24) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Hot News'(l24) ).
 
 *     Group: Performance Note
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'NOTE_TYPE_P' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Perf. Note'(S25) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Performance Note'(m25) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Performance Note'(l25) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Performance Note'(l25) ).
 
 *     Group: Legal Change Note
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'NOTE_TYPE_L' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Legal Note'(S26) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Legal Change Note'(m26) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Legal Change Note'(l26) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Legal Change Note'(l26) ).
 
 *     Group: License Audit Note
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'NOTE_TYPE_A' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Lic.Audit'(S29) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'License Audit Note'(m29) ).
-      LR_COLUMN->SET_LONG_TEXT( 'License Audit relevant Note'(l29) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'License Audit relevant Note'(l29) ).
 
 *     Group: Correction Note
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'NOTE_TYPE_C' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Corr. Note'(S27) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Correction Note'(m27) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Correction Note'(l27) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Correction Note'(l27) ).
 *      if S_GROUP5 is initial.
 *        LR_COLUMN->SET_VISIBLE( IF_SALV_C_BOOL_SAP=>FALSE ).
 *      endif.
@@ -4008,7 +4049,7 @@ form ALV_SHOW_NOTELIST.
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'KERN_REL' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Kern. Rel.'(S48) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Kernel Release'(m48) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Current Kernel Release'(l48) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Current Kernel Release'(l48) ).
       if P_RFC is initial.
         LR_COLUMN->SET_VISIBLE( IF_SALV_C_BOOL_SAP=>FALSE ).
       endif.
@@ -4017,7 +4058,7 @@ form ALV_SHOW_NOTELIST.
       LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'KERN_PATCHLEVEL' ).
       LR_COLUMN->SET_SHORT_TEXT( 'Kern.Patch'(S49) ).
       LR_COLUMN->SET_MEDIUM_TEXT( 'Kernel Patch Level'(m49) ).
-      LR_COLUMN->SET_LONG_TEXT( 'Current Kernel Patch Level'(l49) ) .
+      LR_COLUMN->SET_LONG_TEXT( 'Current Kernel Patch Level'(l49) ).
       if P_RFC is initial.
         LR_COLUMN->SET_VISIBLE( IF_SALV_C_BOOL_SAP=>FALSE ).
       endif.
@@ -4078,7 +4119,7 @@ form ALV_SHOW_NOTELIST.
   LR_SELECTIONS->SET_SELECTION_MODE(
   IF_SALV_C_SELECTION_MODE=>ROW_COLUMN ).
 
-  data: L_LINE                 type I.
+  data L_LINE                 type I.
 
 * header
   create object LR_GRID_HEADER.
@@ -4090,7 +4131,7 @@ form ALV_SHOW_NOTELIST.
         LAST_CHK_TIME type SY-UZEIT,
         L_MSG(80).
 
-  data: LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
+  data LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
 
   call function 'AGSNO_API_GET_CHKED_SYSTEMS'
     importing
@@ -4110,7 +4151,7 @@ form ALV_SHOW_NOTELIST.
         into date LAST_CHK_DATE
              time LAST_CHK_TIME.
 
-    data: LS_SYSTEM_INFO type  AGS_SR_S_LMDB_SYSTEM.
+    data LS_SYSTEM_INFO type  AGS_SR_S_LMDB_SYSTEM.
     try.
         call function 'AGSNO_GET_SYSTEM_INFO'
           exporting
@@ -4134,7 +4175,7 @@ form ALV_SHOW_NOTELIST.
          COLUMN = 3
          TEXT   = LS_SYSTEM-SYSTEM_TYPE ).
 
-    data: LS_KV type AGS_SR_S_KV.
+    data LS_KV type AGS_SR_S_KV.
     read table GT_SYSTEM_ROLES into LS_KV
       with key SR_KEY = LS_SYSTEM_INFO-ROLE.
     if SY-SUBRC = 0.
@@ -4206,8 +4247,7 @@ form ALV_SHOW_NOTELIST.
 * Set Title
   LR_DISPLAY_SETTINGS = GR_ALV_TABLE->GET_DISPLAY_SETTINGS( ).
   LR_DISPLAY_SETTINGS->SET_LIST_HEADER( SY-TITLE ).
-  LR_DISPLAY_SETTINGS->SET_LIST_HEADER_SIZE(
-    CL_SALV_DISPLAY_SETTINGS=>C_HEADER_SIZE_LARGE ).
+  LR_DISPLAY_SETTINGS->SET_LIST_HEADER_SIZE( CL_SALV_DISPLAY_SETTINGS=>C_HEADER_SIZE_LARGE ).
 
 * display the table
   GR_ALV_TABLE->DISPLAY( ).
@@ -4239,8 +4279,8 @@ form SHOW_STATUS_COMMENTS.
 * S_GROUP1 .. S_GROUP6
 
 * SysRec: Status
-  select * from AGSSR_STATUS into table LT_AGSSR_STATUS
-    where LANGU       =  SY-LANGU
+  select * from AGSSR_STATUS into table @LT_AGSSR_STATUS
+    where LANGU =  @SY-LANGU
     order by primary key.
 
 * SysRec: Latest note status
@@ -4252,13 +4292,13 @@ form SHOW_STATUS_COMMENTS.
 *    order by SYSTEM_NAME SYSTEM_TYPE NOTE_NUMBER.
 
 * SysRec: Note comments
-  select * from AGSSR_SYSNOTEC into table LT_AGSSR_SYSNOTEC
-    where SYSTEM_NAME in S_SYS
-      and SYSTEM_TYPE in S_TYPE
-      and NOTE_NUMBER in S_NOTE
-      and (   STATUS_FROM in S_STAT    " maybe that's not very useful because the chain of status changes get's lost
-           or STATUS_TO   in S_STAT )
-    order by NOTE_NUMBER SYSTEM_NAME CREATED_AT ascending
+  select * from AGSSR_SYSNOTEC into table @LT_AGSSR_SYSNOTEC
+    where SYSTEM_NAME in @S_SYS
+      and SYSTEM_TYPE in @S_TYPE
+      and NOTE_NUMBER in @S_NOTE
+      and (   STATUS_FROM in @S_STAT    " maybe that's not very useful because the chain of status changes get's lost
+           or STATUS_TO   in @S_STAT )
+    order by NOTE_NUMBER, SYSTEM_NAME, CREATED_AT ascending
     .
 
 
@@ -4282,7 +4322,7 @@ form SHOW_STATUS_COMMENTS.
     endif.
 
     if   LS_AGSSR_SYSNOTEC_OLD-NOTE_NUMBER  ne LS_AGSSR_SYSNOTEC-NOTE_NUMBER.
-      write:
+      write
          (10)   LS_AGSSR_SYSNOTEC-NOTE_NUMBER  color col_key.
     endif.
 
@@ -4352,7 +4392,7 @@ form SHOW_STATUS_COMMENTS.
         if sy-tabix > 1.
           NEW-LINE.
         endif.
-        write:  l_COMMENT_TEXT  color col_normal
+        write   l_COMMENT_TEXT  color col_normal
           under l_COMMENT_TEXT.
       endif.
     endloop.

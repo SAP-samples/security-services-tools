@@ -62,6 +62,7 @@ Updated 27.07.2022: You can now use the same report to view the rating overview 
 - Report [`ZSYSREC_NOTELIST_72_SP08`](/ABAP/solman/zsysrec_notelist_72_sp08.prog.abap)  
 Show results from application System Recommendations  
 See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/)  
+Updated 17.02.2023 Some ABAPlint corrections, optimized value help  
 
 - Report [`ZCHECK_NOTE_2934135`](/ABAP/solman/zcheck_note_2934135.prog.abap)  
 Check the implementation status of note [2934135](https://launchpad.support.sap.com/#/notes/2934135) for connected Java systems  
