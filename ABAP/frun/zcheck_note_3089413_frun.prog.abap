@@ -1,57 +1,48 @@
 *&---------------------------------------------------------------------*
-*& Report  ZCHECK_NOTE_3089413
+*& Report  ZCHECK_NOTE_3089413_FRUN
 *& Check implementation status of note 3089413 for connected ABAP systems
 *&---------------------------------------------------------------------*
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
-*& 27.02.2023 Check version of installed notes, small corrections
-*& 16.02.2023 Show count of migrated trusted destinations per trust relation
-*&            ABAPLINT corrections, optimized performance
-*& 15.02.2023 Show more details about destinations
-*& 14.02.2023 A double click on a count of destinations shows a popup with the details
-*& 13.02.2023 Refactoring to use local methods instead of forms
-*& 07.02.2023 Show trusted systems without any data in RFCSYSACL
-*&            Show mutual trust relations
-*& 06.02.2023 New result field to indicate explicit selftrust defined in SMT1
-*&            A double click on a count of trusted systems shows a popup with the details
-*& 02.02.2023 Check destinations, too
-*& 02.02.2023 Initial version
+*& 27.02.2023 Initial version based on the similar report for the SAP Solution Manager
+*&            No API is not used but direct DB access,therefore further changes are recommended
+*&            Reasun: Function CCDB_GET_STORES work for a single system name only
 *&---------------------------------------------------------------------*
-REPORT zcheck_note_3089413.
+REPORT zcheck_note_3089413_frun.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '27.02.2023 FBT'.
+CONSTANTS c_program_version(30) TYPE c VALUE '27.02.2023 FQ4'.
 
 TYPE-POOLS: icon, col, sym.
 
 * System name
 SELECTION-SCREEN BEGIN OF LINE.
-SELECTION-SCREEN COMMENT 1(30) ss_sid FOR FIELD p_sid.
-SELECT-OPTIONS p_sid   FOR ('DIAGLS_TECH_SYST_LONG_SID').
+  SELECTION-SCREEN COMMENT 1(30) ss_sid FOR FIELD p_EXTSID.
+  SELECT-OPTIONS p_EXTSID   FOR ('LMDB_ESID').        " Extended System ID
 SELECTION-SCREEN END OF LINE.
 
 * Check Kernel
 SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS       p_kern AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_kern FOR FIELD p_kern.
+  PARAMETERS       p_kern AS CHECKBOX DEFAULT 'X'.
+  SELECTION-SCREEN COMMENT 3(33) ps_kern FOR FIELD p_kern.
 SELECTION-SCREEN END OF LINE.
 
 * Check ABAP
 SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS       p_abap AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_abap FOR FIELD p_abap.
+  PARAMETERS       p_abap AS CHECKBOX DEFAULT 'X'.
+  SELECTION-SCREEN COMMENT 3(33) ps_abap FOR FIELD p_abap.
 SELECTION-SCREEN END OF LINE.
 
 * Check trusted relations
 SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS       p_trust AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_trust FOR FIELD p_trust.
+  PARAMETERS       p_trust AS CHECKBOX DEFAULT 'X'.
+  SELECTION-SCREEN COMMENT 3(33) ps_trust FOR FIELD p_trust.
 SELECTION-SCREEN END OF LINE.
 
 * Check trusted destinations
 SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS       p_dest AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_dest FOR FIELD p_dest.
+  PARAMETERS       p_dest AS CHECKBOX DEFAULT 'X'.
+  SELECTION-SCREEN COMMENT 3(33) ps_dest FOR FIELD p_dest.
 SELECTION-SCREEN END OF LINE.
 * Show specific type only if data found
 DATA p_dest_3 TYPE abap_bool.
@@ -59,15 +50,15 @@ DATA p_dest_h TYPE abap_bool.
 DATA p_dest_w TYPE abap_bool.
 
 * Store status
-SELECTION-SCREEN BEGIN OF LINE.
-SELECTION-SCREEN COMMENT 1(30) ss_state FOR FIELD p_state.
-SELECT-OPTIONS p_state FOR ('STORE_MAIN_STATE_TYPE')." DEFAULT 'G'.
-SELECTION-SCREEN END OF LINE.
+"SELECTION-SCREEN BEGIN OF LINE.
+"SELECTION-SCREEN COMMENT 1(30) ss_state FOR FIELD p_state.
+"SELECT-OPTIONS p_state FOR sel_store_dir-store_main_state_type." DEFAULT 'G'.
+"SELECTION-SCREEN END OF LINE.
 
 * Layout of ALV output
 SELECTION-SCREEN BEGIN OF LINE.
-SELECTION-SCREEN COMMENT 1(33) ps_lout FOR FIELD p_layout.
-PARAMETERS       p_layout TYPE disvariant-variant.
+  SELECTION-SCREEN COMMENT 1(33) ps_lout FOR FIELD p_layout.
+  PARAMETERS       p_layout TYPE disvariant-variant.
 SELECTION-SCREEN END OF LINE.
 
 SELECTION-SCREEN COMMENT /1(60) ss_vers.
@@ -77,21 +68,11 @@ SELECTION-SCREEN COMMENT /1(60) ss_vers.
 " Main result table
 TYPES:
   BEGIN OF ts_result,
-    " Assumption: Match entries from different stores based on install_number and landscape_id
 
-    install_number               TYPE sdiagst_store_dir-install_number,
-
-    long_sid                     TYPE diagls_tech_syst_long_sid,    "sdiagst_store_dir-long_sid,
-    sid                          TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
-    tech_system_type             TYPE diagls_technical_system_type, "sdiagst_store_dir-tech_system_type,
-    tech_system_id               TYPE diagls_id,                    "sdiagst_store_dir-tech_system_id,
-    landscape_id                 TYPE diagls_id,                    "sdiagst_store_dir-landscape_id,
-    host_full                    TYPE diagls_host_full_name,        "sdiagst_store_dir-host_full,
-    host                         TYPE diagls_host_name,             "sdiagst_store_dir-host,
-    host_id                      TYPE diagls_id,                    "sdiagst_store_dir-host_id,
-    physical_host                TYPE diagls_host_name,             "sdiagst_store_dir-physical_host,
-    instance_type                TYPE diagls_instance_type,         "sdiagst_store_dir-instance_type,
-    instance                     TYPE diagls_instance_name,         "sdiagst_store_dir-instance,
+    " Key
+    extsid                       TYPE lmdb_esid, " from CCDB_ISCI-EXTSID,
+    sid                          TYPE lmdb_esid,
+    install_number               TYPE lmdb_installation_no,
 
     " Source store: SAP_KERNEL
     kern_rel                     TYPE string,                               " 722_EXT_REL
@@ -102,7 +83,6 @@ TYPES:
     validate_kernel              TYPE string,
 
     " Source store: ABAP_COMP_SPLEVEL
-    compv_name                   TYPE sdiagst_store_dir-compv_name,         " Software Component Version
     abap_release                 TYPE string,                               " 754
     abap_sp                      TYPE string,                               " 0032
 
@@ -152,13 +132,9 @@ TYPES:
     dest_w_cnt_trusted_tls       TYPE i,
 
     " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
-    store_name                   TYPE sdiagst_store_dir-store_name,
-    store_id                     TYPE sdiagst_store_dir-store_id,
-    store_last_upload            TYPE sdiagst_store_dir-store_last_upload,
-    store_state                  TYPE sdiagst_store_dir-store_state,           " CMPL = ok
-    store_main_state_type        TYPE sdiagst_store_dir-store_main_state_type, " (G)reen, (Y)ello, (R)ed, (N)ot relevant
-    store_main_state             TYPE sdiagst_store_dir-store_main_state,
-    store_outdated_day           TYPE sdiagst_store_dir-store_outdated_day,
+    store_name                   TYPE ccdb_store-store_name,
+    store_id                     TYPE ccdb_store-store_id,
+    store_to_date                TYPE ccdb_store-store_to_date,
 
     t_color                      TYPE lvc_t_scol,
     "t_celltype                   type salv_t_int4_column,
@@ -231,11 +207,23 @@ TYPES:
   tt_destination_data TYPE STANDARD TABLE OF ts_destination_data WITH KEY rfcdest,
 
   BEGIN OF ts_destination,
+    extsid           TYPE lmdb_esid,
     sid              TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
-    install_number   TYPE sdiagst_store_dir-install_number,
+    install_number   TYPE diagls_tech_syst_install_nbr,
     destination_data TYPE tt_destination_data,
   END OF ts_destination,
-  tt_destinations TYPE STANDARD TABLE OF ts_destination WITH KEY sid install_number.
+  tt_destinations TYPE STANDARD TABLE OF ts_destination WITH KEY sid install_number,
+
+  " Mapping between extended SID and SID with installation number
+  BEGIN OF ts_EXTSID_data,
+    extsid         TYPE lmdb_esid,
+    rt_cim_guid    TYPE cof_rt_tree_p-rt_cim_guid,
+    hier_id        TYPE cof_rt_tree_p-hier_id,
+    "system_type     TYPE lmdb_system_type,
+    sid            TYPE lmdb_esid,
+    install_number TYPE lmdb_installation_no,
+  END OF ts_EXTSID_data,
+  tt_EXTSID_DATA TYPE STANDARD TABLE OF ts_EXTSID_data WITH KEY extsid.
 
 *---------------------------------------------------------------------*
 *      CLASS lcl_report DEFINITION
@@ -248,7 +236,7 @@ CLASS lcl_report DEFINITION.
 
       initialization,
 
-      f4_s_sid,
+      f4_EXTSID,
 
       f4_p_layout
         CHANGING layout TYPE disvariant-variant,
@@ -266,7 +254,9 @@ CLASS lcl_report DEFINITION.
       " details about trust relations
       lt_trusted_systems TYPE tt_trusted_systems,
       " details about destinations
-      lt_destinations    TYPE tt_destinations.
+      lt_destinations    TYPE tt_destinations,
+      " Mapping between extended SID and SID with installation number
+      lt_EXTSID_data     TYPE tt_EXTSID_data.
 
     CLASS-DATA:
       " main ALV table
@@ -275,6 +265,8 @@ CLASS lcl_report DEFINITION.
       lr_alv_events TYPE REF TO lcl_report.
 
     CLASS-METHODS:
+
+      get_EXTSID_data,
 
       get_sap_kernel,
 
@@ -316,14 +308,15 @@ CLASS lcl_report DEFINITION.
 
       show_trusted_systems
         IMPORTING
-          column      TYPE salv_de_column
-          rfctrustsy  TYPE ts_result-sid
-          llicense_nr TYPE ts_result-install_number,
-
+          column         TYPE salv_de_column
+          extsid         TYPE ts_result-extsid
+          rfctrustsy     TYPE ts_result-sid
+          llicense_nr    TYPE ts_result-install_number,
 
       show_destinations
         IMPORTING
           column         TYPE salv_de_column
+          extsid         TYPE ts_result-extsid
           sid            TYPE ts_result-sid
           install_number TYPE ts_result-install_number.
 
@@ -336,10 +329,10 @@ CLASS lcl_report IMPLEMENTATION.
 
   METHOD initialization.
 
-    sy-title = 'Check implementation status of note 3089413 for connected ABAP systems'(TIT).
+    sy-title = 'Check implementation status of note 3089413 for connected ABAP systems'(tit).
 
     ss_sid   = 'System'.
-    ss_state = 'Config. store status (G/Y/R)'.
+    "ss_state = 'Config. store status (G/Y/R)'.
 
     ps_kern  = 'Check Kernel'.
     ps_abap  = 'Check Support Package and Notes'.
@@ -353,15 +346,11 @@ CLASS lcl_report IMPLEMENTATION.
 
   ENDMETHOD. " initialization
 
-  METHOD f4_s_sid.
+  METHOD f4_EXTSID.
 
     TYPES:
       BEGIN OF ts_f4_value,
-        long_sid       TYPE diagls_tech_syst_long_sid,    "sdiagst_store_dir-long_sid,
-        "sid                   TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
-        "tech_system_id        TYPE diagls_id,                    "sdiagst_store_dir-tech_system_id,
-        install_number TYPE diagls_tech_syst_install_nbr,
-        itadmin_role   TYPE diagls_itadmin_role,
+        extsid TYPE ccdb_isci-extsid,
       END OF ts_f4_value.
 
     DATA:
@@ -369,34 +358,11 @@ CLASS lcl_report IMPLEMENTATION.
       f4_value_tab TYPE TABLE OF ts_f4_value.
 
     DATA:
-      lt_technical_systems TYPE  tt_diagst_tech_syst,
-      rc                   TYPE  i,
-      rc_text              TYPE  natxt.
+      rc      TYPE  i,
+      rc_text TYPE  natxt.
 
-    CALL FUNCTION 'DIAGST_GET_TECH_SYSTEMS'
-      EXPORTING
-        namespace         = 'ACTIVE'
-*       LONG_SID          =
-        tech_type         = 'ABAP'
-*       INSTALL_NUMBER    =
-*       TECH_SYST_ID      =
-*       DIAG_RELEVANT     = 'X'
-*       STATS_FROM        =
-*       STATS_TO          =
-*       DISPLAY           = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL      = ' '
-      IMPORTING
-        technical_systems = lt_technical_systems
-*       STATS             =
-        rc                = rc
-        rc_text           = rc_text.
-
-    LOOP AT lt_technical_systems INTO DATA(ls_technical_systems).
-      MOVE-CORRESPONDING ls_technical_systems TO f4_value.
-      APPEND f4_value TO f4_value_tab.
-    ENDLOOP.
-    SORT f4_value_tab BY long_sid.
+    SELECT DISTINCT extsid FROM ccdb_isci INTO TABLE f4_value_tab
+      ORDER BY extsid.
 
     DATA(progname) = sy-repid.
     DATA(dynnum)   = sy-dynnr.
@@ -406,7 +372,7 @@ CLASS lcl_report IMPLEMENTATION.
     DATA return_tab TYPE TABLE OF ddshretval.
     CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
       EXPORTING
-        retfield        = 'LONG_SID'
+        retfield        = 'EXTSID'
         dynpprog        = progname
         dynpnr          = dynnum
         dynprofield     = field
@@ -423,7 +389,7 @@ CLASS lcl_report IMPLEMENTATION.
 *   Implement suitable error handling here
     ENDIF.
 
-  ENDMETHOD. " f4_s_sid
+  ENDMETHOD. " f4_EXTSID
 
   METHOD f4_p_layout.
     "CHANGING layout TYPE disvariant-variant.
@@ -478,6 +444,8 @@ CLASS lcl_report IMPLEMENTATION.
 
   METHOD start_of_selection.
 
+    get_EXTSID_data( ).        " Mapping between extended SID and SID with installation number
+
     get_sap_kernel( ).         " Kernel version
     get_abap_comp_splevel( ).  " Support Package version of SAP_BASIS
     get_abap_notes( ).         " Notes 3089413 and 3287611
@@ -495,147 +463,162 @@ CLASS lcl_report IMPLEMENTATION.
 
   ENDMETHOD. " start_of_selection
 
+  METHOD get_EXTSID_data.
+
+    " Option 1: Class cl_lmdb_filterbar_dpc_util->get_technical_Systems()
+    " Option 2: Table COF_RT_TREE_P (only usable for CSA data)
+
+    DATA ls_extsid_data TYPE ts_extsid_data.
+
+    " Get GUID and HIER_ID of ABAP systems
+    SELECT
+        rt_cim_guid,
+        hier_id
+      FROM cof_rt_tree_p
+      INTO TABLE @DATA(lt_GUIDs)
+      WHERE name  = 'SYSTEM_TYPE'
+        AND value = 'ABAP'.
+
+    " Get data
+    SELECT *
+      FROM cof_rt_tree_p
+      INTO @DATA(ls_cof_rt_tree_p)
+      FOR ALL ENTRIES IN @lt_GUIDs
+      WHERE rt_cim_guid = @lt_GUIDs-rt_cim_guid
+        AND hier_id     = @lt_GUIDs-hier_id
+        AND (   name = 'ESID'
+             OR name = 'TS_INSTALL_NUMBER'
+             OR name = 'TS_SID' )
+      ORDER BY PRIMARY KEY. " Important to the the correct order of CASE events per system
+
+      CASE ls_cof_rt_tree_p-name.
+        WHEN 'ESID'.
+          CLEAR ls_extsid_data.
+          ls_extsid_data-extsid         = ls_cof_rt_tree_p-value.
+          ls_extsid_data-rt_cim_guid    = ls_cof_rt_tree_p-rt_cim_guid.
+          ls_extsid_data-hier_id        = ls_cof_rt_tree_p-hier_id.
+        WHEN 'TS_INSTALL_NUMBER'.
+          ls_extsid_data-install_number = ls_cof_rt_tree_p-value.
+        WHEN 'TS_SID'.
+          ls_extsid_data-sid            = ls_cof_rt_tree_p-value.
+          APPEND ls_extsid_data TO lt_extsid_data.
+      ENDCASE.
+    ENDSELECT.
+    SORT lt_extsid_data BY extsid.
+
+  ENDMETHOD. " get_EXTSID_data
+
   METHOD get_sap_kernel.
     CHECK p_kern = 'X'.
 
-    " Same as in report ZSHOW_KERNEL_STORES but one one entry per system
+    DATA tabix TYPE sy-tabix.
 
-    DATA:
-      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
-      lt_store_dir      TYPE  tt_diagst_store_dir,
-      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
-      lt_snapshot       TYPE  tt_diagst_trows,
-      rc                TYPE  i,
-      rc_text           TYPE  natxt.
+    " Get stores
+    " Function CCDB_GET_STORES work for a single system name only
+*    CALL FUNCTION 'CCDB_GET_STORES'
+*      EXPORTING
+**       RT_CIM_GUID               =
+**       RT_CIM_NSPA               =
+**       EXTSID                    IN @p_extsid   " System name
+*        SYSTEM_TYPE               = 'ABAP'       " System type
+**       STORE_CIM_GUID            =
+*        SCI_ID                    = 'S00001'     " Store id
+**       STORE_NAME_EXT            = '*'
+*        STORE_NAME                = 'SAP_KERNEL' " Store name
+**       CALLER                    =
+**       DISPLAY                   =
+**     IMPORTING
+**       CCDB_DIRV                 =              " Store directory
+**       CCDB_DIRV_ATTR            =              " Attribute host name
+**       CCDB_DIRV_CXML            =
+**       CCDB_DIRV_ATTR_CXML       =
+**       RC                        =
+**       RC_STRING                 =
+*          .
+    SELECT *
+      FROM ccdb_rt_dirv_dbv                " CCDB: Root object - Directory
+      INTO TABLE @DATA(lt_storetab)
+     WHERE rt_type          = 'TS'         " Root Type
+       AND extsid           IN @p_extsid   " System name
+       AND system_type      = 'ABAP'       " System type
+       AND sci_id           = 'S00001'     " Store id
+       AND store_name       = 'SAP_KERNEL' " Store name
+     ORDER BY extsid .
+    CHECK sy-subrc IS INITIAL.
 
-    DATA tabix TYPE i.
+    " Use table name from first store
+    READ TABLE lt_storetab INTO DATA(ls_storetab) INDEX 1.
+    CHECK sy-subrc IS INITIAL.
 
-    CALL FUNCTION 'DIAGST_GET_STORES'
-      EXPORTING
-        " The "System Filter" parameters allow to get all Stores of a system or technical system.
-        " Some combinations of the four parameters are not allowed.
-        " The function will return an error code in such a case.
-*       SID                   = ' '
-*       INSTALL_NUMBER        = ' '
-*       LONG_SID              = ' '
-*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
-        " Store key fields
-        group_namespace       = 'ACTIVE'                   "(optional)
-        group_landscape_class = 'CL_DIAGLS_ABAP_INSTANCE'  "(optional)
-*       GROUP_LANDSCAPE_ID    = ' '
-*       GROUP_COMP_ID         = ' '
-        group_source          = 'ABAP'                     "(optional)
-        group_name            = 'INSTANCE'                 "(optional)
-        store_category        = 'SOFTWARE'                 "(optional)
-        store_type            = 'PROPERTY'                 "(optional)
-*       STORE_FULLPATH        = ' '
-        store_name            = 'SAP_KERNEL'
-        " Special filters
-        store_mainalias       = 'ABAP-SOFTWARE'            "(optional)
-        store_subalias        = 'SAP-KERNEL'               "(optional)
-*       STORE_TPL_ID          = ' '
-*       HAS_ELEMENT_FROM      =                            " date range
-*       HAS_ELEMENT_TO        =                            " date range
-*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
-*       CASE_INSENSITIVE      = ' '
-*       PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
-*       SEARCH_STRING         =
-*       ONLY_RELEVANT         = 'X'
-*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
-        " Others
-*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL          = ' '
-      IMPORTING
-*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
-        store_dir             = lt_store_dir               "(not recommended anymore)
-*       STORE_DIR_MI          =                            "(SAP internal usage only)
-*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
-*       PARAMETER             =                            "(SAP internal usage only)
-        rc                    = rc
-        rc_text               = rc_text.
+    " Create data table
+    DATA(ddic_tablename) = ls_storetab-ddic_tablename.
+    DATA ref_tab TYPE REF TO data.
+    CREATE DATA ref_tab TYPE STANDARD TABLE OF (ddic_tablename).
+    FIELD-SYMBOLS <fs_table> TYPE ANY TABLE.
+    ASSIGN ref_tab->* TO <fs_table>.
 
-    IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
-    ENDIF.
-
-    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
-      WHERE long_sid              IN p_sid
-        AND store_main_state_type IN p_state
-      .
+    LOOP AT lt_storetab INTO ls_storetab
+      WHERE ddic_tablename = ddic_tablename.
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
-          install_number = ls_store_dir-install_number
-          long_sid       = ls_store_dir-long_sid
-          sid            = ls_store_dir-sid
-          .
+          extsid = ls_storetab-extsid.
       IF sy-subrc = 0.
         tabix = sy-tabix.
-        IF ls_store_dir-instance_type NE 'CENTRAL'.
-          CONTINUE.
-        ENDIF.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        "MOVE-CORRESPONDING ls_storetab TO ls_result.
       ELSE.
         tabix = -1.
         CLEAR ls_result.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        MOVE-CORRESPONDING ls_storetab TO ls_result. " EXTSID, STORE_NAME, STORE_ID, STORE_TO_DATE
+        READ TABLE lt_extsid_data INTO DATA(ls_extsid_data)
+          WITH TABLE KEY
+            extsid = ls_storetab-extsid.
+        IF sy-subrc = 0.
+          ls_result-sid            = ls_extsid_data-sid.
+          ls_result-install_number = ls_extsid_data-install_number.
+        ENDIF.
       ENDIF.
 
-      IF ls_result-host_full IS INITIAL.
-        ls_result-host_full = ls_result-host. " host, host_id, physical_host
-      ENDIF.
+      " Get data
+      SELECT *
+        FROM (ddic_tablename) " CCDB_DATA_001
+        WHERE cd_store_id = @ls_storetab-store_id
+          and CD_HIST_DATE_TO is initial             " ignore old change documents
+        ORDER BY PRIMARY KEY
+        INTO TABLE @<fs_table>.
 
-      CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
-        EXPORTING
-          store_id  = ls_store_dir-store_id
-*         TIMESTAMP =                        " if not specified the latest available snapshot is returned
-*         CALLING_APPL                = ' '
-        IMPORTING
-          fieldlist = lt_fieldlist
-*         SNAPSHOT_VALID_FROM         =
-*         SNAPSHOT_VALID_TO_CONFIRMED =
-*         SNAPSHOT_VALID_TO           =
-          snapshot  = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
-*         SNAPSHOT_TR                 =
-*         SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
-          rc        = rc                     " 3: Permission denied, Content Authorization missing
-          " 4: Store not existing
-          " 8: Error
-          rc_text   = rc_text.
+      LOOP AT <fs_table> ASSIGNING FIELD-SYMBOL(<entry>).
 
-      LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
-        READ TABLE lt_snapshot_elem INTO DATA(ls_parameter) INDEX 1.
-        CHECK ls_parameter-fieldname = 'PARAMETER'.
+        " Table CCDB_DATA_001
+        ASSIGN COMPONENT 'NAME'  OF STRUCTURE <entry> TO FIELD-SYMBOL(<name>).
+        ASSIGN COMPONENT 'VALUE' OF STRUCTURE <entry> TO FIELD-SYMBOL(<value>).
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_value)     INDEX 2.
-        CHECK ls_value-fieldname = 'VALUE'.
-
-        CASE ls_parameter-fieldvalue.
+        " Copy data
+        CASE <name>.
 
           WHEN 'KERN_COMP_ON'.      " Linux GNU SLES-11 x86_64 cc4.3.4 use-pr190909
             " not used yet
 
           WHEN 'KERN_COMP_TIME'.    " Jun  7 2020 15:44:10
-            ls_result-kern_comp_time  = ls_value-fieldvalue.
+            ls_result-kern_comp_time  = <value>.
             ls_result-kern_comp_date  = convert_comp_time( ls_result-kern_comp_time ).
 
           WHEN 'KERN_DBLIB'.        " SQLDBC 7.9.8.040
             " not used yet
 
           WHEN 'KERN_PATCHLEVEL'.   " 1000
-            ls_result-kern_patchlevel = ls_value-fieldvalue.
+            ls_result-kern_patchlevel = <value>.
 
           WHEN 'KERN_REL'.          " 722_EXT_REL
-            ls_result-kern_rel        = ls_value-fieldvalue.
+            ls_result-kern_rel        = <value>.
 
           WHEN 'PLATFORM-ID'.       " 390
             " not used yet
 
         ENDCASE.
 
-      ENDLOOP.
+      ENDLOOP. " <fs_table>
 
       IF tabix > 0.
         MODIFY lt_result FROM ls_result INDEX tabix.
@@ -643,7 +626,7 @@ CLASS lcl_report IMPLEMENTATION.
         APPEND ls_result TO lt_result.
       ENDIF.
 
-    ENDLOOP. " lt_STORE_DIR
+    ENDLOOP. " lt_storetab
 
   ENDMETHOD. " get_SAP_KERNEL
 
@@ -683,117 +666,75 @@ CLASS lcl_report IMPLEMENTATION.
   METHOD get_abap_comp_splevel.
     CHECK p_abap = 'X'.
 
-    DATA:
-      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
-      lt_store_dir      TYPE  tt_diagst_store_dir,
-      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
-      lt_snapshot       TYPE  tt_diagst_trows,
-      rc                TYPE  i,
-      rc_text           TYPE  natxt.
-
     DATA tabix TYPE i.
 
-    " Using a SEARCH_STRING for SAP_BASIS should not speed up processing, as this component exists always
-    CALL FUNCTION 'DIAGST_GET_STORES'
-      EXPORTING
-        " The "System Filter" parameters allow to get all Stores of a system or technical system.
-        " Some combinations of the four parameters are not allowed.
-        " The function will return an error code in such a case.
-*       SID                   = ' '
-*       INSTALL_NUMBER        = ' '
-*       LONG_SID              = ' '
-*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
-        " Store key fields
-        group_namespace       = 'ACTIVE'                   "(optional)
-        group_landscape_class = 'CL_DIAGLS_ABAP_TECH_SYST' "(optional)
-*       GROUP_LANDSCAPE_ID    = ' '
-*       GROUP_COMP_ID         = ' '
-        group_source          = 'ABAP'                     "(optional)
-        group_name            = 'ABAP-SOFTWARE'            "(optional)
-        store_category        = 'SOFTWARE'                 "(optional)
-        store_type            = 'TABLE'                    "(optional)
-*       STORE_FULLPATH        = ' '
-        store_name            = 'ABAP_COMP_SPLEVEL'
-        " Special filters
-        store_mainalias       = 'ABAP-SOFTWARE'            "(optional)
-        store_subalias        = 'SUPPORT-PACKAGE-LEVEL'    "(optional)
-*       STORE_TPL_ID          = ' '
-*       HAS_ELEMENT_FROM      =                            " date range
-*       HAS_ELEMENT_TO        =                            " date range
-*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
-*       CASE_INSENSITIVE      = ' '
-        "PATTERN_SEARCH        = ' '                        " Allow pattern search for SEARCH_STRING
-        "SEARCH_STRING         = 'SAP_BASIS'
-*       ONLY_RELEVANT         = 'X'
-*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
-        " Others
-*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL          = ' '
-      IMPORTING
-*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
-        store_dir             = lt_store_dir               "(not recommended anymore)
-*       STORE_DIR_MI          =                            "(SAP internal usage only)
-*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
-*       PARAMETER             =                            "(SAP internal usage only)
-        rc                    = rc
-        rc_text               = rc_text.
+    " Get stores
+    SELECT *
+      FROM ccdb_rt_dirv_dbv                " CCDB: Root object - Directory
+      INTO TABLE @DATA(lt_storetab)
+     WHERE rt_type          = 'TS'         " Root Type
+       AND extsid           IN @p_extsid   " System name
+       AND system_type      = 'ABAP'       " System type
+       AND sci_id           = 'S00120'     " Store id
+       AND store_name       = 'COMP_LEVEL' " Store name
+     ORDER BY extsid .
+    CHECK sy-subrc IS INITIAL.
 
-    IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
-    ENDIF.
+    " Use table name from first store
+    READ TABLE lt_storetab INTO DATA(ls_storetab) INDEX 1.
+    CHECK sy-subrc IS INITIAL.
 
-    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
-      WHERE long_sid              IN p_sid
-        AND store_main_state_type IN p_state
-      .
+    " Create data table
+    DATA(ddic_tablename) = ls_storetab-ddic_tablename.
+    DATA ref_tab TYPE REF TO data.
+    CREATE DATA ref_tab TYPE STANDARD TABLE OF (ddic_tablename).
+    FIELD-SYMBOLS <fs_table> TYPE ANY TABLE.
+    ASSIGN ref_tab->* TO <fs_table>.
+
+    LOOP AT lt_storetab INTO ls_storetab
+      WHERE ddic_tablename = ddic_tablename.
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
-          install_number = ls_store_dir-install_number
-          long_sid       = ls_store_dir-long_sid
-          sid            = ls_store_dir-sid
-          .
+          extsid = ls_storetab-extsid.
       IF sy-subrc = 0.
         tabix = sy-tabix.
+        "MOVE-CORRESPONDING ls_storetab TO ls_result.
       ELSE.
         tabix = -1.
         CLEAR ls_result.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        MOVE-CORRESPONDING ls_storetab TO ls_result. " EXTSID, STORE_NAME, STORE_ID, STORE_TO_DATE
+        READ TABLE lt_extsid_data INTO DATA(ls_extsid_data)
+          WITH TABLE KEY
+            extsid = ls_storetab-extsid.
+        IF sy-subrc = 0.
+          ls_result-sid            = ls_extsid_data-sid.
+          ls_result-install_number = ls_extsid_data-install_number.
+        ENDIF.
       ENDIF.
 
-      CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
-        EXPORTING
-          store_id  = ls_store_dir-store_id
-*         TIMESTAMP =                        " if not specified the latest available snapshot is returned
-*         CALLING_APPL                = ' '
-        IMPORTING
-          fieldlist = lt_fieldlist
-*         SNAPSHOT_VALID_FROM         =
-*         SNAPSHOT_VALID_TO_CONFIRMED =
-*         SNAPSHOT_VALID_TO           =
-          snapshot  = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
-*         SNAPSHOT_TR                 =
-*         SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
-          rc        = rc                     " 3: Permission denied, Content Authorization missing
-          " 4: Store not existing
-          " 8: Error
-          rc_text   = rc_text.
+      " Get data
+      SELECT *
+        FROM (ddic_tablename) " CCDB_DATA_110
+        WHERE cd_store_id = @ls_storetab-store_id
+          and CD_HIST_DATE_TO is initial             " ignore old change documents
+          AND component = 'SAP_BASIS'
+        ORDER BY PRIMARY KEY
+        INTO TABLE @<fs_table>.
 
-      LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
-        READ TABLE lt_snapshot_elem INTO DATA(ls_component)  INDEX 1.
-        CHECK ls_component-fieldname = 'COMPONENT'.
-        CHECK ls_component-fieldvalue = 'SAP_BASIS'.
+      LOOP AT <fs_table> ASSIGNING FIELD-SYMBOL(<entry>).
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_release)    INDEX 2.
-        CHECK ls_release-fieldname = 'RELEASE'.
-        ls_result-abap_release = ls_release-fieldvalue.
+        " Table CCDB_DATA_110
+        ASSIGN COMPONENT 'COMPONENT' OF STRUCTURE <entry> TO FIELD-SYMBOL(<component>).
+        ASSIGN COMPONENT 'VERSION'   OF STRUCTURE <entry> TO FIELD-SYMBOL(<release>).
+        ASSIGN COMPONENT 'SP'        OF STRUCTURE <entry> TO FIELD-SYMBOL(<sp>).
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_extrelease) INDEX 3.
-        CHECK ls_extrelease-fieldname = 'EXTRELEASE'.
-        ls_result-abap_sp      = ls_extrelease-fieldvalue.
-      ENDLOOP.
+        " Copy data
+        ls_result-abap_release = <release>.
+        ls_result-abap_sp      = <sp>.
+
+      ENDLOOP. " <fs_table>
 
       IF tabix > 0.
         MODIFY lt_result FROM ls_result INDEX tabix.
@@ -801,140 +742,92 @@ CLASS lcl_report IMPLEMENTATION.
         APPEND ls_result TO lt_result.
       ENDIF.
 
-    ENDLOOP. " lt_STORE_DIR
+    ENDLOOP. " lt_storetab
 
   ENDMETHOD. " get_ABAP_COMP_SPLEVEL
 
   METHOD get_abap_notes.
     CHECK p_abap = 'X'.
 
-    DATA:
-      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
-      lt_store_dir      TYPE  tt_diagst_store_dir,
-      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
-      lt_snapshot       TYPE  tt_diagst_trows,
-      rc                TYPE  i,
-      rc_text           TYPE  natxt.
-
     DATA tabix TYPE i.
 
-    " Maybe it' faster to call it twice including a SEARCH_STRING for both note numbers.
-    CALL FUNCTION 'DIAGST_GET_STORES'
-      EXPORTING
-        " The "System Filter" parameters allow to get all Stores of a system or technical system.
-        " Some combinations of the four parameters are not allowed.
-        " The function will return an error code in such a case.
-*       SID                   = ' '
-*       INSTALL_NUMBER        = ' '
-*       LONG_SID              = ' '
-*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
-        " Store key fields
-        group_namespace       = 'ACTIVE'                   "(optional)
-        group_landscape_class = 'CL_DIAGLS_ABAP_TECH_SYST' "(optional)
-*       GROUP_LANDSCAPE_ID    = ' '
-*       GROUP_COMP_ID         = ' '
-        group_source          = 'ABAP'                     "(optional)
-        group_name            = 'ABAP-SOFTWARE'            "(optional)
-        store_category        = 'SOFTWARE'                 "(optional)
-        store_type            = 'TABLE'                    "(optional)
-*       STORE_FULLPATH        = ' '
-        store_name            = 'ABAP_NOTES'
-        " Special filters
-        store_mainalias       = 'ABAP-SOFTWARE'            "(optional)
-        store_subalias        = 'ABAP-NOTES'               "(optional)
-*       STORE_TPL_ID          = ' '
-*       HAS_ELEMENT_FROM      =                            " date range
-*       HAS_ELEMENT_TO        =                            " date range
-*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
-*       CASE_INSENSITIVE      = ' '
-*       PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
-*       SEARCH_STRING         =
-*       ONLY_RELEVANT         = 'X'
-*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
-        " Others
-*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL          = ' '
-      IMPORTING
-*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
-        store_dir             = lt_store_dir               "(not recommended anymore)
-*       STORE_DIR_MI          =                            "(SAP internal usage only)
-*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
-*       PARAMETER             =                            "(SAP internal usage only)
-        rc                    = rc
-        rc_text               = rc_text.
+    " Get stores
+    SELECT *
+      FROM ccdb_rt_dirv_dbv                " CCDB: Root object - Directory
+      INTO TABLE @DATA(lt_storetab)
+     WHERE rt_type          = 'TS'         " Root Type
+       AND extsid           IN @p_extsid   " System name
+       AND system_type      = 'ABAP'       " System type
+       AND sci_id           = 'S00028'     " Store id
+       AND store_name       = 'ABAP_NOTES' " Store name
+     ORDER BY extsid .
+    CHECK sy-subrc IS INITIAL.
 
-    IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
-    ENDIF.
+    " Use table name from first store
+    READ TABLE lt_storetab INTO DATA(ls_storetab) INDEX 1.
+    CHECK sy-subrc IS INITIAL.
 
-    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
-      WHERE long_sid              IN p_sid
-        AND store_main_state_type IN p_state
-      .
+    " Create data table
+    DATA(ddic_tablename) = ls_storetab-ddic_tablename.
+    DATA ref_tab TYPE REF TO data.
+    CREATE DATA ref_tab TYPE STANDARD TABLE OF (ddic_tablename).
+    FIELD-SYMBOLS <fs_table> TYPE ANY TABLE.
+    ASSIGN ref_tab->* TO <fs_table>.
+
+    LOOP AT lt_storetab INTO ls_storetab
+      WHERE ddic_tablename = ddic_tablename.
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
-          install_number = ls_store_dir-install_number
-          long_sid       = ls_store_dir-long_sid
-          sid            = ls_store_dir-sid
-          .
+          extsid = ls_storetab-extsid.
       IF sy-subrc = 0.
         tabix = sy-tabix.
+        "MOVE-CORRESPONDING ls_storetab TO ls_result.
       ELSE.
         tabix = -1.
         CLEAR ls_result.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        MOVE-CORRESPONDING ls_storetab TO ls_result. " EXTSID, STORE_NAME, STORE_ID, STORE_TO_DATE
+        READ TABLE lt_extsid_data INTO DATA(ls_extsid_data)
+          WITH TABLE KEY
+            extsid = ls_storetab-extsid.
+        IF sy-subrc = 0.
+          ls_result-sid            = ls_extsid_data-sid.
+          ls_result-install_number = ls_extsid_data-install_number.
+        ENDIF.
       ENDIF.
 
-      CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
-        EXPORTING
-          store_id  = ls_store_dir-store_id
-*         TIMESTAMP =                        " if not specified the latest available snapshot is returned
-*         CALLING_APPL                = ' '
-        IMPORTING
-          fieldlist = lt_fieldlist
-*         SNAPSHOT_VALID_FROM         =
-*         SNAPSHOT_VALID_TO_CONFIRMED =
-*         SNAPSHOT_VALID_TO           =
-          snapshot  = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
-*         SNAPSHOT_TR                 =
-*         SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
-          rc        = rc                     " 3: Permission denied, Content Authorization missing
-          " 4: Store not existing
-          " 8: Error
-          rc_text   = rc_text.
+      " Get data
+      SELECT *
+        FROM (ddic_tablename) " CCDB_DATA_112
+        WHERE cd_store_id = @ls_storetab-store_id
+          and CD_HIST_DATE_TO is initial             " ignore old change documents
+          AND (   note = '0003089413'
+               OR note = '0003287611' )
+        ORDER BY PRIMARY KEY
+        INTO TABLE @<fs_table>.
 
-      LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
-        READ TABLE lt_snapshot_elem INTO DATA(ls_note)      INDEX 1. "
-        CHECK ls_note-fieldname = 'NOTE'.
-        CHECK ls_note-fieldvalue = '0003089413'
-           OR ls_note-fieldvalue = '0003287611'.
+      LOOP AT <fs_table> ASSIGNING FIELD-SYMBOL(<entry>).
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_version)   INDEX 2. "
-        CHECK ls_version-fieldname = 'VERSION'.
+        " Table CCDB_DATA_112
+        ASSIGN COMPONENT 'NOTE'      OF STRUCTURE <entry> TO FIELD-SYMBOL(<note>).
+        ASSIGN COMPONENT 'VERSION'   OF STRUCTURE <entry> TO FIELD-SYMBOL(<version>).
+        ASSIGN COMPONENT 'TEXT'      OF STRUCTURE <entry> TO FIELD-SYMBOL(<text>).
+        ASSIGN COMPONENT 'PRSTATUS'  OF STRUCTURE <entry> TO FIELD-SYMBOL(<prstatus>).
+        ASSIGN COMPONENT 'PRSTATUST' OF STRUCTURE <entry> TO FIELD-SYMBOL(<prstatust>).
 
-        "READ TABLE lt_snapshot_elem INTO data(ls_TEXT)      INDEX 3. "
-        "check ls_TEXT-fieldname = 'TEXT'.
-
-        READ TABLE lt_snapshot_elem INTO DATA(ls_prstatust) INDEX 4. "
-        CHECK ls_prstatust-fieldname = 'PRSTATUST'.
-
-        READ TABLE lt_snapshot_elem INTO DATA(ls_prstatus)  INDEX 5. "
-        CHECK ls_prstatus-fieldname = 'PRSTATUS'.
-
-        DATA(status) = ls_prstatust-fieldvalue && ` version ` && ls_version-fieldvalue.
-        CASE ls_note-fieldvalue.
+        " Copy data
+        DATA(status) = <prstatust> && ` version ` && <version>.
+        CASE <note>.
           WHEN '0003089413'.
             ls_result-note_3089413 = status.
-            ls_result-note_3089413_prstatus = ls_prstatus-fieldvalue.
+            ls_result-note_3089413_prstatus = <prstatus>.
           WHEN '0003287611'.
             ls_result-note_3287611 = status.
-            ls_result-note_3287611_prstatus = ls_prstatus-fieldvalue.
+            ls_result-note_3287611_prstatus = <prstatus>.
         ENDCASE.
 
-      ENDLOOP.
+      ENDLOOP. " <fs_table>
 
       IF tabix > 0.
         MODIFY lt_result FROM ls_result INDEX tabix.
@@ -942,146 +835,118 @@ CLASS lcl_report IMPLEMENTATION.
         APPEND ls_result TO lt_result.
       ENDIF.
 
-    ENDLOOP. " lt_STORE_DIR
+    ENDLOOP. " lt_storetab
 
   ENDMETHOD. " get_ABAP_NOTES
 
   METHOD get_rfcsysacl.
     CHECK p_trust = 'X'.
 
-    DATA:
-      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
-      lt_store_dir      TYPE  tt_diagst_store_dir,
-      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
-      lt_snapshot       TYPE  tt_diagst_trows,
-      rc                TYPE  i,
-      rc_text           TYPE  natxt.
-
     DATA tabix TYPE i.
 
-    CALL FUNCTION 'DIAGST_GET_STORES'
-      EXPORTING
-        " The "System Filter" parameters allow to get all Stores of a system or technical system.
-        " Some combinations of the four parameters are not allowed.
-        " The function will return an error code in such a case.
-*       SID                   = ' '
-*       INSTALL_NUMBER        = ' '
-*       LONG_SID              = ' '
-*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
-        " Store key fields
-        group_namespace       = 'ACTIVE'                   "(optional)
-        group_landscape_class = 'CL_DIAGLS_ABAP_TECH_SYST' "(optional)
-*       GROUP_LANDSCAPE_ID    = ' '
-*       GROUP_COMP_ID         = ' '
-        group_source          = 'ABAP'                     "(optional)
-        group_name            = 'ABAP-SECURITY'            "(optional)
-        store_category        = 'CONFIG'                   "(optional)
-        store_type            = 'TABLE'                    "(optional)
-*       STORE_FULLPATH        = ' '
-        store_name            = 'RFCSYSACL'
-        " Special filters
-        store_mainalias       = 'SECURITY'                 "(optional)
-        store_subalias        = 'TRUSTED RFC'              "(optional)
-*       STORE_TPL_ID          = ' '
-*       HAS_ELEMENT_FROM      =                            " date range
-*       HAS_ELEMENT_TO        =                            " date range
-*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
-*       CASE_INSENSITIVE      = ' '
-*       PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
-*       SEARCH_STRING         =
-*       ONLY_RELEVANT         = 'X'
-*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
-        " Others
-*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL          = ' '
-      IMPORTING
-*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
-        store_dir             = lt_store_dir               "(not recommended anymore)
-*       STORE_DIR_MI          =                            "(SAP internal usage only)
-*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
-*       PARAMETER             =                            "(SAP internal usage only)
-        rc                    = rc
-        rc_text               = rc_text.
+    " Get stores
+    SELECT *
+      FROM ccdb_rt_dirv_dbv                " CCDB: Root object - Directory
+      INTO TABLE @DATA(lt_storetab)
+     WHERE rt_type          = 'TS'         " Root Type
+       AND extsid           IN @p_extsid   " System name
+       AND system_type      = 'ABAP'       " System type
+       AND sci_id           = 'S00048'     " Store id
+       AND store_name       = 'RFCSYSACL'  " Store name
+     ORDER BY extsid .
+    CHECK sy-subrc IS INITIAL.
 
-    IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
-    ENDIF.
+    " Use table name from first store
+    READ TABLE lt_storetab INTO DATA(ls_storetab) INDEX 1.
+    CHECK sy-subrc IS INITIAL.
 
-    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
-      WHERE long_sid              IN p_sid
-        AND store_main_state_type IN p_state
-      .
+    " Create data table
+    DATA(ddic_tablename) = ls_storetab-ddic_tablename.
+    DATA ref_tab TYPE REF TO data.
+    CREATE DATA ref_tab TYPE STANDARD TABLE OF (ddic_tablename).
+    FIELD-SYMBOLS <fs_table> TYPE ANY TABLE.
+    ASSIGN ref_tab->* TO <fs_table>.
+
+    LOOP AT lt_storetab INTO ls_storetab
+      WHERE ddic_tablename = ddic_tablename.
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
-          install_number = ls_store_dir-install_number
-          long_sid       = ls_store_dir-long_sid
-          sid            = ls_store_dir-sid
-          .
+          extsid = ls_storetab-extsid.
       IF sy-subrc = 0.
         tabix = sy-tabix.
+        "MOVE-CORRESPONDING ls_storetab TO ls_result.
       ELSE.
         tabix = -1.
         CLEAR ls_result.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        MOVE-CORRESPONDING ls_storetab TO ls_result. " EXTSID, STORE_NAME, STORE_ID, STORE_TO_DATE
+        READ TABLE lt_extsid_data INTO DATA(ls_extsid_data)
+          WITH TABLE KEY
+            extsid = ls_storetab-extsid.
+        IF sy-subrc = 0.
+          ls_result-sid            = ls_extsid_data-sid.
+          ls_result-install_number = ls_extsid_data-install_number.
+        ENDIF.
       ENDIF.
 
-      CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
-        EXPORTING
-          store_id  = ls_store_dir-store_id
-*         TIMESTAMP =                        " if not specified the latest available snapshot is returned
-*         CALLING_APPL                = ' '
-        IMPORTING
-          fieldlist = lt_fieldlist
-*         SNAPSHOT_VALID_FROM         =
-*         SNAPSHOT_VALID_TO_CONFIRMED =
-*         SNAPSHOT_VALID_TO           =
-          snapshot  = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
-*         SNAPSHOT_TR                 =
-*         SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
-          rc        = rc                     " 3: Permission denied, Content Authorization missing
-          " 4: Store not existing
-          " 8: Error
-          rc_text   = rc_text.
+      " Get data
+      SELECT *
+        FROM (ddic_tablename) " CCDB_DATA_127
+        WHERE cd_store_id = @ls_storetab-store_id
+          and CD_HIST_DATE_TO is initial             " ignore old change documents
+        ORDER BY PRIMARY KEY
+        INTO TABLE @<fs_table>.
 
-      " Store RRFCSYSACL data
       DATA ls_trusted_system  TYPE ts_trusted_system.
       CLEAR ls_trusted_system.
-      ls_trusted_system-rfctrustsy  = ls_store_dir-sid.
-      ls_trusted_system-llicense_nr = ls_store_dir-install_number.
 
-      LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
+      LOOP AT <fs_table> ASSIGNING FIELD-SYMBOL(<entry>).
+
+        " Table CCDB_DATA_127
+        ASSIGN COMPONENT 'RFCSYSID'    OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcsysid>).
+        ASSIGN COMPONENT 'TLICENSE_NR' OF STRUCTURE <entry> TO FIELD-SYMBOL(<tlicense_nr>).
+        ASSIGN COMPONENT 'RFCTRUSTSY'  OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfctrustsy>).
+        ASSIGN COMPONENT 'RFCDEST'     OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcdest>).
+        ASSIGN COMPONENT 'RFCTCDCHK'   OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfctcdchk>).
+        ASSIGN COMPONENT 'RFCSNC'      OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcsnc>).
+        ASSIGN COMPONENT 'RFCSLOPT'    OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcslopt>).
+        ASSIGN COMPONENT 'RFCCREDEST'  OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfccredest>).
+        ASSIGN COMPONENT 'RFCREGDEST'  OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcregdest>).
+        ASSIGN COMPONENT 'LLICENSE_NR' OF STRUCTURE <entry> TO FIELD-SYMBOL(<llicense_nr>).
+        ASSIGN COMPONENT 'RFCSECKEY'   OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcseckey>).
+
+        " Copy data
+
+        " Store RRFCSYSACL data
+        if ls_trusted_system-rfctrustsy is initial.
+          ls_trusted_system-rfctrustsy  = <rfctrustsy>.
+          ls_trusted_system-llicense_nr = <llicense_nr>.
+          " Add installation number
+          IF ls_trusted_system-llicense_nr IS INITIAL.
+            ls_trusted_system-llicense_nr = ls_result-install_number.
+          ENDIF.
+        endif.
 
         " Store RRFCSYSACL data
         DATA ls_rfcsysacl_data TYPE ts_rfcsysacl_data.
         CLEAR ls_rfcsysacl_data.
-
-        LOOP AT lt_snapshot_elem INTO DATA(snapshot_elem).
-          IF snapshot_elem-fieldvalue = '<CCDB NULL>'.
-            CLEAR snapshot_elem-fieldvalue.
-          ENDIF.
-
-          CASE snapshot_elem-fieldname.
-            WHEN 'RFCSYSID'.    ls_rfcsysacl_data-rfcsysid    = snapshot_elem-fieldvalue. " 1
-            WHEN 'TLICENSE_NR'. ls_rfcsysacl_data-tlicense_nr = snapshot_elem-fieldvalue. " 2
-            WHEN 'RFCTRUSTSY'.  ls_rfcsysacl_data-rfctrustsy  = snapshot_elem-fieldvalue. " 3
-            WHEN 'RFCDEST'.     ls_rfcsysacl_data-rfcdest     = snapshot_elem-fieldvalue. " 4
-            WHEN 'RFCTCDCHK'.   ls_rfcsysacl_data-rfctcdchk   = snapshot_elem-fieldvalue. " 5
-            WHEN 'RFCSNC'.      ls_rfcsysacl_data-rfcsnc      = snapshot_elem-fieldvalue. " 6
-            WHEN 'RFCSLOPT'.    ls_rfcsysacl_data-rfcslopt    = snapshot_elem-fieldvalue. " 7
-              " only available in higher versions
-            WHEN 'RFCCREDEST'.  ls_rfcsysacl_data-rfccredest  = snapshot_elem-fieldvalue. " 8
-            WHEN 'RFCREGDEST'.  ls_rfcsysacl_data-rfcregdest  = snapshot_elem-fieldvalue. " 9
-            WHEN 'LLICENSE_NR'. ls_rfcsysacl_data-llicense_nr = snapshot_elem-fieldvalue. " 10
-            WHEN 'RFCSECKEY'.   ls_rfcsysacl_data-rfcseckey   = snapshot_elem-fieldvalue. " 11
-          ENDCASE.
-        ENDLOOP.
+        ls_rfcsysacl_data-rfcsysid    = <rfcsysid>.
+        ls_rfcsysacl_data-tlicense_nr = <tlicense_nr>.
+        ls_rfcsysacl_data-rfctrustsy  = <rfctrustsy>.
+        ls_rfcsysacl_data-rfcdest     = <rfcdest>.
+        ls_rfcsysacl_data-rfctcdchk   = <rfctcdchk>.
+        ls_rfcsysacl_data-rfcsnc      = <rfcsnc>.
+        ls_rfcsysacl_data-rfcslopt    = <rfcslopt>.
+        " only available in higher versions
+        ls_rfcsysacl_data-rfccredest  = <rfccredest>.
+        ls_rfcsysacl_data-rfcregdest  = <rfcregdest>.
+        ls_rfcsysacl_data-llicense_nr = <llicense_nr>.
+        ls_rfcsysacl_data-rfcseckey   = <rfcseckey>.
 
         " Add installation number
         IF ls_rfcsysacl_data-llicense_nr IS INITIAL.
-          ls_rfcsysacl_data-llicense_nr = ls_trusted_system-llicense_nr.
+          ls_rfcsysacl_data-llicense_nr = ls_result-install_number.
         ENDIF.
 
         " Store RRFCSYSACL data
@@ -1111,182 +976,143 @@ CLASS lcl_report IMPLEMENTATION.
           ENDIF.
         ENDIF.
 
-      ENDLOOP.
+      ENDLOOP. " <fs_table>
 
       " Store trusted systems
       APPEND ls_trusted_system TO lt_trusted_systems.
 
-      " Store result
       IF tabix > 0.
         MODIFY lt_result FROM ls_result INDEX tabix.
       ELSE.
         APPEND ls_result TO lt_result.
       ENDIF.
 
-    ENDLOOP. " lt_STORE_DIR
+    ENDLOOP. " lt_storetab
 
   ENDMETHOD. " get_RFCSYSACL
 
   METHOD get_rfcdes.
     CHECK p_dest = 'X'.
 
-    DATA:
-      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
-      lt_store_dir      TYPE  tt_diagst_store_dir,
-      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
-      lt_snapshot       TYPE  tt_diagst_trows,
-      rc                TYPE  i,
-      rc_text           TYPE  natxt.
-
     DATA tabix TYPE i.
 
-    CALL FUNCTION 'DIAGST_GET_STORES'
-      EXPORTING
-        " The "System Filter" parameters allow to get all Stores of a system or technical system.
-        " Some combinations of the four parameters are not allowed.
-        " The function will return an error code in such a case.
-*       SID                   = ' '
-*       INSTALL_NUMBER        = ' '
-*       LONG_SID              = ' '
-*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
-        " Store key fields
-        group_namespace       = 'ACTIVE'                   "(optional)
-        group_landscape_class = 'CL_DIAGLS_ABAP_TECH_SYST' "(optional)
-*       GROUP_LANDSCAPE_ID    = ' '
-*       GROUP_COMP_ID         = ' '
-        group_source          = 'ABAP'                     "(optional)
-        group_name            = 'RFC-DESTINATIONS'         "(optional)
-        store_category        = 'CONFIG'                   "(optional)
-        store_type            = 'TABLE'                    "(optional)
-*       STORE_FULLPATH        = ' '
-        store_name            = 'RFCDES'
-        " Special filters
-        store_mainalias       = 'RFC-DESTINATIONS'         "(optional)
-        store_subalias        = 'RFCDES'                   "(optional)
-*       STORE_TPL_ID          = ' '
-*       HAS_ELEMENT_FROM      =                            " date range
-*       HAS_ELEMENT_TO        =                            " date range
-*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
-*       CASE_INSENSITIVE      = ' '
-*       PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
-*       SEARCH_STRING         =
-*       ONLY_RELEVANT         = 'X'
-*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
-        " Others
-*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL          = ' '
-      IMPORTING
-*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
-        store_dir             = lt_store_dir               "(not recommended anymore)
-*       STORE_DIR_MI          =                            "(SAP internal usage only)
-*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
-*       PARAMETER             =                            "(SAP internal usage only)
-        rc                    = rc
-        rc_text               = rc_text.
+    " Get stores
+    SELECT *
+      FROM ccdb_rt_dirv_dbv                " CCDB: Root object - Directory
+      INTO TABLE @DATA(lt_storetab)
+     WHERE extsid           IN @p_extsid   " System name
+       AND system_type      = 'ABAP'       " System type
+       AND sci_id           = 'S00035'     " Store id
+       AND store_name       = 'RFCDES'     " Store name
+     ORDER BY extsid .
+    CHECK sy-subrc IS INITIAL.
 
-    IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
-    ENDIF.
+    " Use table name from first store
+    READ TABLE lt_storetab INTO DATA(ls_storetab) INDEX 1.
+    CHECK sy-subrc IS INITIAL.
 
-    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
-      WHERE long_sid              IN p_sid
-        AND store_main_state_type IN p_state
-        .
+    " Create data table
+    DATA(ddic_tablename) = ls_storetab-ddic_tablename.
+    DATA ref_tab TYPE REF TO data.
+    CREATE DATA ref_tab TYPE STANDARD TABLE OF (ddic_tablename).
+    FIELD-SYMBOLS <fs_table> TYPE ANY TABLE.
+    ASSIGN ref_tab->* TO <fs_table>.
+
+    LOOP AT lt_storetab INTO ls_storetab
+      WHERE ddic_tablename = ddic_tablename.
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
-          install_number = ls_store_dir-install_number
-          long_sid       = ls_store_dir-long_sid
-          sid            = ls_store_dir-sid
-          .
+          extsid = ls_storetab-extsid.
       IF sy-subrc = 0.
         tabix = sy-tabix.
+        "MOVE-CORRESPONDING ls_storetab TO ls_result.
       ELSE.
         tabix = -1.
         CLEAR ls_result.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        MOVE-CORRESPONDING ls_storetab TO ls_result. " EXTSID, STORE_NAME, STORE_ID, STORE_TO_DATE
+        READ TABLE lt_extsid_data INTO DATA(ls_extsid_data)
+          WITH TABLE KEY
+            extsid = ls_storetab-extsid.
+        IF sy-subrc = 0.
+          ls_result-sid            = ls_extsid_data-sid.
+          ls_result-install_number = ls_extsid_data-install_number.
+        ENDIF.
       ENDIF.
 
-      " Store destination data
+      " Get data
+      SELECT *
+        FROM (ddic_tablename) " CCDB_DATA_115
+        WHERE cd_store_id = @ls_storetab-store_id
+          and CD_HIST_DATE_TO is initial             " ignore old change documents
+          AND (   rfctype = '3'
+               OR rfctype = 'H'
+               OR rfctype = 'W' )
+        ORDER BY PRIMARY KEY
+        INTO TABLE @<fs_table>.
+
       DATA ls_destination  TYPE ts_destination.
       CLEAR ls_destination.
-      ls_destination-sid            = ls_store_dir-sid.
-      ls_destination-install_number = ls_store_dir-install_number.
 
-      CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
-        EXPORTING
-          store_id  = ls_store_dir-store_id
-*         TIMESTAMP =                        " if not specified the latest available snapshot is returned
-*         CALLING_APPL                = ' '
-        IMPORTING
-          fieldlist = lt_fieldlist
-*         SNAPSHOT_VALID_FROM         =
-*         SNAPSHOT_VALID_TO_CONFIRMED =
-*         SNAPSHOT_VALID_TO           =
-          snapshot  = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
-*         SNAPSHOT_TR                 =
-*         SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
-          rc        = rc                     " 3: Permission denied, Content Authorization missing
-          " 4: Store not existing
-          " 8: Error
-          rc_text   = rc_text.
+      LOOP AT <fs_table> ASSIGNING FIELD-SYMBOL(<entry>).
 
-      LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
-        READ TABLE lt_snapshot_elem INTO DATA(ls_rfcdest)       INDEX 1.
-        CHECK ls_rfcdest-fieldname = 'RFCDEST'.
+        " Table CCDB_DATA_115
+        ASSIGN COMPONENT 'RFCDEST'    OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcdest>).
+        ASSIGN COMPONENT 'RFCTYPE'    OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfctype>).
+        ASSIGN COMPONENT 'RFCOPTIONS' OF STRUCTURE <entry> TO FIELD-SYMBOL(<rfcoptions>).
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_rfctype)       INDEX 2.
-        CHECK ls_rfctype-fieldname = 'RFCTYPE'.
-        CHECK ls_rfctype-fieldvalue = '3' OR  ls_rfctype-fieldvalue = 'H' OR ls_rfctype-fieldvalue =  'W'.
+        " Copy data
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_rfcoptions)    INDEX 3.
-        CHECK ls_rfcoptions-fieldname = 'RFCOPTIONS'.
+        " Store destination data
+        if ls_destination-sid is initial.
+          ls_destination-sid            = ls_result-sid.
+          ls_destination-install_number = ls_result-install_number.
+        endif.
 
         " Store destination data
         DATA ls_destination_data TYPE ts_destination_data.
         CLEAR ls_destination_data.
-        ls_destination_data-rfcdest = ls_rfcdest-fieldvalue.
-        ls_destination_data-rfctype = ls_rfctype-fieldvalue.
+        ls_destination_data-rfcdest = <rfcdest>.
+        ls_destination_data-rfctype = <rfctype>.
 
         " Interpret tokens similar to function RFCDES2RFCDISPLAY (multiple FIND REGEX are slower that SPLIT+LOOP+CASE)
-*        FIND REGEX 'Q=(Y),' IN ls_rfcoptions-fieldvalue              " Trusted
+*        FIND REGEX 'Q=(Y),' IN <RFCOPTIONS>              " Trusted
 *          SUBMATCHES ls_destination_data-trusted.
 *        IF ls_destination_data-trusted = 'Y'.
 *          ls_destination_data-trusted = 'X'. " show checkbox instead of value
 *        ENDIF.
-*        FIND REGEX 'Q=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Logon Procedure (Y = Trusted)
+*        FIND REGEX 'Q=([^,]*),'       IN <RFCOPTIONS>    " Logon Procedure (Y = Trusted)
 *          SUBMATCHES ls_destination_data-rfcslogin.
 *
-*        FIND REGEX '\[=([^,]{3}),'    IN ls_rfcoptions-fieldvalue    " System ID for trusted connection
+*        FIND REGEX '\[=([^,]{3}),'    IN <RFCOPTIONS>    " System ID for trusted connection
 *          SUBMATCHES ls_destination_data-serversysid.
 *
-*        FIND REGEX '\^=([^,]{1,10}),' IN ls_rfcoptions-fieldvalue    " Installation number for trusted connection
+*        FIND REGEX '\^=([^,]{1,10}),' IN <RFCOPTIONS>    " Installation number for trusted connection
 *          SUBMATCHES ls_destination_data-serverinstnr.
 *
 *
-*        FIND REGEX 'H=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Name of Target Host
+*        FIND REGEX 'H=([^,]*),'       IN <RFCOPTIONS>    " Name of Target Host
 *          SUBMATCHES ls_destination_data-rfchost.
 *
-*        FIND REGEX 'S=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Service used (TCP service, SAP System number)
+*        FIND REGEX 'S=([^,]*),'       IN <RFCOPTIONS>    " Service used (TCP service, SAP System number)
 *          SUBMATCHES ls_destination_data-rfcservice.
 *
 *
-*        FIND REGEX 'I=([^,]*),'       IN ls_rfcoptions-fieldvalue    " System ID
+*        FIND REGEX 'I=([^,]*),'       IN <RFCOPTIONS>    " System ID
 *          SUBMATCHES ls_destination_data-rfcsysid.
 *
-*        FIND REGEX 'M=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit logon client
+*        FIND REGEX 'M=([^,]*),'       IN <RFCOPTIONS>    " Explicit logon client
 *          SUBMATCHES ls_destination_data-rfcclient.
 *
-*        FIND REGEX 'U=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit user
+*        FIND REGEX 'U=([^,]*),'       IN <RFCOPTIONS>    " Explicit user
 *          SUBMATCHES ls_destination_data-rfcuser.
 *        CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
 *        IF ls_destination_data-rfcuser = logon_screen_token.
 *          ls_destination_data-rfcuser = 'logon screen'.
 *        ENDIF.
 *
-*        FIND REGEX 'u=(Y),'           IN ls_rfcoptions-fieldvalue    " Same user flag
+*        FIND REGEX 'u=(Y),'           IN <RFCOPTIONS>    " Same user flag
 *          SUBMATCHES ls_destination_data-rfcsameusr.
 *        IF ls_destination_data-rfcsameusr = 'Y'.
 *          ls_destination_data-rfcsameusr = 'X'. " show checkbox instead of value
@@ -1294,68 +1120,68 @@ CLASS lcl_report IMPLEMENTATION.
 *          ls_destination_data-rfcuser = 'same user'.
 *        ENDIF.
 *
-*        FIND REGEX 'v=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+*        FIND REGEX 'v=([^,]*),'       IN <RFCOPTIONS>    " Explicit password
 *          SUBMATCHES ls_destination_data-rfcauth.
-*        FIND REGEX 'V=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+*        FIND REGEX 'V=([^,]*),'       IN <RFCOPTIONS>    " Explicit password
 *          SUBMATCHES ls_destination_data-rfcauth.
-*        FIND REGEX 'P=([^,]*),'       IN ls_rfcoptions-fieldvalue    " Explicit password
+*        FIND REGEX 'P=([^,]*),'       IN <RFCOPTIONS>    " Explicit password
 *          SUBMATCHES ls_destination_data-rfcauth.
 *        CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
 *        IF ls_destination_data-rfcauth = sec_storage_token.
 *          ls_destination_data-rfcauth = 'stored password'.
 *        ENDIF.
 *
-*        FIND REGEX 's=(Y),'           IN ls_rfcoptions-fieldvalue    " SNC/TLS
+*        FIND REGEX 's=(Y),'           IN <RFCOPTIONS>    " SNC/TLS
 *          SUBMATCHES ls_destination_data-rfcsnc.
 *        IF ls_destination_data-rfcsnc = 'Y'.
 *          ls_destination_data-rfcsnc = 'X'. " show checkbox instead of value
 *        ENDIF.
-*        FIND REGEX 't=([^,]*),'       IN ls_rfcoptions-fieldvalue    " SSL Client Identity
+*        FIND REGEX 't=([^,]*),'       IN <RFCOPTIONS>    " SSL Client Identity
 *          SUBMATCHES ls_destination_data-sslapplic.
-*        FIND REGEX '/=([^,]*),'       IN ls_rfcoptions-fieldvalue    " No client cert
+*        FIND REGEX '/=([^,]*),'       IN <RFCOPTIONS>    " No client cert
 *          SUBMATCHES ls_destination_data-noccert.
-        split ls_rfcoptions-fieldvalue at ',' into table data(tokens).
-        loop at tokens into data(token).
-          split token at '=' into data(key) data(value).
-          case key.
-
-            when 'Q'. move value to ls_destination_data-rfcslogin.     " Logon Procedure (Y = Trusted)
-                      if value = 'Y'.
-                        ls_destination_data-trusted = 'X'.             " show checkbox instead of value
-                      endif.
-            when '['. move value to ls_destination_data-serversysid.   " System ID for trusted connection
-            when '^'. move value to ls_destination_data-serverinstnr.  " Installation number for trusted connection
-            when 'H'. move value to ls_destination_data-rfchost.       " Name of Target Host
-            when 'S'. move value to ls_destination_data-rfcservice.    " Service used (TCP service, SAP System number)
-            when 'I'. move value to ls_destination_data-rfcsysid.      " System ID
-            when 'M'. move value to ls_destination_data-rfcclient.     " Explicit logon client
-
-            when 'U'. move value to ls_destination_data-rfcuser.       " Explicit user
-                      CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
-                      IF ls_destination_data-rfcuser = logon_screen_token.
-                        ls_destination_data-rfcuser = 'logon screen'.
-                      ENDIF.
-
-            when 'u'. move value to ls_destination_data-rfcsameusr.    " Same user flag
-                      IF ls_destination_data-rfcsameusr = 'Y'.
-                        ls_destination_data-rfcsameusr = 'X'.          " show checkbox instead of value
-                        ls_destination_data-rfcuser = 'same user'.
-                      ENDIF.
-            when 'v' or 'V' or 'P'.
-                      move value to ls_destination_data-rfcauth.       " Explicit password
-                      CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
-                      IF ls_destination_data-rfcauth = sec_storage_token.
-                        ls_destination_data-rfcauth = 'stored password'.
-                      ENDIF.
-
-            when 's'. move value to ls_destination_data-rfcsnc.        " SNC/TLS
-                      IF ls_destination_data-rfcsnc = 'Y'.
-                        ls_destination_data-rfcsnc = 'X'.              " show checkbox instead of value
-                      ENDIF.
-            when 't'. move value to ls_destination_data-sslapplic.     " SSL Client Identity
-            when '/'. move value to ls_destination_data-noccert.       " No client cert
-          endcase.
-        endloop.
+        SPLIT <rfcoptions> AT ',' INTO TABLE DATA(tokens).
+        LOOP AT tokens INTO DATA(token).
+          SPLIT token AT '=' INTO DATA(key) DATA(value).
+          CASE key.
+            WHEN 'Q'.
+              MOVE value TO ls_destination_data-rfcslogin.     " Logon Procedure (Y = Trusted)
+              IF value = 'Y'.
+                ls_destination_data-trusted = 'X'.             " show checkbox instead of value
+              ENDIF.
+            WHEN '['. MOVE value TO ls_destination_data-serversysid.   " System ID for trusted connection
+            WHEN '^'. MOVE value TO ls_destination_data-serverinstnr.  " Installation number for trusted connection
+            WHEN 'H'. MOVE value TO ls_destination_data-rfchost.       " Name of Target Host
+            WHEN 'S'. MOVE value TO ls_destination_data-rfcservice.    " Service used (TCP service, SAP System number)
+            WHEN 'I'. MOVE value TO ls_destination_data-rfcsysid.      " System ID
+            WHEN 'M'. MOVE value TO ls_destination_data-rfcclient.     " Explicit logon client
+            WHEN 'U'.
+              MOVE value TO ls_destination_data-rfcuser.       " Explicit user
+              CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
+              IF ls_destination_data-rfcuser = logon_screen_token.
+                ls_destination_data-rfcuser = 'logon screen'.
+              ENDIF.
+            WHEN 'u'.
+              MOVE value TO ls_destination_data-rfcsameusr.    " Same user flag
+              IF ls_destination_data-rfcsameusr = 'Y'.
+                ls_destination_data-rfcsameusr = 'X'.          " show checkbox instead of value
+                ls_destination_data-rfcuser = 'same user'.
+              ENDIF.
+            WHEN 'v' OR 'V' OR 'P'.
+              MOVE value TO ls_destination_data-rfcauth.       " Explicit password
+              CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
+              IF ls_destination_data-rfcauth = sec_storage_token.
+                ls_destination_data-rfcauth = 'stored password'.
+              ENDIF.
+            WHEN 's'.
+              MOVE value TO ls_destination_data-rfcsnc.        " SNC/TLS
+              IF ls_destination_data-rfcsnc = 'Y'.
+                ls_destination_data-rfcsnc = 'X'.              " show checkbox instead of value
+              ENDIF.
+            WHEN 't'. MOVE value TO ls_destination_data-sslapplic.     " SSL Client Identity
+            WHEN '/'. MOVE value TO ls_destination_data-noccert.       " No client cert
+          ENDCASE.
+        ENDLOOP. " tokens
 
         APPEND ls_destination_data TO ls_destination-destination_data.
 
@@ -1382,7 +1208,8 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_3_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_destination_data-rfcsnc IS NOT INITIAL.
+              IF ls_destination_data-rfcsnc IS NOT INITIAL
+                and ls_destination_data-rfcsnc ne 'N'.
                 ADD 1 TO ls_result-dest_3_cnt_trusted_snc.
               ENDIF.
             ENDIF.
@@ -1407,7 +1234,8 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_h_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_destination_data-rfcsnc IS NOT INITIAL.
+              IF ls_destination_data-rfcsnc IS NOT INITIAL
+                and ls_destination_data-rfcsnc ne 'N'.
                 ADD 1 TO ls_result-dest_h_cnt_trusted_tls.
               ENDIF.
             ENDIF.
@@ -1432,14 +1260,15 @@ CLASS lcl_report IMPLEMENTATION.
                 ADD 1 TO ls_result-dest_w_cnt_trusted_no_sysid.
               ENDIF.
 
-              IF ls_destination_data-rfcsnc IS NOT INITIAL.
+              IF ls_destination_data-rfcsnc IS NOT INITIAL
+                and ls_destination_data-rfcsnc ne 'N'.
                 ADD 1 TO ls_result-dest_w_cnt_trusted_tls.
               ENDIF.
             ENDIF.
 
         ENDCASE.
 
-      ENDLOOP.
+      ENDLOOP. " <fs_table>
 
       " Store destination data
       APPEND ls_destination TO lt_destinations.
@@ -1450,133 +1279,85 @@ CLASS lcl_report IMPLEMENTATION.
         APPEND ls_result TO lt_result.
       ENDIF.
 
-    ENDLOOP. " lt_STORE_DIR
+    ENDLOOP. " lt_storetab
 
   ENDMETHOD. " get_RFCDES
 
   METHOD get_abap_instance_pahi.
     CHECK p_trust = 'X' OR p_dest = 'X'.
 
-    " Same as in report ZSHOW_KERNEL_STORES but one one entry per system
-
-    DATA:
-      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
-      lt_store_dir      TYPE  tt_diagst_store_dir,
-      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
-      lt_snapshot       TYPE  tt_diagst_trows,
-      rc                TYPE  i,
-      rc_text           TYPE  natxt.
-
     DATA tabix TYPE i.
 
-    CALL FUNCTION 'DIAGST_GET_STORES'
-      EXPORTING
-        " The "System Filter" parameters allow to get all Stores of a system or technical system.
-        " Some combinations of the four parameters are not allowed.
-        " The function will return an error code in such a case.
-*       SID                   = ' '
-*       INSTALL_NUMBER        = ' '
-*       LONG_SID              = ' '
-*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
-        " Store key fields
-        group_namespace       = 'ACTIVE'                   "(optional)
-        group_landscape_class = 'CL_DIAGLS_ABAP_INSTANCE'  "(optional)
-*       GROUP_LANDSCAPE_ID    = ' '
-*       GROUP_COMP_ID         = ' '
-        group_source          = 'ABAP'                     "(optional)
-        group_name            = 'INSTANCE'                 "(optional)
-        store_category        = 'CONFIG'                   "(optional)
-        store_type            = 'PROPERTY'                 "(optional)
-*       STORE_FULLPATH        = ' '
-        store_name            = 'ABAP_INSTANCE_PAHI'
-        " Special filters
-        store_mainalias       = 'ABAP-PARAMETER'           "(optional)
-        store_subalias        = 'PAHI'                     "(optional)
-*       STORE_TPL_ID          = ' '
-*       HAS_ELEMENT_FROM      =                            " date range
-*       HAS_ELEMENT_TO        =                            " date range
-*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
-*       CASE_INSENSITIVE      = ' '
-*       PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
-*       SEARCH_STRING         =
-*       ONLY_RELEVANT         = 'X'
-*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
-        " Others
-*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
-        " Setting this parameter to 'X' will display the result.
-*       CALLING_APPL          = ' '
-      IMPORTING
-*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
-        store_dir             = lt_store_dir               "(not recommended anymore)
-*       STORE_DIR_MI          =                            "(SAP internal usage only)
-*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
-*       PARAMETER             =                            "(SAP internal usage only)
-        rc                    = rc
-        rc_text               = rc_text.
+    " Get stores
+    SELECT *
+      FROM ccdb_rt_dirv_dbv                " CCDB: Root object - Directory
+      INTO TABLE @DATA(lt_storetab)
+     WHERE extsid           IN @p_extsid   " System name
+       AND system_type      = 'ABAP'       " System type
+       AND sci_id           = 'S00007'     " Store id
+       AND store_name       = 'ABAP_INSTANCE_PAHI'     " Store name
+     ORDER BY extsid .
+    CHECK sy-subrc IS INITIAL.
 
-    IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
-    ENDIF.
+    " Use table name from first store
+    READ TABLE lt_storetab INTO DATA(ls_storetab) INDEX 1.
+    CHECK sy-subrc IS INITIAL.
 
-    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
-      WHERE long_sid              IN p_sid
-        AND store_main_state_type IN p_state
-      .
+    " Create data table
+    DATA(ddic_tablename) = ls_storetab-ddic_tablename.
+    DATA ref_tab TYPE REF TO data.
+    CREATE DATA ref_tab TYPE STANDARD TABLE OF (ddic_tablename).
+    FIELD-SYMBOLS <fs_table> TYPE ANY TABLE.
+    ASSIGN ref_tab->* TO <fs_table>.
+
+    LOOP AT lt_storetab INTO ls_storetab
+      WHERE ddic_tablename = ddic_tablename.
 
       " Do we already have an entry for this system?
       READ TABLE lt_result INTO DATA(ls_result)
         WITH KEY
-          install_number = ls_store_dir-install_number
-          long_sid       = ls_store_dir-long_sid
-          sid            = ls_store_dir-sid
-          .
+          extsid = ls_storetab-extsid.
       IF sy-subrc = 0.
         tabix = sy-tabix.
-        IF ls_store_dir-instance_type NE 'CENTRAL'.
-          CONTINUE.
-        ENDIF.
+        "MOVE-CORRESPONDING ls_storetab TO ls_result.
       ELSE.
         tabix = -1.
         CLEAR ls_result.
-        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+        MOVE-CORRESPONDING ls_storetab TO ls_result. " EXTSID, STORE_NAME, STORE_ID, STORE_TO_DATE
+        READ TABLE lt_extsid_data INTO DATA(ls_extsid_data)
+          WITH TABLE KEY
+            extsid = ls_storetab-extsid.
+        IF sy-subrc = 0.
+          ls_result-sid            = ls_extsid_data-sid.
+          ls_result-install_number = ls_extsid_data-install_number.
+        ENDIF.
       ENDIF.
 
-      IF ls_result-host_full IS INITIAL.
-        ls_result-host_full = ls_result-host. " host, host_id, physical_host
-      ENDIF.
+      " Get data
+      SELECT *
+        FROM (ddic_tablename) " CCDB_DATA_001
+        WHERE cd_store_id = @ls_storetab-store_id
+          and CD_HIST_DATE_TO is initial             " ignore old change documents
+          AND (   name = 'rfc/selftrust'
+               OR name = 'rfc/allowoldticket4tt'
+               OR name = 'rfc/sendInstNr4tt' )
+        ORDER BY PRIMARY KEY
+        INTO TABLE @<fs_table>.
 
-      CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
-        EXPORTING
-          store_id  = ls_store_dir-store_id
-*         TIMESTAMP =                        " if not specified the latest available snapshot is returned
-*         CALLING_APPL                = ' '
-        IMPORTING
-          fieldlist = lt_fieldlist
-*         SNAPSHOT_VALID_FROM         =
-*         SNAPSHOT_VALID_TO_CONFIRMED =
-*         SNAPSHOT_VALID_TO           =
-          snapshot  = lt_snapshot            " The content of the requested snapshot in ABAP DDIC type format
-*         SNAPSHOT_TR                 =
-*         SNAPSHOT_ITSAM              =                        " The content of the requested snapshot in XML-based format
-          rc        = rc                     " 3: Permission denied, Content Authorization missing
-          " 4: Store not existing
-          " 8: Error
-          rc_text   = rc_text.
+      LOOP AT <fs_table> ASSIGNING FIELD-SYMBOL(<entry>).
 
-      LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
-        READ TABLE lt_snapshot_elem INTO DATA(ls_parameter) INDEX 1.
-        CHECK ls_parameter-fieldname = 'PARAMETER'.
+        " Table CCDB_DATA_001
+        ASSIGN COMPONENT 'NAME'    OF STRUCTURE <entry> TO FIELD-SYMBOL(<name>).
+        ASSIGN COMPONENT 'VALUE'   OF STRUCTURE <entry> TO FIELD-SYMBOL(<value>).
 
-        READ TABLE lt_snapshot_elem INTO DATA(ls_value)     INDEX 2.
-        CHECK ls_value-fieldname = 'VALUE'.
-
-        CASE ls_parameter-fieldvalue.
-          WHEN 'rfc/selftrust'.         ls_result-rfc_selftrust         = ls_value-fieldvalue.
-          WHEN 'rfc/allowoldticket4tt'. ls_result-rfc_allowoldticket4tt = ls_value-fieldvalue.
-          WHEN 'rfc/sendInstNr4tt'.     ls_result-rfc_sendinstnr4tt     = ls_value-fieldvalue.
+        " Copy data
+        CASE <name>.
+          WHEN 'rfc/selftrust'.         ls_result-rfc_selftrust         = <value>.
+          WHEN 'rfc/allowoldticket4tt'. ls_result-rfc_allowoldticket4tt = <value>.
+          WHEN 'rfc/sendInstNr4tt'.     ls_result-rfc_sendinstnr4tt     = <value>.
         ENDCASE.
 
-      ENDLOOP.
+      ENDLOOP. " <fs_table>
 
       IF tabix > 0.
         MODIFY lt_result FROM ls_result INDEX tabix.
@@ -1584,7 +1365,7 @@ CLASS lcl_report IMPLEMENTATION.
         APPEND ls_result TO lt_result.
       ENDIF.
 
-    ENDLOOP. " lt_STORE_DIR
+    ENDLOOP. " lt_storetab
 
   ENDMETHOD. " get_ABAP_INSTANCE_PAHI
 
@@ -1614,9 +1395,16 @@ CLASS lcl_report IMPLEMENTATION.
         APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_normal ) TO <fs_result>-t_color.
 
       ELSE.
-
-        rel   = <fs_result>-kern_rel(3).
-        patch = <fs_result>-kern_patchlevel.
+        IF <fs_result>-kern_rel(3) CO '0123456789'.
+          rel   = <fs_result>-kern_rel(3).
+        ELSE.
+          rel = 0.
+        ENDIF.
+        IF <fs_result>-kern_patchlevel CO '0123456789'.
+          patch = <fs_result>-kern_patchlevel.
+        ELSE.
+          patch = 0.
+        ENDIF.
 
         IF     rel = 722 AND patch < 1214
           OR   rel = 753 AND patch < 1036
@@ -1948,7 +1736,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
         IF sy-subrc IS NOT INITIAL                      " No data of trusted system found?
-          AND <fs_rfcsysacl_data>-rfcsysid IN p_sid.    " But check this only of data should be available
+          AND <fs_rfcsysacl_data>-rfcsysid IN p_EXTSID.    " But check this only of data should be available
 
           " Store mutual trust
           READ TABLE lt_result ASSIGNING <fs_result>
@@ -1969,6 +1757,7 @@ CLASS lcl_report IMPLEMENTATION.
     ENDLOOP.
 
   ENDMETHOD. " validate_mutual_trust
+
 
   METHOD count_dest_per_trust.
     CHECK p_trust IS NOT INITIAL AND p_dest IS NOT INITIAL.
@@ -2064,6 +1853,7 @@ CLASS lcl_report IMPLEMENTATION.
 
             show_trusted_systems(
               column      = ls_cell-columnname
+              extsid      = ls_result-extsid
               rfctrustsy  = ls_result-sid
               llicense_nr = ls_result-install_number
             ).
@@ -2075,6 +1865,7 @@ CLASS lcl_report IMPLEMENTATION.
 
             show_destinations(
               column         = ls_cell-columnname
+              extsid         = ls_result-extsid
               sid            = ls_result-sid
               install_number = ls_result-install_number
             ).
@@ -2104,6 +1895,7 @@ CLASS lcl_report IMPLEMENTATION.
 
         show_trusted_systems(
           column      = column
+          extsid      = ls_result-extsid
           rfctrustsy  = ls_result-sid
           llicense_nr = ls_result-install_number
         ).
@@ -2115,6 +1907,7 @@ CLASS lcl_report IMPLEMENTATION.
 
         show_destinations(
           column         = column
+          extsid         = ls_result-extsid
           sid            = ls_result-sid
           install_number = ls_result-install_number
         ).
@@ -2203,9 +1996,9 @@ CLASS lcl_report IMPLEMENTATION.
 *... sort
     TRY.
         lr_sorts = lr_alv_table->get_sorts( ).
-        lr_sorts->add_sort( 'INSTALL_NUMBER' ).
-        lr_sorts->add_sort( 'LONG_SID' ).
-        lr_sorts->add_sort( 'SID' ).
+        lr_sorts->add_sort( 'EXTSID' ).
+        "lr_sorts->add_sort( 'INSTALL_NUMBER' ).
+        "lr_sorts->add_sort( 'SID' ).
 
       CATCH cx_salv_data_error cx_salv_existing cx_salv_not_found.
     ENDTRY.
@@ -2235,26 +2028,28 @@ CLASS lcl_report IMPLEMENTATION.
 
     TRY.
 *... convert time stamps
-        lr_column ?= lr_columns->get_column( 'STORE_LAST_UPLOAD' ).
+        lr_column ?= lr_columns->get_column( 'STORE_TO_DATE' ).
         lr_column->set_edit_mask( '==TSTMP' ).
 
 *... adjust headings
         DATA color TYPE lvc_s_colo.
 
-        lr_column ?= lr_columns->get_column( 'TECH_SYSTEM_ID' ).
-        lr_column->set_long_text( 'Technical system ID' ).
-        lr_column->set_medium_text( 'Technical system ID' ).
-        lr_column->set_short_text( 'Tech. sys.' ).
+        " Key
 
-        lr_column ?= lr_columns->get_column( 'LANDSCAPE_ID' ).
-        lr_column->set_long_text( 'Landscape ID' ).
-        lr_column->set_medium_text( 'Landscape ID' ).
-        lr_column->set_short_text( 'Landscape' ).
+        lr_column ?= lr_columns->get_column( 'EXTSID' ).
+        lr_column->set_long_text( 'Extended system id' ).
+        lr_column->set_medium_text( 'Extended system id' ).
+        lr_column->set_short_text( 'Ext.Sys.Id' ).
 
-        lr_column ?= lr_columns->get_column( 'HOST_ID' ).
-        lr_column->set_long_text( 'Host ID' ).
-        lr_column->set_medium_text( 'Host ID' ).
-        lr_column->set_short_text( 'Host ID' ).
+        lr_column ?= lr_columns->get_column( 'SID' ).
+        lr_column->set_long_text( 'System id' ).
+        lr_column->set_medium_text( 'System id' ).
+        lr_column->set_short_text( 'Sys.Id' ).
+
+        lr_column ?= lr_columns->get_column( 'INSTALL_NUMBER' ).
+        lr_column->set_long_text( 'Installation number' ).
+        lr_column->set_medium_text( 'Installation number' ).
+        lr_column->set_short_text( 'Inst.Nr.' ).
 
         " Kernel
 
@@ -2284,11 +2079,6 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column->set_short_text( 'Kernel?' ).
 
         " ABAP
-
-        lr_column ?= lr_columns->get_column( 'COMPV_NAME' ).
-        lr_column->set_long_text( 'Software Component Version' ).   "max. 40 characters
-        lr_column->set_medium_text( 'SW Comp. Version' ). "max. 20 characters
-        lr_column->set_short_text( 'SWCompVers' ).     "max. 10 characters
 
         lr_column ?= lr_columns->get_column( 'ABAP_RELEASE' ).
         lr_column->set_long_text( 'ABAP release' ).
@@ -2514,22 +2304,12 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column->set_short_text( 'TLS Trust.' ).
         lr_column->set_zero( abap_false  ).
 
+        lr_column ?= lr_columns->get_column( 'STORE_NAME' ).
+        lr_column->set_long_text( 'ABAP release' ).   "max. 40 characters
+        lr_column->set_medium_text( 'ABAP release' ). "max. 20 characters
+        lr_column->set_short_text( 'ABAP rel.' ).     "max. 10 characters
+
 *... hide unimportant columns
-        lr_column ?= lr_columns->get_column( 'LONG_SID' ).                lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'SID' ).                     lr_column->set_visible( abap_true ).
-
-        lr_column ?= lr_columns->get_column( 'TECH_SYSTEM_TYPE' ).        lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'TECH_SYSTEM_ID' ).          lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'LANDSCAPE_ID' ).            lr_column->set_visible( abap_false ).
-
-        lr_column ?= lr_columns->get_column( 'HOST_FULL' ).               lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'HOST' ).                    lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'HOST_ID' ).                 lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'PHYSICAL_HOST' ).           lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'INSTANCE_TYPE' ).           lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'INSTANCE' ).                lr_column->set_visible( abap_false ).
-
-        lr_column ?= lr_columns->get_column( 'COMPV_NAME' ).              lr_column->set_visible( abap_false ).
 
         lr_column ?= lr_columns->get_column( 'KERN_COMP_TIME' ).          lr_column->set_visible( abap_false ).
         lr_column ?= lr_columns->get_column( 'KERN_COMP_DATE' ).          lr_column->set_visible( abap_true ).
@@ -2537,14 +2317,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column ?= lr_columns->get_column( 'NOTE_3089413_PRSTATUS' ).   lr_column->set_technical( abap_true ).
         lr_column ?= lr_columns->get_column( 'NOTE_3287611_PRSTATUS' ).   lr_column->set_technical( abap_true ).
 
-        " Housekeeping stuff
         lr_column ?= lr_columns->get_column( 'STORE_NAME' ).              lr_column->set_visible( abap_false ).
         lr_column ?= lr_columns->get_column( 'STORE_ID' ).                lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'STORE_LAST_UPLOAD' ).       lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'STORE_STATE' ).             lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'STORE_MAIN_STATE_TYPE' ).   lr_column->set_visible( abap_false ).
-        lr_column ?= lr_columns->get_column( 'STORE_MAIN_STATE' ).        lr_column->set_visible( abap_true ).
-        lr_column ?= lr_columns->get_column( 'STORE_OUTDATED_DAY' ).      lr_column->set_visible( abap_false ).
+        lr_column ?= lr_columns->get_column( 'STORE_TO_DATE' ).       lr_column->set_visible( abap_false ).
 
         IF p_kern IS INITIAL.
           lr_column ?= lr_columns->get_column( 'KERN_REL' ).              lr_column->set_technical( abap_true ).
@@ -2620,6 +2395,7 @@ CLASS lcl_report IMPLEMENTATION.
   METHOD show_trusted_systems.
     "IMPORTING
     "  column      type SALV_DE_COLUMN
+    "  extsid         TYPE ts_result-extsid
     "  RFCTRUSTSY  type ts_result-sid
     "  LLICENSE_NR type ts_result-install_number
 
@@ -2705,14 +2481,14 @@ CLASS lcl_report IMPLEMENTATION.
     " Copy relevant data
     CASE column.
       WHEN 'TRUSTSY_CNT_ALL'. " All trusted systems
-        lr_display->set_list_header( `All trusted systems of system ` && rfctrustsy ).
+        lr_display->set_list_header( `All trusted systems of system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data.
           APPEND ls_rfcsysacl_data TO lt_rfcsysacl_data.
         ENDLOOP.
 
       WHEN 'NO_DATA_CNT'.   " No data for trusted system found
-        lr_display->set_list_header( `No data for trusted system found of system ` && rfctrustsy ).
+        lr_display->set_list_header( `No data for trusted system found of system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data
           WHERE no_data IS NOT INITIAL.
@@ -2720,7 +2496,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'MUTUAL_TRUST_CNT'.   " Mutual trust relations
-        lr_display->set_list_header( `Mutual trust relations with system ` && rfctrustsy ).
+        lr_display->set_list_header( `Mutual trust relations with system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data
           WHERE mutual_trust IS NOT INITIAL.
@@ -2728,7 +2504,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'TRUSTSY_CNT_TCD'. " Tcode active for trusted systems
-        lr_display->set_list_header( `Tcode active for trusted systems of system ` && rfctrustsy ).
+        lr_display->set_list_header( `Tcode active for trusted systems of system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data
           WHERE rfctcdchk = 'X'.
@@ -2736,7 +2512,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'TRUSTSY_CNT_3'.   " Migrated trusted systems
-        lr_display->set_list_header( `Migrated trusted systems of system ` && rfctrustsy ).
+        lr_display->set_list_header( `Migrated trusted systems of system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data
           WHERE rfcslopt(1) = '3'.
@@ -2744,7 +2520,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'TRUSTSY_CNT_2'.   " Old trusted systems
-        lr_display->set_list_header( `Old trusted systems of system ` && rfctrustsy ).
+        lr_display->set_list_header( `Old trusted systems of system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data
           WHERE rfcslopt(1) = '2'.
@@ -2752,7 +2528,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'TRUSTSY_CNT_1'.   " Very old trusted systems
-        lr_display->set_list_header( `Very old trusted systems of system ` && rfctrustsy ).
+        lr_display->set_list_header( `Very old trusted systems of system ` && extsid ).
 
         LOOP AT <fs_trusted_system>-rfcsysacl_data INTO ls_rfcsysacl_data
           WHERE rfcslopt(1) = ' '.
@@ -2837,8 +2613,9 @@ CLASS lcl_report IMPLEMENTATION.
 
   METHOD show_destinations.
     "IMPORTING
-    "  column      TYPE salv_de_column
-    "  sid         TYPE ts_result-sid
+    "  column         TYPE salv_de_column
+    "  extsid         TYPE ts_result-extsid
+    "  sid            TYPE ts_result-sid
     "  install_number TYPE ts_result-install_number
 
     " Show trusted systems
@@ -2849,7 +2626,7 @@ CLASS lcl_report IMPLEMENTATION.
     DATA ls_destination  TYPE ts_destination.
     READ TABLE lt_destinations ASSIGNING FIELD-SYMBOL(<fs_destination>)
       WITH TABLE KEY
-        sid            = sid
+        sid            = SID
         install_number = install_number.
     CHECK sy-subrc = 0.
 
@@ -2923,7 +2700,7 @@ CLASS lcl_report IMPLEMENTATION.
     " Copy relevant data
     CASE column.
       WHEN 'DEST_3_CNT_ALL'.
-        lr_display->set_list_header( `All RFC destinations (type 3) of system ` && sid ).
+        lr_display->set_list_header( `All RFC destinations (type 3) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = '3'.
@@ -2931,7 +2708,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_3_CNT_TRUSTED'.
-        lr_display->set_list_header( `Trusted RFC destinations (type 3) of system ` && sid ).
+        lr_display->set_list_header( `Trusted RFC destinations (type 3) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = '3'
@@ -2940,7 +2717,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_3_CNT_TRUSTED_MIGRATED'.
-        lr_display->set_list_header( `Migrated RFC destinations (type 3) of system ` && sid ).
+        lr_display->set_list_header( `Migrated RFC destinations (type 3) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = '3'
@@ -2951,7 +2728,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_3_CNT_TRUSTED_NO_INSTNR'.
-        lr_display->set_list_header( `Missing installation number in RFC destinations (type 3) of system ` && sid ).
+        lr_display->set_list_header( `Missing installation number in RFC destinations (type 3) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = '3'
@@ -2962,7 +2739,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_3_CNT_TRUSTED_NO_SYSID'.
-        lr_display->set_list_header( `Missing system id in RFC destinations (type 3) of system ` && sid ).
+        lr_display->set_list_header( `Missing system id in RFC destinations (type 3) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = '3'
@@ -2972,18 +2749,19 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_3_CNT_TRUSTED_SNC'.
-        lr_display->set_list_header( `Encrypted trusted RFC destinations (type 3) of system ` && sid ).
+        lr_display->set_list_header( `Encrypted trusted RFC destinations (type 3) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = '3'
             AND trusted IS NOT INITIAL
-            AND rfcsnc IS NOT INITIAL.
+            AND rfcsnc IS NOT INITIAL
+            AND rfcsnc NE 'N'.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
 
       WHEN 'DEST_H_CNT_ALL'.
-        lr_display->set_list_header( `All http destinations (type H) of system ` && sid ).
+        lr_display->set_list_header( `All http destinations (type H) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'H'.
@@ -2991,7 +2769,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_H_CNT_TRUSTED'.
-        lr_display->set_list_header( `Trusted http destinations (type H) of system ` && sid ).
+        lr_display->set_list_header( `Trusted http destinations (type H) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'H'
@@ -3000,7 +2778,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_H_CNT_TRUSTED_MIGRATED'.
-        lr_display->set_list_header( `Migrated http destinations (type H) of system ` && sid ).
+        lr_display->set_list_header( `Migrated http destinations (type H) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'H'
@@ -3011,7 +2789,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_H_CNT_TRUSTED_NO_INSTNR'.
-        lr_display->set_list_header( `Missing installation number in http destinations (type H) of system ` && sid ).
+        lr_display->set_list_header( `Missing installation number in http destinations (type H) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'H'
@@ -3022,7 +2800,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_H_CNT_TRUSTED_NO_SYSID'.
-        lr_display->set_list_header( `Missing system id in http destinations (type H) of system ` && sid ).
+        lr_display->set_list_header( `Missing system id in http destinations (type H) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'H'
@@ -3032,18 +2810,19 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_H_CNT_TRUSTED_TLS'.
-        lr_display->set_list_header( `Encrypted trusted http destinations (type H) of system ` && sid ).
+        lr_display->set_list_header( `Encrypted trusted http destinations (type H) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'H'
             AND trusted IS NOT INITIAL
-            AND rfcsnc IS NOT INITIAL.
+            AND rfcsnc IS NOT INITIAL
+            AND rfcsnc NE 'N'.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
 
       WHEN 'DEST_W_CNT_ALL'.
-        lr_display->set_list_header( `All WebRFC destinations (type W) of system ` && sid ).
+        lr_display->set_list_header( `All WebRFC destinations (type W) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'W'.
@@ -3051,7 +2830,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_W_CNT_TRUSTED'.
-        lr_display->set_list_header( `Trusted WebRFC destinations (type W) of system ` && sid ).
+        lr_display->set_list_header( `Trusted WebRFC destinations (type W) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'W'
@@ -3060,7 +2839,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_W_CNT_TRUSTED_MIGRATED'.
-        lr_display->set_list_header( `Migrated WebRFC destinations (type W) of system ` && sid ).
+        lr_display->set_list_header( `Migrated WebRFC destinations (type W) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'W'
@@ -3071,7 +2850,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_W_CNT_TRUSTED_NO_INSTNR'.
-        lr_display->set_list_header( `Missing installation number in WebRFC destinations (type W) of system ` && sid ).
+        lr_display->set_list_header( `Missing installation number in WebRFC destinations (type W) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'W'
@@ -3082,7 +2861,7 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_W_CNT_TRUSTED_NO_SYSID'.
-        lr_display->set_list_header( `Missing system id in WebRFC destinations (type W) of system ` && sid ).
+        lr_display->set_list_header( `Missing system id in WebRFC destinations (type W) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'W'
@@ -3092,12 +2871,13 @@ CLASS lcl_report IMPLEMENTATION.
         ENDLOOP.
 
       WHEN 'DEST_W_CNT_TRUSTED_TLS'.
-        lr_display->set_list_header( `Encrypted trusted WebRFC destinations (type W) of system ` && sid ).
+        lr_display->set_list_header( `Encrypted trusted WebRFC destinations (type W) of system ` && extsid ).
 
         LOOP AT <fs_destination>-destination_data INTO ls_destination_data
           WHERE rfctype = 'W'
             AND trusted IS NOT INITIAL
-            AND rfcsnc IS NOT INITIAL.
+            AND rfcsnc IS NOT INITIAL
+            AND rfcsnc NE 'N'.
           APPEND ls_destination_data TO lt_destination_data.
         ENDLOOP.
 
@@ -3226,11 +3006,11 @@ ENDCLASS.                    "lcl_report IMPLEMENTATION
 INITIALIZATION.
   lcl_report=>initialization( ).
 
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_sid-low.
-  lcl_report=>f4_s_sid( ).
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_EXTSID-low.
+  lcl_report=>f4_EXTSID( ).
 
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_sid-high.
-  lcl_report=>f4_s_sid( ).
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_EXTSID-high.
+  lcl_report=>f4_EXTSID( ).
 
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.
   lcl_report=>f4_p_layout( CHANGING layout = p_layout ).

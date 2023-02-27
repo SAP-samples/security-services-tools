@@ -1232,7 +1232,7 @@ form SHOW_CONFIGURATION.
     " Function AGSNO_GET_READ_RFC could take ages in case of not-working READ destinations
     " The wait time depends on dnoc_usercfg parameter agssn_sysrec_max_rfc_time = SYSREC_MAX_RFC_TIME
     if 1 = 0.
-    data: L_RFC type  RFCDEST.
+    data L_RFC type  RFCDEST.
     clear L_RFC.
     if LS_AGSSR_CONFSYS-SYSTEM_TYPE = 'ABAP'.
       call function 'AGSNO_GET_READ_RFC'
@@ -1701,7 +1701,7 @@ form GET_AVAILABLE_SYSTEMS
   data: LO_EX  type ref to CX_SM_BW_ACCESS.
 
   try.
-      CL_SM_BW_ACCESS=>GET_WRITE_BW_DESTINATION( receiving WRITE_RFC_DEST = LF_RFC_DEST ). " Logical Destination (Specified in Function Call)
+    LF_RFC_DEST = CL_SM_BW_ACCESS=>GET_WRITE_BW_DESTINATION( ). " Logical Destination (Specified in Function Call)
     catch CX_SM_BW_ACCESS into LO_EX.
       write: /(30) 'GET_WRITE_BW_DESTINATION' color col_negative, LO_EX->GET_TEXT( ).
       RETURN.
@@ -1754,7 +1754,7 @@ form F4_SYS.
 
   data LS_SYSTEM_INFO   type AGS_SR_S_LMDB_SYSTEM.
 
-  data: LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM.
+  data LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM.
   data LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
   call function 'AGSNO_API_GET_CHKED_SYSTEMS'
     importing
@@ -1857,7 +1857,7 @@ form F4_TYPE.
     f4_value     TYPE          ts_f4_value,
     f4_value_tab TYPE TABLE OF ts_f4_value.
 
-  data: LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM.
+  data LT_SYSTEM type  AGSNOTE_API_T_CHKED_SYSTEM.
   call function 'AGSNO_API_GET_CHKED_SYSTEMS'
     importing
       ET_SYSTEM = LT_SYSTEM.

@@ -39,7 +39,7 @@
     },
     "align_parameters": {
       "exclude": [],
-      "severity": "Warning"
+      "severity": "Info"
     },
     "allowed_object_naming": {
       "exclude": [],
@@ -115,7 +115,7 @@
     },
     "check_comments": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "allowEndOfLine": true
     },
     "check_ddic": {
@@ -179,7 +179,7 @@
     },
     "commented_code": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "allowIncludeInFugr": true
     },
     "constant_classes": {
@@ -230,7 +230,7 @@
     },
     "definitions_top": {
       "exclude": [],
-      "severity": "Error"
+      "severity": "Warning"
     },
     "description_empty": {
       "exclude": [],
@@ -238,7 +238,7 @@
     },
     "double_space": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "keywords": true,
       "startParen": true,
       "endParen": true,
@@ -250,7 +250,7 @@
     },
     "empty_line_in_statement": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "allowChained": false
     },
     "empty_statement": {
@@ -259,7 +259,7 @@
     },
     "empty_structure": {
       "exclude": [],
-      "severity": "Error",
+      "severity": "Warning",
       "loop": true,
       "if": true,
       "while": true,
@@ -444,13 +444,13 @@
     },
     "in_statement_indentation": {
       "exclude": [],
-      "severity": "Error",
+      "severity": "Warning",
       "blockStatements": 2,
       "ignoreExceptions": true
     },
     "indentation": {
       "exclude": [],
-      "severity": "Error",
+      "severity": "Warning",
       "ignoreExceptions": true,
       "alignTryCatch": false,
       "selectionScreenBlockIndentation": false,
@@ -474,7 +474,7 @@
     },
     "keyword_case": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "style": "upper",
       "ignoreExceptions": true,
       "ignoreLowerClassImplmentationStatement": true,
@@ -500,7 +500,7 @@
     },
     "line_only_punc": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "ignoreExceptions": true
     },
     "local_class_naming": {
@@ -519,7 +519,7 @@
     },
     "local_variable_names": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "patternKind": "required",
       "ignoreNames": [],
       "ignorePatterns": [],
@@ -541,7 +541,7 @@
     },
     "max_one_statement": {
       "exclude": [],
-      "severity": "Warning"
+      "severity": "Info"
     },
     "message_exists": {
       "exclude": [],
@@ -614,7 +614,7 @@
     },
     "no_external_form_calls": {
       "exclude": [],
-      "severity": "Error"
+      "severity": "Warning"
     },
     "no_inline_in_optional_branches": {
       "exclude": [],
@@ -747,7 +747,7 @@
     },
     "preferred_compare_operator": {
       "exclude": [],
-      "severity": "Warning",
+      "severity": "Info",
       "badOperators": [
         "EQ",
         "><",
@@ -934,7 +934,7 @@
     },
     "use_new": {
       "exclude": [],
-      "severity": "Warning"
+      "severity": "Info"
     },
     "when_others_last": {
       "exclude": [],
