@@ -72,7 +72,7 @@ Updated 28.08.2020
 - Report [`ZCHECK_NOTE_3089413`](/ABAP/solman/zcheck_note_3089413.prog.abap)  
 Check the implementation status of note [3089413](https://launchpad.support.sap.com/#/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
-Updated 27.02.2023 Check version of installed notes, small corrections  
+Updated 13.03.2023 Updated note 3287611, new note 3304520  
 
 ### Configuration Validation
 
@@ -106,7 +106,7 @@ New 27.01.2023
 - Report [`ZCHECK_NOTE_3089413_FRUN`](/ABAP/frun/zcheck_note_3089413_frun.prog.abap)  
 Check the implementation status of note [3089413](https://launchpad.support.sap.com/#/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
-New 27.02.2023  
+Updated 13.03.2023 Updated note 3287611, new note 3304520  
  
 ## Requirements
 None
