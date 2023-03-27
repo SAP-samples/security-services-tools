@@ -5,6 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 27.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)
 *& 13.03.2023 Updated note 3287611, new note 3304520
 *& 27.02.2023 Check version of installed notes, small corrections
 *& 16.02.2023 Show count of migrated trusted destinations per trust relation
@@ -21,7 +22,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '13.03.2023 FBT'.
+CONSTANTS c_program_version(30) TYPE c VALUE '27.03.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -34,35 +35,41 @@ SELECTION-SCREEN END OF LINE.
 * Check Kernel
 SELECTION-SCREEN BEGIN OF LINE.
 PARAMETERS       p_kern AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_kern FOR FIELD p_kern.
+SELECTION-SCREEN COMMENT 3(80) ps_kern FOR FIELD p_kern.
 SELECTION-SCREEN END OF LINE.
 
 * Check ABAP
 SELECTION-SCREEN BEGIN OF LINE.
 PARAMETERS       p_abap AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_abap FOR FIELD p_abap.
+SELECTION-SCREEN COMMENT 3(80) ps_abap FOR FIELD p_abap.
 SELECTION-SCREEN END OF LINE.
 
 * Check trusted relations
 SELECTION-SCREEN BEGIN OF LINE.
 PARAMETERS       p_trust AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_trust FOR FIELD p_trust.
+SELECTION-SCREEN COMMENT 3(80) ps_trust FOR FIELD p_trust.
 SELECTION-SCREEN END OF LINE.
 
 * Check trusted destinations
 SELECTION-SCREEN BEGIN OF LINE.
 PARAMETERS       p_dest AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN COMMENT 3(33) ps_dest FOR FIELD p_dest.
+SELECTION-SCREEN COMMENT 3(80) ps_dest FOR FIELD p_dest.
 SELECTION-SCREEN END OF LINE.
 * Show specific type only if data found
 DATA p_dest_3 TYPE abap_bool.
 DATA p_dest_h TYPE abap_bool.
 DATA p_dest_w TYPE abap_bool.
 
+* Check user authorizations for S_RFCACL
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS       p_auth AS CHECKBOX DEFAULT ' '.
+SELECTION-SCREEN COMMENT 3(80) ps_auth FOR FIELD p_auth.
+SELECTION-SCREEN END OF LINE.
+
 * Store status
 SELECTION-SCREEN BEGIN OF LINE.
 SELECTION-SCREEN COMMENT 1(30) ss_state FOR FIELD p_state.
-SELECT-OPTIONS p_state FOR ('STORE_MAIN_STATE_TYPE')." DEFAULT 'G'.
+SELECT-OPTIONS p_state FOR ('DIAGST_MAIN_STATE_TYPE') VISIBLE LENGTH 1." DEFAULT 'G'.
 SELECTION-SCREEN END OF LINE.
 
 * Layout of ALV output
@@ -154,6 +161,11 @@ TYPES:
     dest_w_cnt_trusted_no_sysid  TYPE i,
     dest_w_cnt_trusted_tls       TYPE i,
 
+    " Source store: AUTH_COMB_CHECK_USER (users having generic authorizations for S_RFCACL)
+    s_rfcacl_status              TYPE string,
+    s_rfcacl_active_users        TYPE i,
+    s_rfcacl_inactive_users      TYPE i,
+
     " Source store: we show the status of the first found store only which is usually store SAP_KERNEL
     store_name                   TYPE sdiagst_store_dir-store_name,
     store_id                     TYPE sdiagst_store_dir-store_id,
@@ -240,6 +252,25 @@ TYPES:
   END OF ts_destination,
   tt_destinations TYPE STANDARD TABLE OF ts_destination WITH KEY sid install_number.
 
+" Popup showing users
+TYPES:
+  BEGIN OF ts_user_data,
+    client     TYPE usr02-mandt,
+    user       TYPE usr02-bname,
+    locked(1),
+    invalid(1),
+    user_type  TYPE string,
+    user_group TYPE usr02-class,
+  END OF ts_user_data,
+  tt_user_data TYPE STANDARD TABLE OF ts_user_data WITH KEY client user,
+
+  BEGIN OF ts_critical_user,
+    sid            TYPE diagls_technical_system_sid,  "sdiagst_store_dir-sid,
+    install_number TYPE sdiagst_store_dir-install_number,
+    user_data      TYPE tt_user_data,
+  END OF ts_critical_user,
+  tt_critical_users TYPE STANDARD TABLE OF ts_critical_user WITH KEY sid install_number.
+
 *---------------------------------------------------------------------*
 *      CLASS lcl_report DEFINITION
 *---------------------------------------------------------------------*
@@ -269,7 +300,9 @@ CLASS lcl_report DEFINITION.
       " details about trust relations
       lt_trusted_systems TYPE tt_trusted_systems,
       " details about destinations
-      lt_destinations    TYPE tt_destinations.
+      lt_destinations    TYPE tt_destinations,
+      " details about users
+      lt_critical_users  TYPE tt_critical_users.
 
     CLASS-DATA:
       " main ALV table
@@ -296,6 +329,8 @@ CLASS lcl_report DEFINITION.
 
       get_abap_instance_pahi,
 
+      get_authorizations,
+
       validate_kernel,
 
       validate_abap,
@@ -305,6 +340,8 @@ CLASS lcl_report DEFINITION.
       count_dest_per_trust,
 
       validate_trust_for_dest,
+
+      validate_authorizations,
 
       show_result,
 
@@ -323,8 +360,13 @@ CLASS lcl_report DEFINITION.
           rfctrustsy  TYPE ts_result-sid
           llicense_nr TYPE ts_result-install_number,
 
-
       show_destinations
+        IMPORTING
+          column         TYPE salv_de_column
+          sid            TYPE ts_result-sid
+          install_number TYPE ts_result-install_number,
+
+      show_critical_users
         IMPORTING
           column         TYPE salv_de_column
           sid            TYPE ts_result-sid
@@ -346,8 +388,9 @@ CLASS lcl_report IMPLEMENTATION.
 
     ps_kern  = 'Check Kernel'.
     ps_abap  = 'Check Support Package and Notes'.
-    ps_trust = 'Check Trusted Relations'.
-    ps_dest  = 'Check Trusted Destinations'.
+    ps_trust = 'Check Trusted Relations (in server systems)'.
+    ps_dest  = 'Check Trusted Destinations (in client systems)'.
+    ps_auth  = 'Check critical authorizations for S_RFCACL (configuration needed)'.
 
     ps_lout  = 'Layout'.
 
@@ -487,12 +530,14 @@ CLASS lcl_report IMPLEMENTATION.
     get_rfcsysacl( ).          " Trusting relations
     get_rfcdes( ).             " Trusted desinations
     get_abap_instance_pahi( ). " rfc/selftrust
+    get_authorizations( ).     " Authorizations for S_RFCACL
 
     validate_kernel( ).
     validate_abap( ).
     count_dest_per_trust( ).
     validate_trust_for_dest( ).
     validate_mutual_trust( ).
+    validate_authorizations( ).
 
     show_result( ).
 
@@ -1054,7 +1099,7 @@ CLASS lcl_report IMPLEMENTATION.
           " 8: Error
           rc_text   = rc_text.
 
-      " Store RRFCSYSACL data
+      " Store RFCSYSACL data
       DATA ls_trusted_system  TYPE ts_trusted_system.
       CLEAR ls_trusted_system.
       ls_trusted_system-rfctrustsy  = ls_store_dir-sid.
@@ -1062,7 +1107,7 @@ CLASS lcl_report IMPLEMENTATION.
 
       LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
 
-        " Store RRFCSYSACL data
+        " Store RFCSYSACL data
         DATA ls_rfcsysacl_data TYPE ts_rfcsysacl_data.
         CLEAR ls_rfcsysacl_data.
 
@@ -1092,7 +1137,7 @@ CLASS lcl_report IMPLEMENTATION.
           ls_rfcsysacl_data-llicense_nr = ls_trusted_system-llicense_nr.
         ENDIF.
 
-        " Store RRFCSYSACL data
+        " Store RFCSYSACL data
         APPEND ls_rfcsysacl_data TO ls_trusted_system-rfcsysacl_data.
 
         ADD 1 TO ls_result-trustsy_cnt_all.
@@ -1322,48 +1367,52 @@ CLASS lcl_report IMPLEMENTATION.
 *          SUBMATCHES ls_destination_data-sslapplic.
 *        FIND REGEX '/=([^,]*),'       IN ls_rfcoptions-fieldvalue    " No client cert
 *          SUBMATCHES ls_destination_data-noccert.
-        split ls_rfcoptions-fieldvalue at ',' into table data(tokens).
-        loop at tokens into data(token).
-          split token at '=' into data(key) data(value).
-          case key.
+        SPLIT ls_rfcoptions-fieldvalue AT ',' INTO TABLE DATA(tokens).
+        LOOP AT tokens INTO DATA(token).
+          SPLIT token AT '=' INTO DATA(key) DATA(value).
+          CASE key.
 
-            when 'Q'. move value to ls_destination_data-rfcslogin.     " Logon Procedure (Y = Trusted)
-                      if value = 'Y'.
-                        ls_destination_data-trusted = 'X'.             " show checkbox instead of value
-                      endif.
-            when '['. move value to ls_destination_data-serversysid.   " System ID for trusted connection
-            when '^'. move value to ls_destination_data-serverinstnr.  " Installation number for trusted connection
-            when 'H'. move value to ls_destination_data-rfchost.       " Name of Target Host
-            when 'S'. move value to ls_destination_data-rfcservice.    " Service used (TCP service, SAP System number)
-            when 'I'. move value to ls_destination_data-rfcsysid.      " System ID
-            when 'M'. move value to ls_destination_data-rfcclient.     " Explicit logon client
+            WHEN 'Q'.
+              MOVE value TO ls_destination_data-rfcslogin.     " Logon Procedure (Y = Trusted)
+              IF value = 'Y'.
+                ls_destination_data-trusted = 'X'.             " show checkbox instead of value
+              ENDIF.
+            WHEN '['. MOVE value TO ls_destination_data-serversysid.   " System ID for trusted connection
+            WHEN '^'. MOVE value TO ls_destination_data-serverinstnr.  " Installation number for trusted connection
+            WHEN 'H'. MOVE value TO ls_destination_data-rfchost.       " Name of Target Host
+            WHEN 'S'. MOVE value TO ls_destination_data-rfcservice.    " Service used (TCP service, SAP System number)
+            WHEN 'I'. MOVE value TO ls_destination_data-rfcsysid.      " System ID
+            WHEN 'M'. MOVE value TO ls_destination_data-rfcclient.     " Explicit logon client
 
-            when 'U'. move value to ls_destination_data-rfcuser.       " Explicit user
-                      CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
-                      IF ls_destination_data-rfcuser = logon_screen_token.
-                        ls_destination_data-rfcuser = 'logon screen'.
-                      ENDIF.
+            WHEN 'U'.
+              MOVE value TO ls_destination_data-rfcuser.       " Explicit user
+              CONSTANTS logon_screen_token(8) VALUE '%_LOG01%'.
+              IF ls_destination_data-rfcuser = logon_screen_token.
+                ls_destination_data-rfcuser = 'logon screen'.
+              ENDIF.
 
-            when 'u'. move value to ls_destination_data-rfcsameusr.    " Same user flag
-                      IF ls_destination_data-rfcsameusr = 'Y'.
-                        ls_destination_data-rfcsameusr = 'X'.          " show checkbox instead of value
-                        ls_destination_data-rfcuser = 'same user'.
-                      ENDIF.
-            when 'v' or 'V' or 'P'.
-                      move value to ls_destination_data-rfcauth.       " Explicit password
-                      CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
-                      IF ls_destination_data-rfcauth = sec_storage_token.
-                        ls_destination_data-rfcauth = 'stored password'.
-                      ENDIF.
+            WHEN 'u'.
+              MOVE value TO ls_destination_data-rfcsameusr.    " Same user flag
+              IF ls_destination_data-rfcsameusr = 'Y'.
+                ls_destination_data-rfcsameusr = 'X'.          " show checkbox instead of value
+                ls_destination_data-rfcuser = 'same user'.
+              ENDIF.
+            WHEN 'v' OR 'V' OR 'P'.
+              MOVE value TO ls_destination_data-rfcauth.       " Explicit password
+              CONSTANTS sec_storage_token(5) VALUE '%_PWD'.
+              IF ls_destination_data-rfcauth = sec_storage_token.
+                ls_destination_data-rfcauth = 'stored password'.
+              ENDIF.
 
-            when 's'. move value to ls_destination_data-rfcsnc.        " SNC/TLS
-                      IF ls_destination_data-rfcsnc = 'Y'.
-                        ls_destination_data-rfcsnc = 'X'.              " show checkbox instead of value
-                      ENDIF.
-            when 't'. move value to ls_destination_data-sslapplic.     " SSL Client Identity
-            when '/'. move value to ls_destination_data-noccert.       " No client cert
-          endcase.
-        endloop.
+            WHEN 's'.
+              MOVE value TO ls_destination_data-rfcsnc.        " SNC/TLS
+              IF ls_destination_data-rfcsnc = 'Y'.
+                ls_destination_data-rfcsnc = 'X'.              " show checkbox instead of value
+              ENDIF.
+            WHEN 't'. MOVE value TO ls_destination_data-sslapplic.     " SSL Client Identity
+            WHEN '/'. MOVE value TO ls_destination_data-noccert.       " No client cert
+          ENDCASE.
+        ENDLOOP.
 
         APPEND ls_destination_data TO ls_destination-destination_data.
 
@@ -1596,6 +1645,249 @@ CLASS lcl_report IMPLEMENTATION.
 
   ENDMETHOD. " get_ABAP_INSTANCE_PAHI
 
+  METHOD get_authorizations.
+    CHECK p_auth = 'X'.
+
+* Load data from configuration store AUTH_COMB_CHECK_USER about authorization object S_RFCACL
+* A similar check could use store AUTH_COMB_CHECK_ROLE
+* Prerequisite: The active customizing for these stores in transaction CCDB has to contain entries for combination id S_RFCACL:
+* Combination id, Authorization id, Group, Object,  Field name, From, To, And/Or
+* S_RFCACL        S_RFCACL          STAR   S_RFCACL RFC_SYSID   #*        OR
+* S_RFCACL        S_RFCACL          STAR   S_RFCACL RFC_CLIENT  #*        OR
+* S_RFCACL        S_RFCACL          STAR   S_RFCACL RFC_EQUSER  #*        OR
+
+    DATA:
+      lt_store_dir_tech TYPE  tt_diagst_store_dir_tech,
+      lt_store_dir      TYPE  tt_diagst_store_dir,
+      lt_fieldlist      TYPE  tt_diagst_table_store_fields,
+      lt_snapshot       TYPE  tt_diagst_trows,
+      rc                TYPE  i,
+      rc_text           TYPE  natxt.
+
+    DATA tabix TYPE i.
+
+    CALL FUNCTION 'DIAGST_GET_STORES'
+      EXPORTING
+        " The "System Filter" parameters allow to get all Stores of a system or technical system.
+        " Some combinations of the four parameters are not allowed.
+        " The function will return an error code in such a case.
+*       SID                   = ' '
+*       INSTALL_NUMBER        = ' '
+*       LONG_SID              = ' '
+*       TECH_SYSTEM_TYPE      = 'ABAP'                     "(only together with LONG_SID)
+        " Store key fields
+        group_namespace       = 'ACTIVE'                   "(optional)
+        group_landscape_class = 'CL_DIAGLS_ABAP_CLIENT'    "(optional)
+*       GROUP_LANDSCAPE_ID    = ' '
+*       GROUP_COMP_ID         = ' '
+        group_source          = 'ABAP'                     "(optional)
+        group_name            = 'USER-AUTHORIZATION'       "(optional)
+        store_category        = 'CONFIG'                   "(optional)
+        store_type            = 'TABLE'                    "(optional)
+*       STORE_FULLPATH        = ' '
+        store_name            = 'AUTH_COMB_CHECK_USER'
+        " Special filters
+        store_mainalias       = 'AUTHORITY'                 "(optional)
+        store_subalias        = 'USERS'              "(optional)
+*       STORE_TPL_ID          = ' '
+*       HAS_ELEMENT_FROM      =                            " date range
+*       HAS_ELEMENT_TO        =                            " date range
+*       ELEMENT_FILTER        = 'C'                        " (C)hange, (I)nitial, (A)ll
+*       CASE_INSENSITIVE      = ' '
+*       PATTERN_SEARCH        = 'X'                        " Allow pattern search for SEARCH_STRING
+*       SEARCH_STRING         =
+*       ONLY_RELEVANT         = 'X'
+*       PROTECTED             = 'A'                        " (N)ot, (Y)es, (A)ll
+        " Others
+*       DISPLAY               = ' '                        " Only useful if the function is manually executed by transaction SE37.
+        " Setting this parameter to 'X' will display the result.
+*       CALLING_APPL          = ' '
+      IMPORTING
+*       STORE_DIR_TECH        = lt_STORE_DIR_TECH          "(efficient, reduced structure)
+        store_dir             = lt_store_dir               "(not recommended anymore)
+*       STORE_DIR_MI          =                            "(SAP internal usage only)
+*       STORE_STATS           =                            " History regarding the changes of elements (configuration items).
+*       PARAMETER             =                            "(SAP internal usage only)
+        rc                    = rc
+        rc_text               = rc_text.
+
+    IF rc IS NOT INITIAL.
+      MESSAGE e001(00) WITH rc_text.
+    ENDIF.
+
+    " Sort by system, system type, client
+    SORT lt_store_dir BY landscape_id.
+
+    LOOP AT lt_store_dir INTO DATA(ls_store_dir)
+      WHERE long_sid              IN p_sid
+        AND store_main_state_type IN p_state
+        .
+
+      " Do we already have an entry for this system?
+      READ TABLE lt_result INTO DATA(ls_result)
+        WITH KEY
+          install_number = ls_store_dir-install_number
+          long_sid       = ls_store_dir-long_sid
+          sid            = ls_store_dir-sid
+          .
+      IF sy-subrc = 0.
+        tabix = sy-tabix.
+      ELSE.
+        tabix = -1.
+        CLEAR ls_result.
+        MOVE-CORRESPONDING ls_store_dir TO ls_result.
+      ENDIF.
+
+* Structure: LS_STORE_DIR
+* LONG_SID             FBT
+* TECH_SYSTEM_TYPE     ABAP
+* SID                  FBT
+* INSTALL_NUMBER       0012345678
+* NAMESPACE            active
+* LANDSCAPE_CLASS      CL_DIAGLS_ABAP_CLIENT
+* LANDSCAPE_ID         FBT~ABAP~200
+* GROUP_SOURCE         ABAP
+* GROUP_NAME           USER-AUTHORIZATION
+* TECH_SYSTEM_ID       FBT~ABAP
+* STORE_CUST_TTYPE     TT_DIAGSTC_AC_USER
+* STORE_CUST_TTYPE_ID  001
+
+      " Get the client
+      SPLIT ls_store_dir-landscape_id AT '~' INTO
+        DATA(sysid) DATA(systype) DATA(client).
+
+      " Check if the customizing contains rules about S_RFCACL to avoid unneccessaary data access
+      " see report ZSHOW_CCDB_CUSTOMIZING
+      " Table DIAGSTC for STORE_CUST_TTYPE and STORE_CUST_TTYPE_ID contains the customizing
+      DATA:
+        lv_cust_ttype_desc TYPE  diagst_cust_ttype_desc,
+        lv_is_default      TYPE  diagst_boolean,
+        lv_last_change_ts  TYPE  timestampl,
+        lr_cust_data       TYPE  REF TO data,
+        l_customizing_xml  TYPE  xstring.
+      FIELD-SYMBOLS: <cust_table> TYPE ANY TABLE.
+
+      CALL FUNCTION 'DIAGST_GET_CUST_TTYPE'
+        EXPORTING
+          lscp_vk                      = 1 " ls_diagstc-lscp_vk
+          cust_ttype                   = ls_store_dir-store_cust_ttype
+          cust_ttype_id                = ls_store_dir-store_cust_ttype_id
+        IMPORTING
+          cust_ttype_desc              = lv_cust_ttype_desc
+          is_default                   = lv_is_default
+          last_change                  = lv_last_change_ts
+          r_cust_data                  = lr_cust_data
+        EXCEPTIONS
+          cx_diagst_retrieve_exception = 1.
+      IF sy-subrc NE 0.
+        ls_result-s_rfcacl_status = 'Error with store customizing'.
+      ELSE.
+
+        ASSIGN lr_cust_data->* TO <cust_table>.  " <cust_table> gets type ls_DIAGSTC-CUST_TTYPE
+        IF <cust_table> IS INITIAL.
+          ls_result-s_rfcacl_status = 'No store customizing'.
+        ELSE.
+
+          " Inspect content
+          DATA(s_rfcacl_found) = abap_false.
+          LOOP AT <cust_table> ASSIGNING FIELD-SYMBOL(<cust_line>).
+            ASSIGN COMPONENT 1 OF STRUCTURE <cust_line> TO FIELD-SYMBOL(<comp>).
+            IF <comp> = 'S_RFCACL'.
+              s_rfcacl_found = abap_true.
+              EXIT.
+            ENDIF.
+          ENDLOOP. " <CUST_TABLE>
+
+          IF s_rfcacl_found IS INITIAL.
+            ls_result-s_rfcacl_status = 'No customizing about S_RFCACL'.
+          ELSE.
+            ls_result-s_rfcacl_status = lv_cust_ttype_desc && ` (` && ls_store_dir-store_cust_ttype_id && `)`.
+
+            CALL FUNCTION 'DIAGST_TABLE_SNAPSHOT'
+              EXPORTING
+                store_id  = ls_store_dir-store_id
+*               TIMESTAMP =             " if not specified the latest available snapshot is returned
+*               CALLING_APPL                = ' '
+              IMPORTING
+                fieldlist = lt_fieldlist
+*               SNAPSHOT_VALID_FROM         =
+*               SNAPSHOT_VALID_TO_CONFIRMED =
+*               SNAPSHOT_VALID_TO           =
+                snapshot  = lt_snapshot " The content of the requested snapshot in ABAP DDIC type format
+*               SNAPSHOT_TR                 =
+*               SNAPSHOT_ITSAM              =             " The content of the requested snapshot in XML-based format
+                rc        = rc          " 3: Permission denied, Content Authorization missing
+                " 4: Store not existing
+                " 8: Error
+                rc_text   = rc_text.
+
+            " Store critical user data
+            DATA ls_critical_user TYPE ts_critical_user.
+            CLEAR ls_critical_user.
+            ls_critical_user-sid            = ls_store_dir-sid.
+            ls_critical_user-install_number = ls_store_dir-install_number.
+
+            LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
+              READ TABLE lt_snapshot_elem INTO DATA(ls_comb_id)    INDEX 1.
+              CHECK ls_comb_id-fieldname  = 'COMB_ID'
+                AND ls_comb_id-fieldvalue = 'S_RFCACL'.
+
+              READ TABLE lt_snapshot_elem INTO DATA(ls_rc)         INDEX 2.
+              CHECK ls_rc-fieldname = 'RC'.
+
+              READ TABLE lt_snapshot_elem INTO DATA(ls_user)       INDEX 3.
+              CHECK ls_user-fieldname = 'USER'.
+
+              READ TABLE lt_snapshot_elem INTO DATA(ls_locked)     INDEX 4.
+              CHECK ls_locked-fieldname = 'LOCKED'.
+
+              READ TABLE lt_snapshot_elem INTO DATA(ls_invalid)    INDEX 5.
+              CHECK ls_invalid-fieldname = 'INVALID'.
+
+              READ TABLE lt_snapshot_elem INTO DATA(ls_user_type)  INDEX 6.
+              CHECK ls_user_type-fieldname = 'USER_TYPE'.
+
+              READ TABLE lt_snapshot_elem INTO DATA(ls_user_group) INDEX 7.
+              CHECK ls_user_group-fieldname = 'USER_GROUP'.
+
+              " Store critical user data
+              DATA ls_user_data TYPE ts_user_data.
+              CLEAR ls_user_data.
+              ls_user_data-client     = client.
+              ls_user_data-user       = ls_user-fieldvalue.
+              ls_user_data-locked     = ls_locked-fieldvalue.
+              ls_user_data-invalid    = ls_invalid-fieldvalue.
+              ls_user_data-user_type  = ls_user_type-fieldvalue.
+              ls_user_data-user_group = ls_user_group-fieldvalue.
+              APPEND ls_user_data TO ls_critical_user-user_data.
+
+              IF    ls_locked-fieldvalue IS INITIAL
+                AND ls_invalid-fieldvalue IS INITIAL.
+
+                ADD 1 TO ls_result-s_rfcacl_active_users.
+              ELSE.
+                ADD 1 TO ls_result-s_rfcacl_inactive_users.
+              ENDIF.
+
+            ENDLOOP.
+
+            " Store critical users
+            APPEND ls_critical_user TO lt_critical_users.
+
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      IF tabix > 0.
+        MODIFY lt_result FROM ls_result INDEX tabix.
+      ELSE.
+        APPEND ls_result TO lt_result.
+      ENDIF.
+
+    ENDLOOP. " lt_STORE_DIR
+
+  ENDMETHOD. " get_authorizations
+
   METHOD validate_kernel.
     CHECK p_kern = 'X'.
 
@@ -1604,7 +1896,7 @@ CLASS lcl_report IMPLEMENTATION.
 * 7.22       1214
 * 7.49       Not Supported. Use 753 / 754 instead
 * 7.53       (1028) 1036
-* 7.54       18
+* 7.54       (18)  112
 * 7.77       (500) 516
 * 7.81       (251) 300
 * 7.85       (116, 130)  214
@@ -1628,7 +1920,7 @@ CLASS lcl_report IMPLEMENTATION.
 
         IF     rel = 722 AND patch < 1214
           OR   rel = 753 AND patch < 1036
-          OR   rel = 754 AND patch < 18
+          OR   rel = 754 AND patch < 112
           OR   rel = 777 AND patch < 516
           OR   rel = 781 AND patch < 300
           OR   rel = 785 AND patch < 214
@@ -1639,7 +1931,7 @@ CLASS lcl_report IMPLEMENTATION.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color.
 
         ELSEIF rel < 722
-            OR rel > 722 AND rel < 753
+            OR rel > 722 AND rel < 753 " especially 749
             .
           <fs_result>-validate_kernel = `Release update required`.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color.
@@ -1704,8 +1996,7 @@ CLASS lcl_report IMPLEMENTATION.
           <fs_result>-validate_abap = 'ABAP SP required'.
           APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_negative ) TO <fs_result>-t_color.
 
-        " New SP
-        ELSEIF rel = 700 AND sp >= 41
+        ELSEIF rel = 700 AND sp >= 41 " New SP is installed
           OR   rel = 701 AND sp >= 26
           OR   rel = 702 AND sp >= 26
           OR   rel = 731 AND sp >= 33
@@ -1729,12 +2020,10 @@ CLASS lcl_report IMPLEMENTATION.
           "<fs_result>-note_3287611 = 'ok'.
           "APPEND VALUE #( fname = 'NOTE_3287611'  color-col = col_positive ) TO <fs_result>-t_color.
 
-
-        " Notes requires
-        ELSE.
+        ELSE. " Notes are required
 
           " Check note 3089413 - Capture-replay vulnerability in SAP NetWeaver AS for ABAP and ABAP Platform
-          data(NOTE_3089413_ok) = ABAP_TRUE.
+          DATA(note_3089413_ok) = abap_true.
           IF     rel = 700 AND sp < 41
             OR   rel = 701 AND sp < 26
             OR   rel = 702 AND sp < 26
@@ -1750,10 +2039,10 @@ CLASS lcl_report IMPLEMENTATION.
             OR   rel = 757 AND sp < 2
             .
             " Note 3089413 is required
-            constants NOTE_3089413_min_version(4) VALUE '0011'.
-            NOTE_3089413_ok = ABAP_FALSE.
+            CONSTANTS note_3089413_min_version(4) VALUE '0011'.
+            note_3089413_ok = abap_false.
 
-            find regex '(\d{4})' in <fs_result>-note_3089413 SUBMATCHES data(NOTE_3089413_version).
+            FIND REGEX '(\d{4})' IN <fs_result>-note_3089413 SUBMATCHES DATA(note_3089413_version).
             " E Completely implemented
             " V Obsolete version implemented
             "   Undefined Implementation State
@@ -1763,31 +2052,31 @@ CLASS lcl_report IMPLEMENTATION.
             " O Obsolete
             CASE <fs_result>-note_3089413_prstatus.
               WHEN 'E'.
-                if NOTE_3089413_version >= NOTE_3089413_min_version.
-                  <fs_result>-note_3089413 = `Version ` && NOTE_3089413_version && ' implemented'.
+                IF note_3089413_version >= note_3089413_min_version.
+                  <fs_result>-note_3089413 = `Version ` && note_3089413_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
-                  NOTE_3089413_ok = ABAP_TRUE.
-                else.
-                  <fs_result>-note_3089413 = `Old version ` && NOTE_3089413_version && ' implemented'.
+                  note_3089413_ok = abap_true.
+                ELSE.
+                  <fs_result>-note_3089413 = `Old version ` && note_3089413_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
-                endif.
+                ENDIF.
               WHEN 'V'.
-                  <fs_result>-note_3089413 = `Old version ` && NOTE_3089413_version && ' implemented'.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
+                <fs_result>-note_3089413 = `Old version ` && note_3089413_version && ' implemented'.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
-                  <fs_result>-note_3089413 = `required`.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
-              WHEN '-' or 'O'.
-                  <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3089413 = `required`.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+              WHEN '-' OR 'O'.
+                <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
-                  <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.
 
           " Check note 3287611 - Bugfixes in Trusted/Trusting Migration
-          data(NOTE_3287611_ok) = ABAP_TRUE.
+          DATA(note_3287611_ok) = abap_true.
           IF     rel = 700 AND sp < 41
             OR   rel = 701 AND sp < 26
             OR   rel = 702 AND sp < 26
@@ -1803,10 +2092,10 @@ CLASS lcl_report IMPLEMENTATION.
             OR   rel = 757 AND sp < 3
             .
             " Note 3287611 is required
-            constants NOTE_3287611_min_version(4) VALUE '0008'.
-            NOTE_3287611_ok = ABAP_FALSE.
+            CONSTANTS note_3287611_min_version(4) VALUE '0008'.
+            note_3287611_ok = abap_false.
 
-            find regex '(\d{4})' in <fs_result>-note_3287611 SUBMATCHES data(NOTE_3287611_version).
+            FIND REGEX '(\d{4})' IN <fs_result>-note_3287611 SUBMATCHES DATA(note_3287611_version).
             " E Completely implemented
             " V Obsolete version implemented
             "   Undefined Implementation State
@@ -1816,39 +2105,39 @@ CLASS lcl_report IMPLEMENTATION.
             " O Obsolete
             CASE <fs_result>-note_3287611_prstatus.
               WHEN 'E'.
-                if NOTE_3287611_version >= NOTE_3287611_min_version.
-                  <fs_result>-note_3287611 = `Version ` && NOTE_3287611_version && ' implemented'.
+                IF note_3287611_version >= note_3287611_min_version.
+                  <fs_result>-note_3287611 = `Version ` && note_3287611_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_result>-t_color.
-                  NOTE_3287611_ok = ABAP_TRUE.
-                else.
-                  <fs_result>-note_3287611 = `Old version ` && NOTE_3287611_version && ' implemented'.
+                  note_3287611_ok = abap_true.
+                ELSE.
+                  <fs_result>-note_3287611 = `Old version ` && note_3287611_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_total ) TO <fs_result>-t_color.
-                endif.
+                ENDIF.
               WHEN 'V'.
-                  <fs_result>-note_3287611 = `Old version ` && NOTE_3287611_version && ' implemented'.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_total ) TO <fs_result>-t_color.
+                <fs_result>-note_3287611 = `Old version ` && note_3287611_version && ' implemented'.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
-                  <fs_result>-note_3287611 = `required`.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
-              WHEN '-' or 'O'.
-                  <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3287611 = `required`.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+              WHEN '-' OR 'O'.
+                <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
-                  <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.
 
           " Check note 3304520 - Trusted Trusting: Note 3089413 implementation fails due to incorrect TCI package validity
-          data(NOTE_3304520_ok) = ABAP_TRUE.
+          DATA(note_3304520_ok) = abap_true.
           IF     rel = 731 AND sp < 33
             OR   rel = 740 AND sp < 30
             .
             " Note 3304520 is required
-            constants NOTE_3304520_min_version(4) VALUE '0002'.
-            NOTE_3304520_ok = ABAP_FALSE.
+            CONSTANTS note_3304520_min_version(4) VALUE '0002'.
+            note_3304520_ok = abap_false.
 
-            find regex '(\d{4})' in <fs_result>-note_3304520 SUBMATCHES data(NOTE_3304520_version).
+            FIND REGEX '(\d{4})' IN <fs_result>-note_3304520 SUBMATCHES DATA(note_3304520_version).
             " E Completely implemented
             " V Obsolete version implemented
             "   Undefined Implementation State
@@ -1858,44 +2147,44 @@ CLASS lcl_report IMPLEMENTATION.
             " O Obsolete
             CASE <fs_result>-note_3304520_prstatus.
               WHEN 'E'.
-                if NOTE_3304520_version >= NOTE_3304520_min_version.
-                  <fs_result>-note_3304520 = `Version ` && NOTE_3304520_version && ' implemented'.
+                IF note_3304520_version >= note_3304520_min_version.
+                  <fs_result>-note_3304520 = `Version ` && note_3304520_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_positive ) TO <fs_result>-t_color.
-                  NOTE_3304520_ok = ABAP_TRUE.
-                else.
-                  <fs_result>-note_3304520 = `Old version ` && NOTE_3304520_version && ' implemented'.
+                  note_3304520_ok = abap_true.
+                ELSE.
+                  <fs_result>-note_3304520 = `Old version ` && note_3304520_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_total ) TO <fs_result>-t_color.
-                endif.
+                ENDIF.
               WHEN 'V'.
-                  <fs_result>-note_3304520 = `Old version ` && NOTE_3304520_version && ' implemented'.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_total ) TO <fs_result>-t_color.
+                <fs_result>-note_3304520 = `Old version ` && note_3304520_version && ' implemented'.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
-                  <fs_result>-note_3304520 = `required`.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
-              WHEN '-' or 'O'.
-                  <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3304520 = `required`.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
+              WHEN '-' OR 'O'.
+                <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
-                  <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.
 
           " Adjust overall status
-          if    NOTE_3089413_ok = ABAP_TRUE
-            and NOTE_3287611_ok = ABAP_TRUE
-            and NOTE_3304520_ok = ABAP_TRUE
+          IF    note_3089413_ok = abap_true
+            AND note_3287611_ok = abap_true
+            AND note_3304520_ok = abap_true
             .
-            <FS_RESULT>-VALIDATE_ABAP = 'Notes are installed'.
+            <fs_result>-validate_abap = 'Notes are installed'.
             APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_positive ) TO <fs_result>-t_color.
-          else.
-            <FS_RESULT>-VALIDATE_ABAP = 'Note(s) are required'.
+          ELSE.
+            <fs_result>-validate_abap = 'Note(s) are required'.
             APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_result>-t_color.
-          endif.
+          ENDIF.
 
-        endif. " Check SP and notes
+        ENDIF. " Check SP and notes
 
-      endif. " Unknown ABAP version
+      ENDIF. " Unknown ABAP version
 
 
       " Validate trusted systems
@@ -2103,7 +2392,7 @@ CLASS lcl_report IMPLEMENTATION.
   METHOD validate_trust_for_dest.
     CHECK p_trust IS NOT INITIAL AND p_dest IS NOT INITIAL.
 
-    " Check migrated trusted destinations if there exist a trust relation in the target system for the clling system
+    " Check migrated trusted destinations if there exist a trust relation in the target system for the calling system
     LOOP AT lt_destinations ASSIGNING FIELD-SYMBOL(<fs_destination>).
       LOOP AT <fs_destination>-destination_data ASSIGNING FIELD-SYMBOL(<fs_destination_data>)
         WHERE trusted      IS NOT INITIAL
@@ -2138,6 +2427,23 @@ CLASS lcl_report IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD. " validate_trust_for_dest
 
+  METHOD validate_authorizations.
+    CHECK p_auth = 'X'.
+
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+
+      IF <fs_result>-s_rfcacl_active_users > 0.
+        APPEND VALUE #( fname = 'S_RFCACL_ACTIVE_USERS' color-col = col_negative ) TO <fs_result>-t_color.
+      ENDIF.
+
+      IF <fs_result>-s_rfcacl_inactive_users > 0.
+        APPEND VALUE #( fname = 'S_RFCACL_INACTIVE_USERS' color-col = col_total ) TO <fs_result>-t_color.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD. " validate_authorizations
+
   METHOD on_user_command.
 *    importing e_salv_function
 
@@ -2171,6 +2477,16 @@ CLASS lcl_report IMPLEMENTATION.
             OR ls_cell-columnname(11) = 'DEST_W_CNT_'.
 
             show_destinations(
+              column         = ls_cell-columnname
+              sid            = ls_result-sid
+              install_number = ls_result-install_number
+            ).
+
+            " Show critical users
+          ELSEIF ls_cell-columnname = 'S_RFCACL_ACTIVE_USERS'
+            OR ls_cell-columnname = 'S_RFCACL_INACTIVE_USERS'.
+
+            show_critical_users(
               column         = ls_cell-columnname
               sid            = ls_result-sid
               install_number = ls_result-install_number
@@ -2212,6 +2528,16 @@ CLASS lcl_report IMPLEMENTATION.
 
         show_destinations(
           column         = column
+          sid            = ls_result-sid
+          install_number = ls_result-install_number
+        ).
+
+        " Show critical users
+      ELSEIF column = 'S_RFCACL_ACTIVE_USERS'
+        OR column = 'S_RFCACL_INACTIVE_USERS'.
+
+        show_critical_users(
+          column         = ls_cell-columnname
           sid            = ls_result-sid
           install_number = ls_result-install_number
         ).
@@ -2621,6 +2947,23 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column->set_short_text( 'TLS Trust.' ).
         lr_column->set_zero( abap_false  ).
 
+        lr_column ?= lr_columns->get_column( 'S_RFCACL_STATUS' ).
+        lr_column->set_long_text(   'Customizing for S_RFCACL' ).
+        lr_column->set_medium_text( 'Customizing S_RFCACL' ).
+        lr_column->set_short_text(  'S_RFCACL' ).
+
+        lr_column ?= lr_columns->get_column( 'S_RFCACL_ACTIVE_USERS' ).
+        lr_column->set_long_text(   'Active users with critical S_RFCACL' ).
+        lr_column->set_medium_text( 'Act. users S_RFCACL' ).
+        lr_column->set_short_text(  'Act. users' ).
+        lr_column->set_zero( abap_false  ).
+
+        lr_column ?= lr_columns->get_column( 'S_RFCACL_INACTIVE_USERS' ).
+        lr_column->set_long_text(   'Inactive users with critical S_RFCACL' ).
+        lr_column->set_medium_text( 'Inact.users S_RFCACL' ).
+        lr_column->set_short_text(  'Inact.user' ).
+        lr_column->set_zero( abap_false  ).
+
 *... hide unimportant columns
         lr_column ?= lr_columns->get_column( 'LONG_SID' ).                lr_column->set_visible( abap_false ).
         lr_column ?= lr_columns->get_column( 'SID' ).                     lr_column->set_visible( abap_true ).
@@ -2713,6 +3056,12 @@ CLASS lcl_report IMPLEMENTATION.
           lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_INSTNR' ). lr_column->set_technical( abap_true ).
           lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_NO_SYSID' ).  lr_column->set_technical( abap_true ).
           lr_column ?= lr_columns->get_column( 'DEST_W_CNT_TRUSTED_TLS' ).       lr_column->set_technical( abap_true ).
+        ENDIF.
+
+        IF p_auth IS INITIAL.
+          lr_column ?= lr_columns->get_column( 'S_RFCACL_STATUS' ).              lr_column->set_technical( abap_true ).
+          lr_column ?= lr_columns->get_column( 'S_RFCACL_ACTIVE_USERS' ).        lr_column->set_technical( abap_true ).
+          lr_column ?= lr_columns->get_column( 'S_RFCACL_INACTIVE_USERS' ).      lr_column->set_technical( abap_true ).
         ENDIF.
 
         IF p_trust IS INITIAL AND p_dest IS INITIAL.
@@ -3327,6 +3676,150 @@ CLASS lcl_report IMPLEMENTATION.
     lr_table->display( ).
 
   ENDMETHOD. " show_destinations
+
+  METHOD show_critical_users.
+    "IMPORTING
+    "  column      TYPE salv_de_column
+    "  sid         TYPE ts_result-sid
+    "  install_number TYPE ts_result-install_number
+
+    " Show trusted systems
+    CHECK column = 'S_RFCACL_ACTIVE_USERS'
+       OR column = 'S_RFCACL_INACTIVE_USERS'.
+
+    DATA ls_critical_user  TYPE ts_critical_user.
+    READ TABLE lt_critical_users ASSIGNING FIELD-SYMBOL(<fs_critical_users>)
+      WITH TABLE KEY
+        sid            = sid
+        install_number = install_number.
+    CHECK sy-subrc = 0.
+
+    DATA:
+      ls_user_data TYPE ts_user_data,
+      lt_user_data TYPE tt_user_data.
+
+    " ALV
+    DATA:
+      lr_table TYPE REF TO cl_salv_table.
+
+    TRY.
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = lr_table
+          CHANGING
+            t_table      = lt_user_data ).
+      CATCH cx_salv_msg.
+    ENDTRY.
+
+*... activate ALV generic Functions
+    DATA(lr_functions) = lr_table->get_functions( ).
+    lr_functions->set_all( abap_true ).
+
+*... set the display settings
+    DATA(lr_display) = lr_table->get_display_settings( ).
+    TRY.
+        "lr_display->set_list_header( sy-title ).
+        "lr_display->set_list_header_size( CL_SALV_DISPLAY_SETTINGS=>C_HEADER_SIZE_LARGE ).
+        lr_display->set_striped_pattern( abap_true ).
+        lr_display->set_horizontal_lines( abap_true ).
+        lr_display->set_vertical_lines( abap_true ).
+        lr_display->set_suppress_empty_data( abap_true ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+*... set the functional settings
+    DATA(lr_functional) = lr_table->get_functional_settings( ).
+    TRY.
+        lr_functional->set_sort_on_header_click( abap_true ).
+        "lr_functional->set_f2_code( f2code ).
+        "lr_functional->set_buffer( gs_test-settings-functional-buffer ).
+      CATCH cx_salv_method_not_supported.
+    ENDTRY.
+
+* ...Set the layout
+    "data(lr_layout) = lr_table->get_layout( ).
+    "ls_layout_key-report = sy-repid.
+    "lr_layout->set_key( ls_layout_key ).
+    "lr_layout->set_initial_layout( P_LAYOUT ).
+    "authority-check object 'S_ALV_LAYO'
+    "                    id 'ACTVT' field '23'.
+    "if sy-subrc = 0.
+    "  lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ) . "no restictions
+    "else.
+    "  lr_layout->set_save_restriction( cl_salv_layout=>restrict_user_dependant ) . "user dependend
+    "endif.
+
+*... sort
+
+*... set column appearance
+    DATA(lr_columns) = lr_table->get_columns( ).
+    lr_columns->set_optimize( abap_true ). " Optimize column width
+
+*... set the color of cells
+    TRY.
+        lr_columns->set_color_column( 'T_COLOR' ).
+      CATCH cx_salv_data_error.                         "#EC NO_HANDLER
+    ENDTRY.
+
+    " Copy relevant data
+    CASE column.
+      WHEN 'S_RFCACL_ACTIVE_USERS'.
+        lr_display->set_list_header( `Active users having critical auth. for S_RFCACL in system ` && sid ).
+
+        LOOP AT <fs_critical_users>-user_data INTO ls_user_data
+          WHERE locked IS INITIAL
+            AND invalid IS INITIAL.
+          APPEND ls_user_data TO lt_user_data.
+        ENDLOOP.
+
+      WHEN 'S_RFCACL_INACTIVE_USERS'.
+        lr_display->set_list_header( `Inactive users having critical auth. for S_RFCACL in system ` && sid ).
+
+        LOOP AT <fs_critical_users>-user_data INTO ls_user_data
+          WHERE locked IS NOT INITIAL
+             OR invalid IS NOT INITIAL.
+          APPEND ls_user_data TO lt_user_data.
+        ENDLOOP.
+    ENDCASE.
+
+    " Set color
+
+    TRY.
+        DATA lr_column TYPE REF TO cl_salv_column_table.        " Columns in Simple, Two-Dimensional Tables
+
+        lr_column ?= lr_columns->get_column( 'CLIENT' ).
+        "lr_column->set_long_text( 'Client' ).
+        "lr_column->set_medium_text( 'Client' ).
+        "lr_column->set_short_text( 'Client' ).
+        lr_column->set_key( abap_true ).
+
+        lr_column ?= lr_columns->get_column( 'USER' ).
+        "lr_column->set_long_text( 'User' ).
+        "lr_column->set_medium_text( 'User' ).
+        "lr_column->set_short_text( 'User' ).
+        lr_column->set_key( abap_true ).
+
+        lr_column ?= lr_columns->get_column( 'LOCKED' ).
+        lr_column->set_long_text( 'Locked' ).
+        lr_column->set_medium_text( 'Locked' ).
+        lr_column->set_short_text( 'Locked' ).
+
+        lr_column ?= lr_columns->get_column( 'INVALID' ).
+        lr_column->set_long_text( 'Invalid' ).
+        lr_column->set_medium_text( 'Invalid' ).
+        lr_column->set_short_text( 'Invalid' ).
+
+        lr_column ?= lr_columns->get_column( 'USER_TYPE' ).
+
+        lr_column ?= lr_columns->get_column( 'USER_GROUP' ).
+
+      CATCH cx_salv_not_found.
+    ENDTRY.
+
+    " Show it
+    lr_table->display( ).
+
+  ENDMETHOD. " show_critical_users
 
 ENDCLASS.                    "lcl_report IMPLEMENTATION
 
