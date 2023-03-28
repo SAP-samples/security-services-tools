@@ -5,7 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
-*& 27.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)
+*& 28.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)
 *& 13.03.2023 Updated note 3287611, new note 3304520
 *& 27.02.2023 Check version of installed notes, small corrections
 *& 16.02.2023 Show count of migrated trusted destinations per trust relation
@@ -22,7 +22,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '27.03.2023 FBT'.
+CONSTANTS c_program_version(30) TYPE c VALUE '28.03.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -256,6 +256,7 @@ TYPES:
 TYPES:
   BEGIN OF ts_user_data,
     client     TYPE usr02-mandt,
+    rc         TYPE string,
     user       TYPE usr02-bname,
     locked(1),
     invalid(1),
@@ -1715,7 +1716,7 @@ CLASS lcl_report IMPLEMENTATION.
       MESSAGE e001(00) WITH rc_text.
     ENDIF.
 
-    " Sort by system, system type, client
+    " We might get multiple stores per system, sort by system, system type, client
     SORT lt_store_dir BY landscape_id.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -1822,10 +1823,17 @@ CLASS lcl_report IMPLEMENTATION.
                 rc_text   = rc_text.
 
             " Store critical user data
-            DATA ls_critical_user TYPE ts_critical_user.
-            CLEAR ls_critical_user.
-            ls_critical_user-sid            = ls_store_dir-sid.
-            ls_critical_user-install_number = ls_store_dir-install_number.
+            FIELD-SYMBOLS <fs_critical_user> TYPE ts_critical_user.
+
+            IF   <fs_critical_user> IS NOT ASSIGNED
+              OR <fs_critical_user>-sid NE ls_store_dir-sid
+              OR <fs_critical_user>-install_number NE ls_store_dir-install_number.
+
+              " New entry in case of a different system
+              APPEND INITIAL LINE TO lt_critical_users ASSIGNING <fs_critical_user>.
+              <fs_critical_user>-sid            = ls_store_dir-sid.
+              <fs_critical_user>-install_number = ls_store_dir-install_number.
+            ENDIF.
 
             LOOP AT lt_snapshot INTO DATA(lt_snapshot_elem).
               READ TABLE lt_snapshot_elem INTO DATA(ls_comb_id)    INDEX 1.
@@ -1851,28 +1859,32 @@ CLASS lcl_report IMPLEMENTATION.
               CHECK ls_user_group-fieldname = 'USER_GROUP'.
 
               " Store critical user data
-              DATA ls_user_data TYPE ts_user_data.
-              CLEAR ls_user_data.
-              ls_user_data-client     = client.
-              ls_user_data-user       = ls_user-fieldvalue.
-              ls_user_data-locked     = ls_locked-fieldvalue.
-              ls_user_data-invalid    = ls_invalid-fieldvalue.
-              ls_user_data-user_type  = ls_user_type-fieldvalue.
-              ls_user_data-user_group = ls_user_group-fieldvalue.
-              APPEND ls_user_data TO ls_critical_user-user_data.
+              APPEND INITIAL LINE TO <fs_critical_user>-user_data ASSIGNING FIELD-SYMBOL(<fs_user_data>).
+              <fs_user_data>-client     = client.
+              <fs_user_data>-rc         = ls_rc-fieldvalue.
+              <fs_user_data>-user       = ls_user-fieldvalue.
+              <fs_user_data>-locked     = ls_locked-fieldvalue.
+              <fs_user_data>-invalid    = ls_invalid-fieldvalue.
+              <fs_user_data>-user_type  = ls_user_type-fieldvalue.
+              <fs_user_data>-user_group = ls_user_group-fieldvalue.
 
-              IF    ls_locked-fieldvalue IS INITIAL
-                AND ls_invalid-fieldvalue IS INITIAL.
+              IF ls_rc-fieldvalue IS INITIAL.
+                " User has critical authorization
+                IF    ls_locked-fieldvalue IS INITIAL
+                  AND ls_invalid-fieldvalue IS INITIAL.
 
-                ADD 1 TO ls_result-s_rfcacl_active_users.
+                  ADD 1 TO ls_result-s_rfcacl_active_users.
+                ELSE.
+                  ADD 1 TO ls_result-s_rfcacl_inactive_users.
+                ENDIF.
               ELSE.
-                ADD 1 TO ls_result-s_rfcacl_inactive_users.
+                " RC = NONE, no user has the critical authoization
+                IF ls_user-fieldvalue IS INITIAL.
+                  <fs_user_data>-user = '<no user>'.
+                ENDIF.
               ENDIF.
 
             ENDLOOP.
-
-            " Store critical users
-            APPEND ls_critical_user TO lt_critical_users.
 
           ENDIF.
         ENDIF.
@@ -2434,6 +2446,26 @@ CLASS lcl_report IMPLEMENTATION.
 
       IF <fs_result>-s_rfcacl_active_users > 0.
         APPEND VALUE #( fname = 'S_RFCACL_ACTIVE_USERS' color-col = col_negative ) TO <fs_result>-t_color.
+      ELSE.
+        " No user or missing data?
+        READ TABLE lt_critical_users ASSIGNING FIELD-SYMBOL(<fs_critical_users>)
+          WITH TABLE KEY
+            sid            = <fs_result>-sid
+            install_number = <fs_result>-install_number.
+        IF sy-subrc = 0.
+          DATA rc TYPE string.
+          CLEAR rc.
+          LOOP AT <fs_critical_users>-user_data ASSIGNING FIELD-SYMBOL(<fs_user_data>).
+            IF rc NE 'user' AND <fs_user_data>-rc = 'NONE'.
+              rc = 'NONE'. " keep green
+            ELSE.
+              rc = 'user'. " no color
+            ENDIF.
+          ENDLOOP.
+          IF rc = 'NONE'.
+            APPEND VALUE #( fname = 'S_RFCACL_ACTIVE_USERS' color-col = col_positive ) TO <fs_result>-t_color.
+          ENDIF.
+        ENDIF.
       ENDIF.
 
       IF <fs_result>-s_rfcacl_inactive_users > 0.
@@ -3793,6 +3825,12 @@ CLASS lcl_report IMPLEMENTATION.
         "lr_column->set_short_text( 'Client' ).
         lr_column->set_key( abap_true ).
 
+        lr_column ?= lr_columns->get_column( 'RC' ).
+        lr_column->set_long_text( 'Status per client' ).
+        lr_column->set_medium_text( 'Status per client' ).
+        lr_column->set_short_text( 'Status' ).
+        lr_column->set_technical( abap_true ).
+
         lr_column ?= lr_columns->get_column( 'USER' ).
         "lr_column->set_long_text( 'User' ).
         "lr_column->set_medium_text( 'User' ).
@@ -3810,6 +3848,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column->set_short_text( 'Invalid' ).
 
         lr_column ?= lr_columns->get_column( 'USER_TYPE' ).
+        lr_column->set_long_text( 'User type' ).
+        lr_column->set_medium_text( 'User type' ).
+        lr_column->set_short_text( 'User type' ).
 
         lr_column ?= lr_columns->get_column( 'USER_GROUP' ).
 
