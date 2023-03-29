@@ -14,12 +14,14 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 29.03.2023 Show all instance specific change documents
+*&            Show the changing client if available depending on the release
 *& 10.02.2023 Initial version
 *&---------------------------------------------------------------------*
 REPORT zrspfpar_dynamic_cd
   MESSAGE-ID pf.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '10.02.2023 S41'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '29.03.2023 S41'.
 
 * a) Syslog entry Q1 9 for the parameter_name and Q1 A for the value.
 * b) History about recent changes
@@ -88,6 +90,8 @@ CLASS lcl_report DEFINITION.
         restriction_values TYPE spfl_restriction_values,
         type_desc          TYPE string, " type SPFL_PARAMETER_TYPE,
 
+        instance_name      TYPE msname2,
+
         first_log_entry    TYPE timestamp,
         no_of_changes      TYPE i,
 
@@ -97,6 +101,7 @@ CLASS lcl_report DEFINITION.
 
         " details
         timestamp          TYPE timestamp,
+        changed_cli        TYPE sy-mandt,
         changed_by         TYPE sy-uname,
         value              TYPE string,
 
@@ -114,6 +119,8 @@ CLASS lcl_report DEFINITION.
         IMPORTING parameter_name TYPE spfl_parameter_name.
 
     CLASS-DATA:
+
+      hide_changed_cli type abap_bool value abap_true,
 
       " main data table
       ls_result      TYPE ts_result,
@@ -135,9 +142,9 @@ ENDCLASS.                    "lcl_report DEFINITION
 CLASS lcl_report IMPLEMENTATION.
 
   METHOD initialization.
-    DATA(myname) = cl_abap_syst=>get_instance_name( ).
+*    DATA(myname) = cl_abap_syst=>get_instance_name( ).
 
-    sy-title = `Show history of dynamic profile parameters on ` && myname.
+    sy-title = `Show history of dynamic profile parameters`." && ` on ` && myname.
 
     ps_name = 'Dynamic profile parameter'.
     ps_all  = 'Show unchanged dynamic parameters, too'.
@@ -301,6 +308,8 @@ CLASS lcl_report IMPLEMENTATION.
     LOOP AT lt_SUB_PARAM INTO DATA(ls_SUB_PARAM)
       WHERE name IN s_name.
 
+      parameter_name = ls_SUB_PARAM-name.
+
       subrc  = cl_spfl_profile_parameter=>get_metadata(
           EXPORTING
             name = ls_SUB_PARAM-name
@@ -313,17 +322,6 @@ CLASS lcl_report IMPLEMENTATION.
 
       " Get status (not used - it seems it's never the case)
       "DATA(obsolete) = cl_spfl_profile_parameter=>check_obsolete( EXPORTING name = parameter_name ).
-
-      " Get history of a dynamic parameter
-      parameter_name = ls_SUB_PARAM-name.
-      cl_spfl_profile_parameter=>get_dyn_value_change_history(
-        EXPORTING
-          i_parameter_name = parameter_name
-        IMPORTING
-          e_history        = ls_HISTORY ).
-
-      " Process all respective changed parameters only
-      CHECK p_all = 'X' OR ls_HISTORY-no_of_changes > 0 OR lines( ls_HISTORY-log ) > 0.
 
       " Interpret parameter type
       DATA:
@@ -348,21 +346,65 @@ CLASS lcl_report IMPLEMENTATION.
       ls_result-description        = ls_METADATA-description.
       ls_result-type_desc          = type_desc.
       ls_result-restriction_values = ls_METADATA-restriction_values.
+
+      " Get history of a dynamic parameter (for current instance)
+*      cl_spfl_profile_parameter=>get_dyn_value_change_history(
+*        EXPORTING
+*          i_parameter_name = parameter_name
+*        IMPORTING
+*          e_history        = ls_HISTORY ).
+      " Get history of a dynamic parameter (all instances)
+      types:
+        begin of ty_log_key,
+          instance_name   type msname2,
+          parameter_name type pfeparname,
+        end of ty_log_key.
+      data: param type ty_log_key.
+      SELECT
+          instance_name,
+          parameter_name
+        FROM pfl_indx
+        INTO (
+          @param-instance_name,
+          @param-parameter_name
+        )
+        WHERE
+          parameter_name = @parameter_name
+        ORDER BY instance_name.
+      try.
+        import log to ls_HISTORY
+           from database pfl_indx(cl)
+           id param.
+          catch
+            cx_sy_import_format_error
+            cx_sy_import_mismatch_error
+            cx_sy_conversion_codepage
+            cx_sy_expimp_db_sql_error.
+      endtry.
+
+      " Process all respective changed parameters only
+      CHECK p_all = 'X' OR ls_HISTORY-no_of_changes > 0 OR lines( ls_HISTORY-log ) > 0.
+
+      " Copy data
       ls_result-first_log_entry    = ls_HISTORY-first_log_entry.
       ls_result-no_of_changes      = ls_HISTORY-no_of_changes.
       ls_result-first_log_entry    = ls_HISTORY-first_log_entry.
 
+      ls_result-instance_name      = param-instance_name.
+
       " Insert original value
       ls_result-timestamp          = ls_HISTORY-instance_start_time.
+      ls_result-changed_cli        = SPACE.
       ls_result-changed_by         = 'Original'.
       ls_result-value              = ls_HISTORY-original_value.
+      CLEAR ls_result-t_color.
 
       " Get original value
       IF ( ls_HISTORY-no_of_changes = 0 OR lines( ls_HISTORY-log ) = 0 ) AND ls_HISTORY-original_value IS INITIAL.
         subrc = cl_spfl_profile_parameter=>get_value(
           EXPORTING
-            "server_name =
-            name        = parameter_name
+            server_name  = conv #( param-instance_name )
+            name         = parameter_name
            IMPORTING
              value       = ls_result-value
           ).
@@ -370,33 +412,53 @@ CLASS lcl_report IMPLEMENTATION.
 
       APPEND ls_result TO lt_result.
 
-      CLEAR ls_result-t_color.
-      APPEND VALUE #( fname = 'TIMESTAMP'  color-col = col_TOTAL ) TO ls_result-t_color.
-      APPEND VALUE #( fname = 'CHANGED_BY' color-col = col_TOTAL ) TO ls_result-t_color.
-      APPEND VALUE #( fname = 'VALUE'      color-col = col_TOTAL ) TO ls_result-t_color.
-
       LOOP AT ls_HISTORY-log INTO DATA(ls_log).
         IF sy-tabix = 1 AND ls_HISTORY-first_log_entry <> ls_log-timestamp.
           " different first log entry
         ENDIF.
 
+        " Does field CHANGED_CLI exists?
+        assign ('LS_LOG-CHANGED_CLI') to FIELD-SYMBOL(<changed_cli>).
+        IF sy-subrc = 0.
+          hide_changed_cli = abap_false.
+        endif.
+
         ls_result-timestamp        = ls_log-timestamp.
         ls_result-changed_by       = ls_log-changed_by.
+        IF <changed_cli> is ASSIGNED.
+          ls_result-changed_cli    = <changed_cli>.
+        endif.
         ls_result-value            = ls_log-new_value.
 
         CLEAR ls_result-t_color.
         IF ls_result-value = ls_HISTORY-original_value.
-          APPEND VALUE #( fname = 'TIMESTAMP'  color-col = col_POSITIVE ) TO ls_result-t_color.
-          APPEND VALUE #( fname = 'CHANGED_BY' color-col = col_POSITIVE ) TO ls_result-t_color.
-          APPEND VALUE #( fname = 'VALUE'      color-col = col_POSITIVE ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'TIMESTAMP'   color-col = col_POSITIVE ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'CHANGED_CLI' color-col = col_POSITIVE ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'CHANGED_BY'  color-col = col_POSITIVE ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'VALUE'       color-col = col_POSITIVE ) TO ls_result-t_color.
         ELSE.
-          APPEND VALUE #( fname = 'TIMESTAMP'  color-col = col_TOTAL ) TO ls_result-t_color.
-          APPEND VALUE #( fname = 'CHANGED_BY' color-col = col_TOTAL ) TO ls_result-t_color.
-          APPEND VALUE #( fname = 'VALUE'      color-col = col_TOTAL ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'TIMESTAMP'   color-col = col_TOTAL ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'CHANGED_CLI' color-col = col_TOTAL ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'CHANGED_BY'  color-col = col_TOTAL ) TO ls_result-t_color.
+          APPEND VALUE #( fname = 'VALUE'       color-col = col_TOTAL ) TO ls_result-t_color.
         ENDIF.
 
         APPEND ls_result TO lt_result.
       ENDLOOP.
+
+      ENDSELECT.
+      IF sy-subrc ne 0 and p_all = 'X'.
+        " No change documents, get current value of current application server
+        ls_result-instance_name = cl_abap_syst=>get_instance_name( ).
+        cl_spfl_profile_parameter=>get_value(
+          EXPORTING
+            "server_name  =
+            name         = parameter_name
+           IMPORTING
+             value       = ls_result-value
+          ).
+      APPEND ls_result TO lt_result.
+      ENDIF.
 
     ENDLOOP.
 
@@ -466,6 +528,7 @@ CLASS lcl_report IMPLEMENTATION.
         lr_sorts->add_sort( 'DESCRIPTION' ).
         lr_sorts->add_sort( 'RESTRICTION_VALUES' ).
         lr_sorts->add_sort( 'TYPE_DESC' ).
+        lr_sorts->add_sort( 'INSTANCE_NAME' ).
         lr_sorts->add_sort( 'FIRST_LOG_ENTRY' ).
         lr_sorts->add_sort( 'NO_OF_CANGES' ).
 
@@ -524,6 +587,9 @@ CLASS lcl_report IMPLEMENTATION.
         lr_column->set_short_text( 'Par. type' ).
         lr_column->set_visible( abap_false ).
 
+        lr_column ?= lr_columns->get_column( 'INSTANCE_NAME' ).
+        "lr_column->set_visible( abap_false ).
+
         lr_column ?= lr_columns->get_column( 'FIRST_LOG_ENTRY' ).
         lr_column->set_long_text( 'First log entry' ).
         lr_column->set_medium_text( 'First log entry' ).
@@ -542,6 +608,10 @@ CLASS lcl_report IMPLEMENTATION.
 
         lr_column ?= lr_columns->get_column( 'TIMESTAMP' ).
         lr_column->set_edit_mask( '==TSTMP' ). " convert time stamps
+        "lr_column->set_color( color ).
+
+        lr_column ?= lr_columns->get_column( 'CHANGED_CLI' ).
+        lr_column->set_technical( hide_changed_cli ).
         "lr_column->set_color( color ).
 
         lr_column ?= lr_columns->get_column( 'CHANGED_BY' ).

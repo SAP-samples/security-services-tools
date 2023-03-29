@@ -46,7 +46,7 @@ Updated 31.01.2023
 
 - Report [`ZRSPFPAR_DYNAMIC_CD`](/ABAP/basis/zrspfpar_dynamic_cd.prog.abap)  
 Show history of dynamic profile parameters  
-New 10.02.2023  
+Updated 29.03.2023 Show all instance specific change documents (and the changing client if available depending on the release)  
 
 ## SAP Solution Manager (SolMan)
 
