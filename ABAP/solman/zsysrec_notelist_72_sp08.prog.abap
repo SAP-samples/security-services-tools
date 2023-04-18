@@ -9,6 +9,7 @@
 * Documentation:
 * https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/
 *
+* 18.04.2023 Customizing SYSREC_MAX_RFC_TIME deactivatied, was added to AGSSN on 18.11.2022
 * 17.02.2023 Some ABAPlint corrections, optimized value help
 * 28.02.2019 perform DISPLAY_NOTE_TEXT updated for ST-A/PI Release 01T_731, SP 1
 * 06.08.2018 Separation between SAP and user status
@@ -1389,8 +1390,8 @@ endif.
                ls_DNOC_USERCFG-value =   7.
                ls_DNOC_USERCFGT-descr =  'days'.
 
-      when  8. ls_DNOC_USERCFG-field =   agssn_sysrec_max_rfc_time.    " 'SYSREC_MAX_RFC_TIME',
-               ls_DNOC_USERCFGT-descr =  'Max waiting time for RFC call to backend system'.
+      "when  8. ls_DNOC_USERCFG-field =   agssn_sysrec_max_rfc_time.    " 'SYSREC_MAX_RFC_TIME', " added in AGSSN on 18.11.2022
+      "         ls_DNOC_USERCFGT-descr =  'Max waiting time for RFC call to backend system'.
 
       when  9. ls_DNOC_USERCFG-field =   agssn_sysrec_rfc_call.        " 'SYSREC_RFC_CALL',
                ls_DNOC_USERCFGT-descr =  'RFC instead of webservice call to SAP Backbone ( |X)'.
