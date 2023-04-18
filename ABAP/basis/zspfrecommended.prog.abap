@@ -7,11 +7,13 @@
 *& 02.11.2022 Initial version
 *& 03.11.2022 Authorization check added
 *& 07.11.2022 Popup to show values
+*& 18.04.2023 Change recommendation for rdisp/gui_auto_logout from 1H to 3600
+*&            Show multiple long lines in a textedit control
 *&---------------------------------------------------------------------*
 
 report rspfrecommended no standard page heading message-id pf.
 
-constants: C_PROGRAM_VERSION(30) type C value '07.11.2022'.
+constants: C_PROGRAM_VERSION(30) type C value '18.04.2023'.
 
 type-pools: slis.
 
@@ -297,53 +299,52 @@ form CALLBACK_USER_COMMAND using r_ucomm     LIKE sy-ucomm
          or rs_selfield-fieldname = 'DEFAULT' )
     and ls_outtab-result is not initial.
 
-* Only possible in a SolMan system
-*    " Show multiple long lines in a textedit control
-*    data LONGTEXT type string.
-*    CONCATENATE
-*      'Profile parameter'(par)
-*      ls_outtab-name
-*      space
-*      'Actual Value'(002)
-*      ls_outtab-ACTUAL
-*      space
-*      'Recommended Value'(003)
-*      ls_outtab-RECOMMENDED
-*      space
-*      'Default Value'(005)
-*      ls_outtab-DEFAULT
-*      space
-*      'Profile'(007)
-*      ls_outtab-PROFILE
-*      into LONGTEXT
-*      SEPARATED BY CL_ABAP_CHAR_UTILITIES=>NEWLINE.
-*
-*    call function 'CRM_SURVEY_EDITOR_LONGTEXT'
-*      EXPORTING
-**       MAX_LENGTH           = 0
-*        READ_ONLY            = 'X'
-*      changing
-*        LONGTEXT             = LONGTEXT
-*      EXCEPTIONS
-*        USER_CANCELLED       = 1
-*        OTHERS               = 2
-*              .
-*    if SY-SUBRC <> 0.
-** Implement suitable error handling here
-*    endif.
-*
-*    return.
+    " Show multiple long lines in a textedit control
+    data LONGTEXT type string.
+    CONCATENATE
+      'Profile parameter'(par)
+      ls_outtab-name
+      space
+      'Actual Value'(002)
+      ls_outtab-ACTUAL
+      space
+      'Recommended Value'(003)
+      ls_outtab-RECOMMENDED
+      space
+      'Default Value'(005)
+      ls_outtab-DEFAULT
+      space
+      'Profile'(007)
+      ls_outtab-PROFILE
+      into LONGTEXT
+      SEPARATED BY CL_ABAP_CHAR_UTILITIES=>NEWLINE.
 
-    " Show multiple long lines on a list popup
+    call function 'CRM_SURVEY_EDITOR_LONGTEXT'
+      EXPORTING
+*       MAX_LENGTH           = 0
+        READ_ONLY            = 'X'
+      changing
+        LONGTEXT             = LONGTEXT
+      EXCEPTIONS
+        USER_CANCELLED       = 1
+        OTHERS               = 2
+              .
+    if SY-SUBRC <> 0.
+* Implement suitable error handling here
+    endif.
+
+    return.
+
+    " Show multiple long lines on a list popup (not used)
     data:
       titlebar(80),
-      line_size type i value 40,
+      line_size type i,
       list_tab type table of TRTAB,
       line     type          TRTAB.
 
     concatenate 'Profile parameter'(par) ls_outtab-name into titlebar SEPARATED BY space.
 
-    if line_size < strlen( ls_outtab-NAME ).        line_size = strlen( ls_outtab-NAME ).        endif.
+    line_size = strlen( ls_outtab-name ).
     if line_size < strlen( ls_outtab-ACTUAL ).      line_size = strlen( ls_outtab-ACTUAL ).      endif.
     if line_size < strlen( ls_outtab-RECOMMENDED ). line_size = strlen( ls_outtab-RECOMMENDED ). endif.
     if line_size < strlen( ls_outtab-DEFAULT ).     line_size = strlen( ls_outtab-DEFAULT ).     endif.
@@ -360,9 +361,6 @@ form CALLBACK_USER_COMMAND using r_ucomm     LIKE sy-ucomm
     line = space.                    append line to list_tab.
     line = 'Default Value'(005).     append line to list_tab.
     line = ls_outtab-DEFAULT.        append line to list_tab.
-    line = space.                    append line to list_tab.
-    line = 'Profile'(007).           append line to list_tab.
-    line = ls_outtab-PROFILE.        append line to list_tab.
 
     call function 'LAW_SHOW_POPUP_WITH_TEXT'
       exporting
@@ -547,7 +545,7 @@ form add_security_parameters CHANGING lt_all_recommended_values type spfl_recomm
   add_value 'login/password_hash_algorithm'               'encoding=RFC2307, algorithm=iSSHA-512, iterations=15000, saltsize=256'   '2140269'.
   add_value 'ms/HTTP/logging_0'                           'PREFIX=/,LOGFILE=$(DIR_LOGGING)/ms-http-%y-%m-%d.log%o,MAXFILES=7,MAXSIZEKB=10000,SWITCHTF=day,LOGFORMAT=%t %a %u %r %s %b %{Host}i'   '2794817'.
   add_value 'ms/http_logging'                             '1'    '2794817'.
-  add_value 'rdisp/gui_auto_logout'                       '1H'   ''.
+  add_value 'rdisp/gui_auto_logout'                       '3600'   ''.
   add_value 'rdisp/vbdelete'                              '0'    '2441606'.
   add_value 'rfc/callback_security_method'                '3'    '2678501'.
   add_value 'rfc/reject_expired_passwd'                   '1'    '2579165'.
