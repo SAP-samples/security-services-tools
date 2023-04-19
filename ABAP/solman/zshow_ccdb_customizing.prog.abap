@@ -4,11 +4,13 @@
 *&---------------------------------------------------------------------*
 *& Show customizing for CCDB data collectors
 *&
+*& 03.12.2020 Initial version
+*& 19.04.2023 Corrections for showing only systems which ue a specific customizing
 *&---------------------------------------------------------------------*
 REPORT zshow_ccdb_customizing
   LINE-SIZE 1023.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '03.12.2020'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '19.04.2023'.
 
 *Tables:
 *  DIAGST_STORE,      " Header data of Configuration Stores
@@ -114,7 +116,8 @@ START-OF-SELECTION.
 
 *   Show related configuration store(s)
     LOOP AT lt_diagst_store INTO ls_diagst_store
-      WHERE cust_ttype = ls_diagstc-cust_ttype.
+      WHERE cust_ttype    = ls_diagstc-cust_ttype
+        AND CUST_TTYPE_ID = ls_diagstc-CUST_TTYPE_ID.
 
       WRITE: /
         'Configuration Store'(003)         INTENSIFIED,
