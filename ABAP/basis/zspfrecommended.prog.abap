@@ -9,11 +9,12 @@
 *& 07.11.2022 Popup to show values
 *& 18.04.2023 Change recommendation for rdisp/gui_auto_logout from 1H to 3600
 *&            Show multiple long lines in a textedit control
+*& 19.04.2023 Change notes link to me.sap.com
 *&---------------------------------------------------------------------*
 
 report rspfrecommended no standard page heading message-id pf.
 
-constants: C_PROGRAM_VERSION(30) type C value '18.04.2023'.
+constants: C_PROGRAM_VERSION(30) type C value '19.04.2023'.
 
 type-pools: slis.
 
@@ -299,86 +300,103 @@ form CALLBACK_USER_COMMAND using r_ucomm     LIKE sy-ucomm
          or rs_selfield-fieldname = 'DEFAULT' )
     and ls_outtab-result is not initial.
 
-    " Show multiple long lines in a textedit control
-    data LONGTEXT type string.
-    CONCATENATE
-      'Profile parameter'(par)
-      ls_outtab-name
-      space
-      'Actual Value'(002)
-      ls_outtab-ACTUAL
-      space
-      'Recommended Value'(003)
-      ls_outtab-RECOMMENDED
-      space
-      'Default Value'(005)
-      ls_outtab-DEFAULT
-      space
-      'Profile'(007)
-      ls_outtab-PROFILE
-      into LONGTEXT
-      SEPARATED BY CL_ABAP_CHAR_UTILITIES=>NEWLINE.
-
-    call function 'CRM_SURVEY_EDITOR_LONGTEXT'
+    CALL FUNCTION 'FUNCTION_EXISTS'
       EXPORTING
-*       MAX_LENGTH           = 0
-        READ_ONLY            = 'X'
-      changing
-        LONGTEXT             = LONGTEXT
-      EXCEPTIONS
-        USER_CANCELLED       = 1
-        OTHERS               = 2
-              .
-    if SY-SUBRC <> 0.
-* Implement suitable error handling here
-    endif.
-
-    return.
-
-    " Show multiple long lines on a list popup (not used)
-    data:
-      titlebar(80),
-      line_size type i,
-      list_tab type table of TRTAB,
-      line     type          TRTAB.
-
-    concatenate 'Profile parameter'(par) ls_outtab-name into titlebar SEPARATED BY space.
-
-    line_size = strlen( ls_outtab-name ).
-    if line_size < strlen( ls_outtab-ACTUAL ).      line_size = strlen( ls_outtab-ACTUAL ).      endif.
-    if line_size < strlen( ls_outtab-RECOMMENDED ). line_size = strlen( ls_outtab-RECOMMENDED ). endif.
-    if line_size < strlen( ls_outtab-DEFAULT ).     line_size = strlen( ls_outtab-DEFAULT ).     endif.
-
-    clear list_tab[].
-    line = 'Profile parameter'(par). append line to list_tab.
-    line = ls_outtab-name.           append line to list_tab.
-    line = space.                    append line to list_tab.
-    line = 'Actual Value'(002).      append line to list_tab.
-    line = ls_outtab-ACTUAL.         append line to list_tab.
-    line = space.                    append line to list_tab.
-    line = 'Recommended Value'(003). append line to list_tab.
-    line = ls_outtab-RECOMMENDED.    append line to list_tab.
-    line = space.                    append line to list_tab.
-    line = 'Default Value'(005).     append line to list_tab.
-    line = ls_outtab-DEFAULT.        append line to list_tab.
-
-    call function 'LAW_SHOW_POPUP_WITH_TEXT'
-      exporting
-        TITELBAR                     = titlebar
-*       HEADER_LINES                 =
-*       SHOW_CANCEL_BUTTON           = ' '
-        LINE_SIZE                    = line_size
-*       SHOW_BUTTON_YES_TO_ALL       = ' '
+        funcname                 = 'CRM_SURVEY_EDITOR_LONGTEXT'
 *     IMPORTING
-*       YES_TO_ALL                   =
-      TABLES
-        LIST_TAB                     = list_tab
+*       GROUP                    =
+*       INCLUDE                  =
+*       NAMESPACE                =
+*       STR_AREA                 =
       EXCEPTIONS
-        ACTION_CANCELLED             = 1
-        OTHERS                       = 2
+        FUNCTION_NOT_EXIST       = 1
+        OTHERS                   = 2
               .
-    if SY-SUBRC <> 0.
-* Implement suitable error handling here
+    IF sy-subrc = 0.
+
+     " Show multiple long lines in a textedit control
+     data LONGTEXT type string.
+     CONCATENATE
+       'Profile parameter'(par)
+       ls_outtab-name
+       space
+       'Actual Value'(002)
+       ls_outtab-ACTUAL
+       space
+       'Recommended Value'(003)
+       ls_outtab-RECOMMENDED
+       space
+       'Default Value'(005)
+       ls_outtab-DEFAULT
+       space
+       'Profile'(007)
+       ls_outtab-PROFILE
+       into LONGTEXT
+       SEPARATED BY CL_ABAP_CHAR_UTILITIES=>NEWLINE.
+
+
+     call function 'CRM_SURVEY_EDITOR_LONGTEXT'
+       EXPORTING
+*        MAX_LENGTH           = 0
+         READ_ONLY            = 'X'
+       changing
+         LONGTEXT             = LONGTEXT
+       EXCEPTIONS
+         USER_CANCELLED       = 1
+         OTHERS               = 2
+               .
+     if SY-SUBRC <> 0.
+*  Implement suitable error handling here
+     endif.
+
+    else.
+
+      " Show multiple long lines on a list popup
+      data:
+        titlebar(80),
+        line_size type i,
+        list_tab type table of TRTAB,
+        line     type          TRTAB.
+
+      concatenate 'Profile parameter'(par) ls_outtab-name into titlebar SEPARATED BY space.
+
+      line_size = strlen( ls_outtab-name ).
+      if line_size < strlen( ls_outtab-ACTUAL ).      line_size = strlen( ls_outtab-ACTUAL ).      endif.
+      if line_size < strlen( ls_outtab-RECOMMENDED ). line_size = strlen( ls_outtab-RECOMMENDED ). endif.
+      if line_size < strlen( ls_outtab-DEFAULT ).     line_size = strlen( ls_outtab-DEFAULT ).     endif.
+
+      clear list_tab[].
+      line = 'Profile parameter'(par). append line to list_tab.
+      line = ls_outtab-name.           append line to list_tab.
+      line = space.                    append line to list_tab.
+      line = 'Actual Value'(002).      append line to list_tab.
+      line = ls_outtab-ACTUAL.         append line to list_tab.
+      line = space.                    append line to list_tab.
+      line = 'Recommended Value'(003). append line to list_tab.
+      line = ls_outtab-RECOMMENDED.    append line to list_tab.
+      line = space.                    append line to list_tab.
+      line = 'Default Value'(005).     append line to list_tab.
+      line = ls_outtab-DEFAULT.        append line to list_tab.
+
+      call function 'LAW_SHOW_POPUP_WITH_TEXT'
+        exporting
+          TITELBAR                     = titlebar
+*         HEADER_LINES                 =
+*         SHOW_CANCEL_BUTTON           = ' '
+          LINE_SIZE                    = line_size
+*         SHOW_BUTTON_YES_TO_ALL       = ' '
+*       IMPORTING
+*         YES_TO_ALL                   =
+        TABLES
+          LIST_TAB                     = list_tab
+        EXCEPTIONS
+          ACTION_CANCELLED             = 1
+          OTHERS                       = 2
+                .
+      if SY-SUBRC <> 0.
+*   Implement suitable error handling here
+      endif.
+
     endif.
 
   endif.
@@ -433,7 +451,7 @@ form show_note using note type spfl_note_number.
 
   check note is not initial.
 
-  concatenate 'https://launchpad.support.sap.com/#/notes/' note into l_url.
+  concatenate 'https://me.sap.com/notes/' note into l_url.
 
   call function 'CALL_BROWSER'
     exporting

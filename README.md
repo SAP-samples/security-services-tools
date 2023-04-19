@@ -38,7 +38,7 @@ Updated 19.10.2022
 - Report [`ZSPFRECOMMENDED`](/ABAP/basis/zspfrecommended.prog.abap)  
 Show recommended profile parameter values according to the secure-by-default project of S/4HANA  
 See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=635281119)  
-Updated 18.04.2023 Show long lines in a textedit control; Change recommendation for rdisp/gui_auto_logout from 1H to 3600  
+Updated 19.04.2023 Show long lines in a textedit control; Change recommendation for rdisp/gui_auto_logout from 1H to 3600  
 
 - Report [`ZSHOW_GWMON_LOG`](/ABAP/basis/zshow_gwmon_log.prog.abap)  
 Show settings, and log and trace files of the RFC gateway  
