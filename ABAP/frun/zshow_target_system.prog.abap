@@ -4,12 +4,16 @@
 *&
 *& Show CSA target systems (policies)
 *&
+*& 09.03.2023 Initial version
+*& 27.04.2023 Added button to call policy CSA management
 *&---------------------------------------------------------------------*
 REPORT zshow_target_system.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '09.03.2023 FQ4'.
+CONSTANTS c_program_version(30) TYPE c VALUE '27.04.2023 FQ4'.
 
 TABLES sscrfields.
+
+SELECTION-SCREEN: FUNCTION KEY 1. " Policy Management
 
 * Target systems
 SELECTION-SCREEN BEGIN OF LINE.

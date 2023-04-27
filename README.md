@@ -106,7 +106,11 @@ New 27.01.2023
 
 - Report [`ZSHOW_TARGET_SYSTEM`](/ABAP/frun/zshow_target_system.prog.abap)  
 Show CSA target systems (policies)  
-New 28.03.2023  
+Updated 27.04.2023 Show button to call CSA policy management  
+
+- Report [`ZSHOW_COMPOSITE_POLICIES`](/ABAP/frun/zshow_composite_policies.prog.abap)  
+Show CSA Composite policies  
+New 27.04.2023  
 
 - Report [`ZCHECK_NOTE_3089413_FRUN`](/ABAP/frun/zcheck_note_3089413_frun.prog.abap)  
 Check the implementation status of note [3089413](https://launchpad.support.sap.com/#/notes/3089413) for connected ABAP systems  
