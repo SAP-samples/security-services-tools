@@ -466,8 +466,12 @@ FORM build_list
             tmp_field_col-color-inv = 0.
             IF usr_tabl_alv-snc_count > 0.
               tmp_field_col-color-col = col_positive.
-            ELSE.
-              tmp_field_col-color-col = col_negative.
+            ELSEIF usr_tabl_alv-type ne 2. " not for system connections.
+              if usr_tabl_alv-rfc_type = 'I'.
+                tmp_field_col-color-col = col_total.
+              else.
+                tmp_field_col-color-col = col_negative.
+              endif.
             ENDIF.
             APPEND tmp_field_col TO usr_tabl_alv-field_col.
           ENDIF.
@@ -483,7 +487,11 @@ FORM build_list
             tmp_field_col-color-col = col_positive.
             APPEND tmp_field_col TO usr_tabl_alv-field_col.
           ELSEIF usr_tabl_alv-snc_mode = 'OFF' and usr_tabl_alv-type ne 2. " not for system connections
-            tmp_field_col-color-col = col_negative.
+            if usr_tabl_alv-rfc_type = 'I'.
+              tmp_field_col-color-col = col_total.
+            else.
+              tmp_field_col-color-col = col_negative.
+            endif.
             APPEND tmp_field_col TO usr_tabl_alv-field_col.
           ENDIF.
 
