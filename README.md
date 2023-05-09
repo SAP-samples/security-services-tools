@@ -16,14 +16,14 @@ Show installed software components and verify the age of the support packages
 - Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/basis/zrfc_statrecs_summary.prog.abap)  
 Show Workload Statistic of RFC calls  
 See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
-Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://launchpad.support.sap.com/#/notes/2080378))  
+Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://me.sap.com/notes/2080378))  
 Updated 18.01.2023  
 
 - Report [`ZSM04000_SNC`](/ABAP/basis/zsm04000_snc.prog.abap)  
 Show SNC status of active users on current application server  
 See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
-You can use the Z-reports from note [748424](https://launchpad.support.sap.com/#/notes/748424) - Evaluation of SAP GUI versions and patches  
-Updated 11.10.2022  
+You can use the Z-reports from note [748424](https://me.sap.com/notes/748424) - Evaluation of SAP GUI versions and patches  
+Updated 09.05.2023  
 
 - Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
@@ -65,12 +65,12 @@ See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](htt
 Updated 18.04.2023 Solved error which was introduced in recent update from February 2023  
 
 - Report [`ZCHECK_NOTE_2934135`](/ABAP/solman/zcheck_note_2934135.prog.abap)  
-Check the implementation status of note [2934135](https://launchpad.support.sap.com/#/notes/2934135) for connected Java systems  
+Check the implementation status of note [2934135](https://me.sap.com/notes/2934135) for connected Java systems  
 See note [2953257](https://launchpad.support.sap.com/#/notes/2953257)  
 Updated 28.08.2020  
 
 - Report [`ZCHECK_NOTE_3089413`](/ABAP/solman/zcheck_note_3089413.prog.abap)  
-Check the implementation status of note [3089413](https://launchpad.support.sap.com/#/notes/3089413) for connected ABAP systems  
+Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
 Updated 28.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)  
 
@@ -113,7 +113,7 @@ Show CSA Composite policies
 New 27.04.2023  
 
 - Report [`ZCHECK_NOTE_3089413_FRUN`](/ABAP/frun/zcheck_note_3089413_frun.prog.abap)  
-Check the implementation status of note [3089413](https://launchpad.support.sap.com/#/notes/3089413) for connected ABAP systems  
+Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
 Updated 13.03.2023 Updated note 3287611, new note 3304520  
  
@@ -140,4 +140,4 @@ No known issues.
 If you wish to contribute code, offer fixes or improvements, please send a pull request. Due to legal reasons, contributors will be asked to accept a DCO when they create the first pull request to this project. This happens in an automated fashion during the submission process. SAP uses [the standard DCO text of the Linux Foundation](https://developercertificate.org/).
 
 ## License
-Copyright (c) 2022 SAP SE or an SAP affiliate company. All rights reserved. This project is licensed under the Apache Software License, version 2.0 except as noted otherwise in the [LICENSE](LICENSE) file.
+Copyright (c) 2023 SAP SE or an SAP affiliate company. All rights reserved. This project is licensed under the Apache Software License, version 2.0 except as noted otherwise in the [LICENSE](LICENSE) file.

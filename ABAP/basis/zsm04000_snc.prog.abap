@@ -14,13 +14,16 @@
 *& 02.08.2022 Small correction of ALV because of consistency check using Shift+Double right click
 *& 11.10.2022 Correct coloring in case of snc_mode = OFF
 *&            Show transaction and program always
+*& 09.05.2023 Add another field "Client IP" which shows the original IP address of the client in case of connections based on hopping from one server to another.
+*&            Show host and service in case of connections of type "Plugin HTPPS"
+*&            Don't show red color in case of connection type "System"
 *&---------------------------------------------------------------------*
 
 REPORT  zsm04000_snc
   MESSAGE-ID 14
   LINE-SIZE 1023.
 
-CONSTANTS: c_program_version(10) TYPE c VALUE '11.10.2022'.
+CONSTANTS: c_program_version(10) TYPE c VALUE '09.05.2023'.
 
 INCLUDE <color>.
 INCLUDE tskhincl. "opcodes for ThUsrInfo
@@ -36,7 +39,24 @@ DATA: BEGIN OF usr_tabl_alv OCCURS 10,
         server_name      TYPE msxxlist-name.
 * SM04 standard fields
         INCLUDE STRUCTURE usrinfo.
-        DATA:   ext_type(20),
+        "MANDT  Client
+        "BNAME  User Name
+        "TCODE  TCODE
+        "TERM	Terminal ID
+        "ZEIT	Dialog time in SM04
+        "MASTER	Master
+        "TRACE  User trace
+        "EXTMODI  Task Handler: Number of External or Internal Modes
+        "INTMODI  Task Handler: Number of External or Internal Modes
+        "TYPE	Type of Logon
+        "STAT	State of System Logon
+        "PROTOCOL	Logon Protocol (if Plug-In)
+        "GUIVERSION	Version of SAP GUI
+        "RFC_TYPE	Type of RFC Logon
+        "HOSTADDR	IP Address
+        DATA:
+        hostadr(15), " from uinfo-hostadr provided by function THUSRINFO
+        ext_type(120),
         ext_state(10),
         ext_time(8),
         ext_trace(5),
@@ -222,7 +242,9 @@ FORM build_list
         VALUE(80).
   DATA: END OF usr_info.
 
-  DATA: plugin_name(10),
+  DATA: plugin_name     TYPE plg_name,
+        plugin_host     TYPE plg_host,
+        plugin_service  TYPE plg_srv,
         myname          LIKE msxxlist-name,
         dest            TYPE rfcdest.
 
@@ -281,12 +303,15 @@ FORM build_list
             protocol = usr_tabl_alv-protocol
           IMPORTING
             name     = plugin_name
+            host     = plugin_host
+            service  = plugin_service
           EXCEPTIONS
             OTHERS   = 1.
 
         IF sy-subrc = 0.
           REPLACE '&' WITH plugin_name INTO usr_tabl_alv-ext_type.
           CONDENSE usr_tabl_alv-ext_type.
+          concatenate usr_tabl_alv-ext_type plugin_host plugin_service into usr_tabl_alv-ext_type SEPARATED BY space.
         ENDIF.
       WHEN OTHERS.
         WRITE usr_tabl_alv-type TO
@@ -423,7 +448,7 @@ FORM build_list
           IF usr_tabl_alv-snc_mode = 'ON'.
             tmp_field_col-color-col = col_positive.
             APPEND tmp_field_col TO usr_tabl_alv-field_col.
-          ELSEIF usr_tabl_alv-snc_mode = 'OFF'.
+          ELSEIF usr_tabl_alv-snc_mode = 'OFF' and usr_tabl_alv-type ne 2. " not for system connections
             tmp_field_col-color-col = col_negative.
             APPEND tmp_field_col TO usr_tabl_alv-field_col.
           ENDIF.
@@ -450,6 +475,30 @@ FORM build_list
     ENDLOOP.
 
     CHECK usr_tabl_alv-snc_count IN s_snc.
+
+    IF xstrlen( usr_entry-hostadr ) = 4 and usr_entry-hostadr is not initial. " The IP contains 4 hex values
+      " Convert hex values to integer
+      " Modern style:
+      "usr_tabl_alv-hostadr = |{ CONV i( usr_entry-hostadr+0(1) ) }.{ CONV i( usr_entry-hostadr+1(1) ) }.{ CONV i( usr_entry-hostadr+2(1) ) }.{ CONV i( usr_entry-hostadr+3(1) ) }|.
+      " Old style:
+      data:
+        h1 type x, i1 type i, c1(3),
+        h2 type x, i2 type i, c2(3),
+        h3 type x, i3 type i, c3(3),
+        h4 type x, i4 type i, c4(3).
+      h1 = usr_entry-hostadr+0(1). i1 = h1. c1 = i1.
+      h2 = usr_entry-hostadr+1(1). i2 = h2. c2 = i2.
+      h3 = usr_entry-hostadr+2(1). i3 = h3. c3 = i3.
+      h4 = usr_entry-hostadr+3(1). i4 = h4. c4 = i4.
+      concatenate c1 c2 c3 c4 into usr_tabl_alv-hostadr SEPARATED BY '.'.
+      CONDENSE usr_tabl_alv-hostadr NO-GAPS.
+      " Show it only it it's different
+      if usr_tabl_alv-hostadr = usr_tabl_alv-iaddr.
+        clear usr_tabl_alv-hostadr.
+      endif.
+    else.
+      clear usr_tabl_alv-hostadr.
+    ENDIF.
 
     APPEND usr_tabl_alv.
   ENDLOOP.
@@ -516,8 +565,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-reptext_ddic = 'IP Address'(048).
   ls_fieldcat-outputlen    = 30.
   ls_fieldcat-ref_tabname  = ''.
-  ls_fieldcat-lowercase    = 'X'.
-  ls_fieldcat-tech         = 'X'.
+  ls_fieldcat-no_out       = 'X'.
   APPEND ls_fieldcat TO fieldcat.
 
   CLEAR ls_fieldcat.
@@ -526,6 +574,14 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-reptext_ddic = 'IADDR'(010).
   ls_fieldcat-outputlen    = 10.
   ls_fieldcat-no_out       = ' '.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'HOSTADR'. " from uinfo-hostadr provided by function THUSRINFO
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'Client IP'.
+  ls_fieldcat-outputlen    = 30.
+  "ls_fieldcat-ref_tabname  = 'UINFO'.
   APPEND ls_fieldcat TO fieldcat.
 
   CLEAR ls_fieldcat.
@@ -620,7 +676,7 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-datatype     = 'INT1'.
   ls_fieldcat-outputlen    = 3.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
-  ls_fieldcat-tech         = 'X'.
+  ls_fieldcat-no_out       = 'X'.
   APPEND ls_fieldcat TO fieldcat.
 
   CLEAR ls_fieldcat.
@@ -673,7 +729,6 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
 *  LS_FIELDCAT-REF_TABNAME = 'USRINFO'.
 *  LS_FIELDCAT-REF_FIELDNAME = 'TYPE'.
   ls_fieldcat-rollname     = 'UEXT_TYPE'.
-  ls_fieldcat-outputlen    = 15.
   ls_fieldcat-lowercase    = 'X'.
   APPEND ls_fieldcat TO fieldcat.
 
