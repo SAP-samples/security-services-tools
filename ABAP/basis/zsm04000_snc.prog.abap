@@ -14,9 +14,9 @@
 *& 02.08.2022 Small correction of ALV because of consistency check using Shift+Double right click
 *& 11.10.2022 Correct coloring in case of snc_mode = OFF
 *&            Show transaction and program always
-*& 09.05.2023 Add another field "Client IP" which shows the original IP address of the client in case of connections based on hopping from one server to another.
-*&            Show host and service in case of connections of type "Plugin HTPPS"
-*&            Don't show red color in case of connection type "System"
+*& 09.05.2023 Add another field “Client IP” which shows the original IP address of the client in case of connections based on hopping from one server to another.
+*&            Show host and service in case of connections of type “Plugin HTPPS”
+*&            Don’t show red color in case of connection type “System”
 *&---------------------------------------------------------------------*
 
 REPORT  zsm04000_snc
@@ -56,6 +56,11 @@ DATA: BEGIN OF usr_tabl_alv OCCURS 10,
         "HOSTADDR	IP Address
         DATA:
         hostadr(15), " from uinfo-hostadr provided by function THUSRINFO
+        uinfo_type                   type string,
+        uinfo_subType                type string,
+        uinfo_rfc_type               type string,
+        uinfo_server_plugin_protocol type string,
+        uinfo_server_plugin_state    type string,
         ext_type(120),
         ext_state(10),
         ext_time(8),
@@ -292,6 +297,23 @@ FORM build_list
     usr_tabl_alv-server_name = server_entry-name.
     MOVE-CORRESPONDING usr_entry TO usr_tabl_alv.
 
+    " Logon type according to data element SSI_SESSION_TYPE
+    " GUI             User session of type SAP GUI front end
+    " HTTP            User session of type HTTP
+    " HTTPS           User session of type HTTPS
+    " SMTP            User session of type SMTP
+    " RFC             User session of type RFC
+    " BGRFC Scheduler User session of type BGRFC
+    " BGRFC unit      User session of type RFC Unit
+    " APC             User session of type  ABAP Push Channel
+    " APC streaming   User session to send via ABAP Push Channel
+    " Daemon          User session of ABAP Daemon Framework
+    " BATCH           User session with background processing
+    " Enqueue         User session for the integrated enqueue server
+    " Update          Use of the Update Task
+    " SYSTEM          Back-end session created by the system (e.g. to execute Auto-ABAP or other internal tasks)
+    " WebSocket RFC   User session of type WebSocket RFC (RFC via WebSocket connection)
+
     CASE usr_tabl_alv-type.
       WHEN 2. usr_tabl_alv-ext_type   = 'System'(052).
       WHEN 4. usr_tabl_alv-ext_type   = 'GUI'(035).
@@ -401,12 +423,24 @@ FORM build_list
           " already known
         WHEN 'user'.
           " already known
-        WHEN 'type'.             " DP_LOGON_RFC	        DP_LOGON_GUI
-          " already known
-        WHEN 'subType'.          " DP_LOGON_ASYNC_RFC	 	DP_LOGON_SUB_TYPE_UNDEF
-          " ignored
-        WHEN 'rfc_type'.         " DP_INTERNAL_RFC      DP_RFC_TYPE_UNDEF
-          " ignored
+        WHEN 'type'.                                " DP_LOGON_RFC           DP_LOGON_GUI
+          usr_tabl_alv-uinfo_type                   = usr_info-value+9.
+        WHEN 'subType'.                             " DP_LOGON_ASYNC_RFC     DP_LOGON_SUB_TYPE_UNDEF
+          if usr_info-value ne 'DP_LOGON_SUB_TYPE_UNDEF'.
+            usr_tabl_alv-uinfo_subType                = usr_info-value+9.
+          endif.
+        WHEN 'rfc_type'.                            " DP_INTERNAL_RFC        DP_RFC_TYPE_UNDEF
+          if usr_info-value ne 'DP_RFC_TYPE_UNDEF'.
+            usr_tabl_alv-uinfo_rfc_type               = usr_info-value+3.
+          endif.
+        WHEN 'server_plugin_protocol'.              " DP_PLUGIN_PROTOCOL_NONE
+          if usr_info-value ne 'DP_PLUGIN_PROTOCOL_NONE'.
+            usr_tabl_alv-uinfo_server_plugin_protocol = usr_info-value+19.
+          endif.
+        WHEN 'server_plugin_state'.                 " DP_PLUGIN_FREE
+          if usr_info-value ne 'DP_PLUGIN_FREE'.
+            usr_tabl_alv-uinfo_server_plugin_state    = usr_info-value+10.
+          endif.
         WHEN 'term'.
           " already known
         WHEN 'SAPGUI version'.
@@ -729,7 +763,49 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
 *  LS_FIELDCAT-REF_TABNAME = 'USRINFO'.
 *  LS_FIELDCAT-REF_FIELDNAME = 'TYPE'.
   ls_fieldcat-rollname     = 'UEXT_TYPE'.
+  "ls_fieldcat-outputlen    = 15.
   ls_fieldcat-lowercase    = 'X'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'UINFO_TYPE'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'Type'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'UINFO_SUBTYPE'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'Subtype'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'RFC_TYPE'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'RFC Type'(041).
+  ls_fieldcat-outputlen    = 10.
+  ls_fieldcat-ref_tabname  = 'USRINFO'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'UINFO_RFC_TYPE'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'RFC Type'.
+  ls_fieldcat-no_out       = 'X'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'UINFO_SERVER_PLUGIN_PROTOCOL'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'SERVER_PLUGIN_PROTOCOL'.
+  ls_fieldcat-no_out       = 'X'.
+  APPEND ls_fieldcat TO fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname    = 'UINFO_SERVER_PLUGIN_STATE'.
+  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
+  ls_fieldcat-reptext_ddic = 'SERVER_PLUGIN_STATE'.
+  ls_fieldcat-no_out       = 'X'.
   APPEND ls_fieldcat TO fieldcat.
 
   CLEAR ls_fieldcat.
@@ -772,14 +848,6 @@ FORM build_fieldcat USING fieldcat TYPE slis_t_fieldcat_alv.
   ls_fieldcat-tabname      = 'USR_TABL_ALV'.
   ls_fieldcat-reptext_ddic = 'GUI version'(030).
   ls_fieldcat-outputlen    = 12.
-  ls_fieldcat-ref_tabname  = 'USRINFO'.
-  APPEND ls_fieldcat TO fieldcat.
-
-  CLEAR ls_fieldcat.
-  ls_fieldcat-fieldname    = 'RFC_TYPE'.
-  ls_fieldcat-tabname      = 'USR_TABL_ALV'.
-  ls_fieldcat-reptext_ddic = 'RFC Type'(041).
-  ls_fieldcat-outputlen    = 10.
   ls_fieldcat-ref_tabname  = 'USRINFO'.
   APPEND ls_fieldcat TO fieldcat.
 
