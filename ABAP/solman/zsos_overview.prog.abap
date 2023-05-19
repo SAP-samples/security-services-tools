@@ -14,11 +14,12 @@
 *& 27.01.2022 Support for icon @0S@ 'information'
 *& 01.02.2022 Correction to show the lastest SOS per system
 *& 27.07.2022 Show results from EWA as well
+*& 19.05.2023 Show user count for SOS, too
 *&---------------------------------------------------------------------*
 REPORT zsos_overview
   MESSAGE-ID dsvas.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '27.07.2022'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '19.05.2023'.
 
 *&---------------------------------------------------------------------*
 
@@ -440,12 +441,19 @@ FORM f4_rating
       rating TYPE text15,
     END OF value_tab.
 
+  " Ratings
   value_tab-rating = 'red'(R01).          APPEND value_tab. " @AG@
   value_tab-rating = 'yellow'(R02).       APPEND value_tab. " @AH@
   value_tab-rating = 'green'(R03).        APPEND value_tab. " @01@
   value_tab-rating = 'information'(R04).  APPEND value_tab. " @0S@
   value_tab-rating = 'not rated'(R05).    APPEND value_tab. " @BZ@
   value_tab-rating = 'unknown'(R06).      APPEND value_tab. " others
+
+  " Count of users
+  value_tab-rating = 'all'(R07).          APPEND value_tab.
+  value_tab-rating = 'valid'(R08).        APPEND value_tab.
+  value_tab-rating = 'locked'(R09).       APPEND value_tab.
+  value_tab-rating = 'outdated'(R10).     APPEND value_tab.
 
   retfield = l_dynprofield.
   CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
@@ -585,6 +593,24 @@ FORM get_resultsgen
     ENDLOOP.
   ENDIF.
 
+  IF s_sos = 'X'. " Show data from check 00021 Client Overview, too
+    SELECT * FROM dsvasresultsgen INTO TABLE @lt_dsvasresultsgen
+      WHERE relid      = @c_relid
+        AND sessitype  = @c_sessitype
+        AND sessno     = @ls_dsvassessadmin-sessno
+        AND grp        = 'SC_INIT'
+        AND id         = '00021'     " Client Overview
+        AND srtf2      = 0           " first entry
+      ORDER BY relid, sessitype, sessno, grp, id, con, ins, varkey, srtf2
+      .
+
+    LOOP AT lt_dsvasresultsgen INTO ls_dsvasresultsgen.
+      PERFORM get_check_table
+        USING ls_dsvasresultsgen.
+    ENDLOOP.
+  ENDIF.
+
+  " Show overview about check
   SELECT * FROM dsvasresultsgen INTO TABLE @lt_dsvasresultsgen
     WHERE relid      = @c_relid
       AND sessitype  = @c_sessitype
@@ -660,12 +686,42 @@ FORM get_check_table
           .
 
     ELSEIF s_sos = 'X'.
+
+      IF ls_dsvasresultsgen-grp = 'SC_INIT' and ls_dsvasresultsgen-id = '00021'.
+
+        "ls_outtab-instno
+        "ls_outtab-dbid
+        "ls_outtab-sessno
+        "ls_outtab-change_date
+        "ls_outtab-creation_date
+        ls_outtab-row          = 0.
+        ls_outtab-main_chapter = ''.
+        ls_outtab-chapter      = ''.
+        ls_outtab-check        = ''.
+        ls_outtab-alert_id     = ''.
+        ls_outtab-sos_check_id = ''.
+        ls_outtab-rating       = ''.
+        ls_outtab-rating_text  = ''.
+        ls_outtab-count        = 0.
+        ls_outtab-check_group  = ls_dsvasresultsgen-grp.
+        ls_outtab-check_id     = ls_dsvasresultsgen-id.
+        ls_outtab-con          = ls_dsvasresultsgen-con.
+        ls_outtab-ins          = ls_dsvasresultsgen-ins.
+
+      PERFORM process_sos_client_count_table
+        USING
+          ls_dsvasresultsgen-grp
+          ls_dsvasresultsgen-id
+          table_data
+          .
+      ELSE.
       PERFORM process_sos_table
         USING
           ls_dsvasresultsgen-grp
           ls_dsvasresultsgen-id
           table_data
           .
+      ENDIF.
 
     ENDIF.
 
@@ -793,7 +849,8 @@ FORM process_ewa_table
           WHEN 6 OR 12. " Instance
             ls_outtab-ins          = ls_rating_column-field.
         ENDCASE.
-      ENDIF.
+
+     ENDIF.
 
     ENDLOOP. " ls_rating_entry-columns
 
@@ -971,6 +1028,102 @@ FORM process_sos_table
   ENDLOOP. " lt_rating_table
 ENDFORM.
 
+
+FORM process_sos_client_count_table
+  USING
+    check_group TYPE dsvasdcheckgrp
+    check_id    TYPE dsvasdcheckid
+    table_data  TYPE dsvas_type_tables_data_table
+    .
+
+  check check_id = '00021'.
+
+    TYPES:
+      BEGIN OF ts_client_count,
+        client           TYPE SY-MANDT,
+        client_requested TYPE SY-MANDT,
+        count_all        TYPE i,
+        count_valid      TYPE i,
+        count_locked     TYPE i,
+        count_outdated   TYPE i,
+      END OF ts_client_count.
+    DATA:
+      ls_client_count TYPE ts_client_count,
+      lt_client_count TYPE
+        "SORTED
+        TABLE OF ts_client_count
+        "WITH UNIQUE KEY check_group check_id
+        .
+
+    READ TABLE table_data INTO DATA(lt_client_count_table) INDEX 1.
+    LOOP AT lt_client_count_table INTO DATA(ls_client_count_entry).
+      CLEAR ls_client_count.
+      LOOP AT ls_client_count_entry-columns INTO DATA(ls_client_count_column).
+        " SC_INIT Check 00021 Table 1 Client Overview
+        "  02 Client available in the system
+        "  03 Client requested in the questionaire
+        "  04 All users
+        "  05 Valid users
+        "  06 Locked users
+        "  07 Outdated users
+        CASE ls_client_count_column-col.
+          WHEN 02. " Client available in the system
+            ls_client_count-client = ls_client_count_column-field.
+          WHEN 03. " Client requested in the questionaire
+            ls_client_count-client_requested = ls_client_count_column-field.
+          WHEN 04. " All users
+            ls_client_count-count_all = ls_client_count_column-field.
+          WHEN 05. " Valid users
+            ls_client_count-count_valid = ls_client_count_column-field.
+          WHEN 06. " Locked users
+            ls_client_count-count_locked = ls_client_count_column-field.
+          WHEN 07. " Outdated users
+            ls_client_count-count_outdated = ls_client_count_column-field.
+        ENDCASE.
+      ENDLOOP.
+      APPEND ls_client_count TO lt_client_count.
+    ENDLOOP.
+
+    " copy sum of users to the results table
+    data ls_sum TYPE ts_client_count.
+    clear ls_sum.
+    loop at lt_client_count into ls_client_count.
+      check ls_client_count-client = ls_client_count-client_requested.
+      add ls_client_count-count_all      to ls_sum-count_all.
+      add ls_client_count-count_valid    to ls_sum-count_valid.
+      add ls_client_count-count_locked   to ls_sum-count_locked.
+      add ls_client_count-count_outdated to ls_sum-count_outdated.
+    endloop.
+
+    ls_outtab-row           = 0.
+    ls_outtab-main_chapter  = 'Overview'(014).
+    ls_outtab-chapter       = 'Count of users in requested clients'(015).
+    ls_outtab-alert_id      = ''.
+    ls_outtab-sos_check_id  = ''.
+
+    ls_outtab-check         = 'All users'(016).
+    ls_outtab-rating        = ICON_SUM.
+    ls_outtab-rating_text   = 'all'(R07).
+    ls_outtab-count         = ls_sum-count_all.
+    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    ls_outtab-check         = 'Valid users'(017).
+    ls_outtab-rating        = ICON_CHECKED.
+    ls_outtab-rating_text   = 'valid'(R08).
+    ls_outtab-count         = ls_sum-count_valid.
+    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    ls_outtab-check         = 'Locked users'(018).
+    ls_outtab-rating        = ICON_LOCKED.
+    ls_outtab-rating_text   = 'locked'(R09).
+    ls_outtab-count         = ls_sum-count_locked.
+    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    ls_outtab-check         = 'Outdated users'(019).
+    ls_outtab-rating        = ICON_TIME. " or ICON_TIME_INA
+    ls_outtab-rating_text   = 'outdated'(R10).
+    ls_outtab-count         = ls_sum-count_outdated.
+    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+
+ENDFORM.
+
 FORM get_rating_text
   USING
     rating      TYPE string
@@ -1109,7 +1262,13 @@ FORM show_alv.
 *... set display settings
   DATA(lr_display) = gr_alv_table->get_display_settings( ).
   TRY.
-      lr_display->set_list_header( sy-title ).
+      if s_EWA = 'X'.
+        lr_display->set_list_header( 'EarlyWatch Alert (EWA)'(011) ).
+      elseif S_SOS = 'X'.
+        lr_display->set_list_header( 'Security Optimization Service (SOS)'(012) ).
+      else.
+        lr_display->set_list_header( sy-title ).
+      endif.
       "lr_display->set_list_header_size( header_size ).
       lr_display->set_striped_pattern( abap_true ).
       lr_display->set_horizontal_lines( abap_true ).

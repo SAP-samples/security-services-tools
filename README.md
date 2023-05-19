@@ -55,7 +55,7 @@ Updated 29.03.2023 Show all instance specific change documents (and the changing
 - Report [`ZSOS_OVERVIEW`](/ABAP/solman/zsos_overview.prog.abap)  
 Show overview about results from the Security Optimization Service  
 See blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
-Updated 27.07.2022: You can now use the same report to view the rating overview tables of the EarlyWatch Alert (EWA).  
+Updated 19.05.2023 Show user count for SOS, too  
 
 ### System Recommendations
 
