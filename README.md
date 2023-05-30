@@ -55,7 +55,7 @@ Updated 29.03.2023 Show all instance specific change documents (and the changing
 - Report [`ZSOS_OVERVIEW`](/ABAP/solman/zsos_overview.prog.abap)  
 Show overview about results from the Security Optimization Service  
 See blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
-Updated 19.05.2023 Show user count for SOS, too  
+Updated 30.05.2023 Show user count for SOS, too  
 
 ### System Recommendations
 

@@ -15,11 +15,12 @@
 *& 01.02.2022 Correction to show the lastest SOS per system
 *& 27.07.2022 Show results from EWA as well
 *& 19.05.2023 Show user count for SOS, too
+*& 30.05.2023 Optimized selection for user count entries
 *&---------------------------------------------------------------------*
 REPORT zsos_overview
   MESSAGE-ID dsvas.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '19.05.2023'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '30.05.2023'.
 
 *&---------------------------------------------------------------------*
 
@@ -594,6 +595,19 @@ FORM get_resultsgen
   ENDIF.
 
   IF s_sos = 'X'. " Show data from check 00021 Client Overview, too
+    " Show additional entries only if selected
+    if    'Overview'(014) in main
+      and 'Count of users in requested clients'(015) in chapter
+      and 'SC_INIT' in chkgrp
+      and (
+             'All users'(016)      in chk
+          or 'Valid users'(017)    in chk
+          or 'Locked users'(018)   in chk
+          or 'Outdated users'(019) in chk
+          )
+      and '' in sos_id
+      .
+
     SELECT * FROM dsvasresultsgen INTO TABLE @lt_dsvasresultsgen
       WHERE relid      = @c_relid
         AND sessitype  = @c_sessitype
@@ -608,6 +622,7 @@ FORM get_resultsgen
       PERFORM get_check_table
         USING ls_dsvasresultsgen.
     ENDLOOP.
+    ENDIF.
   ENDIF.
 
   " Show overview about check
@@ -1105,22 +1120,25 @@ FORM process_sos_client_count_table
     ls_outtab-rating        = ICON_SUM.
     ls_outtab-rating_text   = 'all'(R07).
     ls_outtab-count         = ls_sum-count_all.
-    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    if 'All users'(016)      in chk and ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+
     ls_outtab-check         = 'Valid users'(017).
     ls_outtab-rating        = ICON_CHECKED.
     ls_outtab-rating_text   = 'valid'(R08).
     ls_outtab-count         = ls_sum-count_valid.
-    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    if 'Valid users'(017)    in chk and ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+
     ls_outtab-check         = 'Locked users'(018).
     ls_outtab-rating        = ICON_LOCKED.
     ls_outtab-rating_text   = 'locked'(R09).
     ls_outtab-count         = ls_sum-count_locked.
-    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    if 'Locked users'(018)   in chk and ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+
     ls_outtab-check         = 'Outdated users'(019).
     ls_outtab-rating        = ICON_TIME. " or ICON_TIME_INA
     ls_outtab-rating_text   = 'outdated'(R10).
     ls_outtab-count         = ls_sum-count_outdated.
-    if ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
+    if 'Outdated users'(019) in chk and ls_outtab-rating_text IN rating. append ls_outtab to lt_outtab. endif.
 
 ENDFORM.
 
