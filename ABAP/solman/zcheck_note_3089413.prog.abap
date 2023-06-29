@@ -1935,40 +1935,40 @@ CLASS lcl_report IMPLEMENTATION.
         patch = <fs_result>-kern_patchlevel.
 
         " Prerequisites fulfilled according to note 3224161 (version from 02.06.2023)
-        IF     rel = 722 AND patch >= 1219 " 1300 to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
-          OR   rel = 753 AND patch >= 1126 " 1200 to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+        IF     rel = 722 AND patch >= 1300 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+          OR   rel = 753 AND patch >= 1200 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
           OR   rel = 754 AND patch >= 120
-          OR   rel = 777 AND patch >= 549  " 556 to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
-          OR   rel = 785 AND patch >= 245  " 251 to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
-          OR   rel = 789 AND patch >= 117  " 123 to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          OR   rel = 777 AND patch >= 556  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          OR   rel = 785 AND patch >= 251  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          OR   rel = 789 AND patch >= 123  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
           or   rel > 789                   " What about 7.92 patch 10 ?
           .
           <fs_result>-validate_kernel = 'ok'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_positive ) TO <fs_result>-t_color. " Green
 
         " Prerequisites not fulfilled according to note 3224161 (version from 02.06.2023)
-        ELSEIF rel = 722 AND patch < 1219. " 1300 to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
-          <fs_result>-validate_kernel = 'Kernel 722 patch 1219 required'.
+        ELSEIF rel = 722 AND patch < 1300. " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+          <fs_result>-validate_kernel = 'Kernel 722 patch 1300 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 753 AND patch < 1126. " 1200 to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
-          <fs_result>-validate_kernel = 'Kernel 753 patch 1126 required'.
+        ELSEIF rel = 753 AND patch < 1200. " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+          <fs_result>-validate_kernel = 'Kernel 753 patch 1200 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
         ELSEIF rel = 754 AND patch < 120.
           <fs_result>-validate_kernel = 'Kernel 54 patch 120 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 777 AND patch < 549.  " 556 to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
-          <fs_result>-validate_kernel = 'Kernel 777 patch 549 required'.
+        ELSEIF rel = 777 AND patch < 556. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 777 patch 556 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 785 AND patch < 245.  " 251 to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
-          <fs_result>-validate_kernel = 'Kernel 785 patch 245 required'.
+        ELSEIF rel = 785 AND patch < 251. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 785 patch 251 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 789 AND patch < 117.  " 123 to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
-          <fs_result>-validate_kernel = 'Kernel 789 patch 117 required'.
+        ELSEIF rel = 789 AND patch < 123. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 789 patch 123 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
 *        " Prerequisites fulfilled according to note 3224161 (original version)
