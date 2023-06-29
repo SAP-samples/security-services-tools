@@ -1936,32 +1936,48 @@ CLASS lcl_report IMPLEMENTATION.
 
         " Prerequisites fulfilled according to note 3224161 (version from 02.06.2023)
         IF     rel = 722 AND patch >= 1300 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
-          OR   rel = 753 AND patch >= 1200 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+          OR   rel = 753 AND patch >= 1213 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
           OR   rel = 754 AND patch >= 120
           OR   rel = 777 AND patch >= 556  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
           OR   rel = 785 AND patch >= 251  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
           OR   rel = 789 AND patch >= 123  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
-          or   rel > 789                   " What about 7.92 patch 10 ?
+          OR   rel = 790 AND patch >= 34   " to match note 3283951 - Local BGRFC and TQRFC issues with UCON, S_RFC, Scope
+          OR   rel = 791 AND patch >= 27   " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          OR   rel = 792 AND patch >= 10   " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          or   rel > 792
           .
           <fs_result>-validate_kernel = 'ok'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_positive ) TO <fs_result>-t_color. " Green
 
         " Prerequisites not fulfilled according to note 3224161 (version from 02.06.2023)
-        ELSEIF rel = 722 AND patch < 1300. " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+
+        ELSEIF rel >= 700 and rel <= 721.
+          <fs_result>-validate_kernel = `Not Supported. Use AKK Kernel 722 instead`.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
+
+        ELSEIF rel = 722 AND patch < 1300. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
           <fs_result>-validate_kernel = 'Kernel 722 patch 1300 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 753 AND patch < 1200. " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
-          <fs_result>-validate_kernel = 'Kernel 753 patch 1200 required'.
+        ELSEIF rel >= 740 and rel <= 752.
+          <fs_result>-validate_kernel = `Not Supported. Use  AKK Kernel 753 / 754 instead`.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
+
+        ELSEIF rel = 753 AND patch < 1213. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 753 patch 1213 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 754 AND patch < 120.
+        ELSEIF rel = 754 AND patch < 120. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
           <fs_result>-validate_kernel = 'Kernel 54 patch 120 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
         ELSEIF rel = 777 AND patch < 556. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
           <fs_result>-validate_kernel = 'Kernel 777 patch 556 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 781 or ( rel >= 786 and rel <= 788 ).
+          <fs_result>-validate_kernel = `Not Supported. Use  AKK Kernel 7.85 / 7.89 instead`.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
 
         ELSEIF rel = 785 AND patch < 251. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
           <fs_result>-validate_kernel = 'Kernel 785 patch 251 required'.
@@ -1971,44 +1987,17 @@ CLASS lcl_report IMPLEMENTATION.
           <fs_result>-validate_kernel = 'Kernel 789 patch 123 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-*        " Prerequisites fulfilled according to note 3224161 (original version)
-*        ELSEIF rel = 722 AND patch >= 1214
-*          OR   rel = 753 AND patch >= 1036
-*          OR   rel = 754 AND patch >= 112
-*          OR   rel = 777 AND patch >= 516
-*          OR   rel = 785 AND patch >= 214
-*          OR   rel = 789 AND patch >= 10
-*          .
-*          <fs_result>-validate_kernel = 'Kernel patch recommended'.
-*          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = COL_KEY ) TO <fs_result>-t_color. " Blue-green
-*
-*        " Prerequisites not fulfilled according to note 3224161 (original version)
-*        ELSEIF rel = 722 AND patch < 1214
-*          OR   rel = 753 AND patch < 1036
-*          OR   rel = 754 AND patch < 112
-*          OR   rel = 777 AND patch < 516
-*          "OR   rel = 781 AND patch < 300 " not supported anymore
-*          OR   rel = 785 AND patch < 214
-*          "OR   rel = 788 AND patch < 21 " not supported anymore
-*          OR   rel = 789 AND patch < 10
-*          .
-*          <fs_result>-validate_kernel = 'Kernel patch required'.
-*          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+        ELSEIF rel = 790 AND patch < 34. " to match note 3283951 - Local BGRFC and TQRFC issues with UCON, S_RFC, Scope
+          <fs_result>-validate_kernel = 'Kernel 790 patch 34 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-        ELSEIF rel = 781 or ( rel >= 786 and rel <= 788 ).
+        ELSEIF rel = 791 AND patch < 27. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          <fs_result>-validate_kernel = 'Kernel 791 patch 27 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
-          <fs_result>-validate_kernel = `Not Supported. Use  AKK Kernel 7.85 / 7.89 instead`.
-          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
-
-        ELSEIF rel >= 740 and rel <= 752.
-
-          <fs_result>-validate_kernel = `Not Supported. Use  AKK Kernel 753 / 754 instead`.
-          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
-
-        ELSEIF rel >= 700 and rel <= 721.
-
-          <fs_result>-validate_kernel = `Not Supported. Use AKK Kernel 722 instead`.
-          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
+        ELSEIF rel = 792 AND patch < 10. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          <fs_result>-validate_kernel = 'Kernel 792 patch 10 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
         ELSE.
 
