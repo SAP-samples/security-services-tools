@@ -75,6 +75,7 @@ See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpag
 Updated 28.03.2023: New check about generic authorizations for S_RFCACL (configuration in CCDB needed)  
 Updated 29.06.2023: Updated Kernel prerequisites as described in note 3224161  
 Updated 29.06.2023: Updated Note prerequisites for note 3287611 v9  
+Updated 06.07.2023: Typo in text corrected  
 
 ### Configuration Validation
 

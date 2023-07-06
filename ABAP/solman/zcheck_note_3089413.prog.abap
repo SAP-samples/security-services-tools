@@ -5,6 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 06.07.2023 Typo in text corrected
 *& 29.06.2023 Updated Kernel prerequisites as described in note 3224161
 *&            Updated Note prerequisites for note 3287611 v9
 *& 28.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)
@@ -24,7 +25,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '29.06.2023 FBT'.
+CONSTANTS c_program_version(30) TYPE c VALUE '06.07.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -1907,17 +1908,6 @@ CLASS lcl_report IMPLEMENTATION.
 
 * Minimum Kernel
 * The solution works only if both the client systems as well as the server systems of a trusting/trusted connection runs on a suitable Kernel version:
-* 7.22       1214 -> 1219 (updated)
-* 7.40-7.52  Not Supported. Use 753 / 754 instead (updated)
-* 7.53       (1028) 1036 -> 1126 (updated)
-* 7.54       (18)  112 -> 120 (updated)
-* 7.77       (500) 516 -> 549 (updated)
-* 7.81       (251) 300 -> Not Supported. Use  AKK Kernel 7.85 / 7.89 instead (updated)
-* 7.85       (116, 130)  214 -> 245 or AKK Kernel 7.89 (updated)
-* 7.86       Not Supported. Use  AKK Kernel 7.85 / 7.89 instead (new)
-* 7.87       Not Supported. Use  AKK Kernel 7.85 / 7.89 instead (new)
-* 7.88       21 -> Not Supported. Use  AKK Kernel 7.85 / 7.89 instead (updated)
-* 7.89       10 -> 117 (updated)
 
     DATA:
       rel   TYPE i,
@@ -1968,7 +1958,7 @@ CLASS lcl_report IMPLEMENTATION.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
         ELSEIF rel = 754 AND patch < 120. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
-          <fs_result>-validate_kernel = 'Kernel 54 patch 120 required'.
+          <fs_result>-validate_kernel = 'Kernel 754 patch 120 required'.
           APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
         ELSEIF rel = 777 AND patch < 556. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
