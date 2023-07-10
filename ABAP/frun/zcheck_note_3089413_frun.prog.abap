@@ -5,14 +5,16 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 10.07.2023 Updated Kernel prerequisites as described in note 3224161
+*&            Updated Note prerequisites for note 3287611 v9
 *& 13.03.2023 Updated note 3287611, new note 3304520
 *& 27.02.2023 Initial version based on the similar report for the SAP Solution Manager
 *&            No API is not used but direct DB access,therefore further changes are recommended
-*&            Reasun: Function CCDB_GET_STORES work for a single system name only
+*&            Reason: Function CCDB_GET_STORES work for a single system name only
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413_frun.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '13.03.2023 FQ4'.
+CONSTANTS c_program_version(30) TYPE c VALUE '10.07.2023 FQ4'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -1381,15 +1383,6 @@ CLASS lcl_report IMPLEMENTATION.
 
 * Minimum Kernel
 * The solution works only if both the client systems as well as the server systems of a trusting/trusted connection runs on a suitable Kernel version:
-* 7.22       1214
-* 7.49       Not Supported. Use 753 / 754 instead
-* 7.53       (1028) 1036
-* 7.54       18
-* 7.77       (500) 516
-* 7.81       (251) 300
-* 7.85       (116, 130)  214
-* 7.88       21
-* 7.89       10
 
     DATA:
       rel   TYPE i,
@@ -1413,28 +1406,75 @@ CLASS lcl_report IMPLEMENTATION.
           patch = 0.
         ENDIF.
 
-        IF     rel = 722 AND patch < 1214
-          OR   rel = 753 AND patch < 1036
-          OR   rel = 754 AND patch < 18
-          OR   rel = 777 AND patch < 516
-          OR   rel = 781 AND patch < 300
-          OR   rel = 785 AND patch < 214
-          OR   rel = 788 AND patch < 21
-          OR   rel = 789 AND patch < 10
+        " Prerequisites fulfilled according to note 3224161 (version from 02.06.2023)
+        IF     rel = 722 AND patch >= 1300 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+          OR   rel = 753 AND patch >= 1213 " to match note 3318850 - Improper authentication vulnerability in SAP NetWeaver AS ABAP and ABAP Platform
+          OR   rel = 754 AND patch >= 120
+          OR   rel = 777 AND patch >= 556  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          OR   rel = 785 AND patch >= 251  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          OR   rel = 789 AND patch >= 123  " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          OR   rel = 790 AND patch >= 34   " to match note 3283951 - Local BGRFC and TQRFC issues with UCON, S_RFC, Scope
+          OR   rel = 791 AND patch >= 27   " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          OR   rel = 792 AND patch >= 10   " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          or   rel > 792
           .
-          <fs_result>-validate_kernel = 'Kernel patch required'.
-          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color.
+          <fs_result>-validate_kernel = 'ok'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_positive ) TO <fs_result>-t_color. " Green
 
-        ELSEIF rel < 722
-            OR rel > 722 AND rel < 753
-            .
-          <fs_result>-validate_kernel = `Release update required`.
-          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color.
+        " Prerequisites not fulfilled according to note 3224161 (version from 02.06.2023)
+
+        ELSEIF rel >= 700 and rel <= 721.
+          <fs_result>-validate_kernel = `Not Supported. Use AKK Kernel 722 instead`.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
+
+        ELSEIF rel = 722 AND patch < 1300. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          <fs_result>-validate_kernel = 'Kernel 722 patch 1300 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel >= 740 and rel <= 752.
+          <fs_result>-validate_kernel = `Not Supported. Use  AKK Kernel 753 / 754 instead`.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
+
+        ELSEIF rel = 753 AND patch < 1213. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 753 patch 1213 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 754 AND patch < 120. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          <fs_result>-validate_kernel = 'Kernel 754 patch 120 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 777 AND patch < 556. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 777 patch 556 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 781 or ( rel >= 786 and rel <= 788 ).
+          <fs_result>-validate_kernel = `Not Supported. Use  AKK Kernel 7.85 / 7.89 instead`.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
+
+        ELSEIF rel = 785 AND patch < 251. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 785 patch 251 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 789 AND patch < 123. " to match note 3342409 - Trusted/Trusting http call with different clients on client and server side is not working
+          <fs_result>-validate_kernel = 'Kernel 789 patch 123 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 790 AND patch < 34. " to match note 3283951 - Local BGRFC and TQRFC issues with UCON, S_RFC, Scope
+          <fs_result>-validate_kernel = 'Kernel 790 patch 34 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 791 AND patch < 27. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          <fs_result>-validate_kernel = 'Kernel 791 patch 27 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
+
+        ELSEIF rel = 792 AND patch < 10. " to match note 3324768 - TT-Call with Load-Balancing from resetted session fails
+          <fs_result>-validate_kernel = 'Kernel 792 patch 10 required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_total ) TO <fs_result>-t_color. " Yellow
 
         ELSE.
 
-          <fs_result>-validate_kernel = 'ok'.
-          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_positive ) TO <fs_result>-t_color.
+          <fs_result>-validate_kernel = 'Release update required'.
+          APPEND VALUE #( fname = 'VALIDATE_KERNEL' color-col = col_negative ) TO <fs_result>-t_color. " Red
 
         ENDIF.
       ENDIF.
@@ -1446,14 +1486,14 @@ CLASS lcl_report IMPLEMENTATION.
 
 * Minimum SAP_BASIS for SNOTE
 * You only can implement the notes 3089413, 3287611, and 3304520 using transaction SNOTE if the system runs on a suitable ABAP version:
-*                          solved         solved         solved
-*                minimum   Note 3089413   Note 3287611   Note 3304520
+*                          solved         solved                solved
+*                minimum   Note 3089413   Note 3287611          Note 3304520
 * SAP_BASIS 700  SP 35     SP 41          v1 SP 41
 * SAP_BASIS 701  SP 20     SP 26          v1 SP 26
 * SAP_BASIS 702  SP 20     SP 26          v1 SP 26
-* SAP_BASIS 731  SP 19     SP 33          v1 SP 33       v2 SP 33
-* SAP_BASIS 740  SP 16     SP 30          v1 SP 30       v2 SP 30
-* SAP_BASIS 750  SP 12     SP 26          v4 SP 27
+* SAP_BASIS 731  SP 19     SP 33          v1 SP 33 -> v9 SP 34  v2 SP 33
+* SAP_BASIS 740  SP 16     SP 30          v1 SP 30              v2 SP 30
+* SAP_BASIS 750  SP 12     SP 26          v4 SP 27 -> v9 SP 28
 * SAP_BASIS 751  SP 7      SP 16          v4 SP 17
 * SAP_BASIS 752  SP 1      SP 12          v4 SP 13
 * SAP_BASIS 753            SP 10          v8 SP 11
@@ -1491,15 +1531,14 @@ CLASS lcl_report IMPLEMENTATION.
           <fs_result>-validate_abap = 'ABAP SP required'.
           APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_negative ) TO <fs_result>-t_color.
 
-        " New SP
-        ELSEIF rel = 700 AND sp >= 41
+        ELSEIF rel = 700 AND sp >= 41 " New SP is installed
           OR   rel = 701 AND sp >= 26
           OR   rel = 702 AND sp >= 26
-          OR   rel = 731 AND sp >= 33
+          OR   rel = 731 AND sp >= 34
           OR   rel = 740 AND sp >= 30
-          OR   rel = 750 AND sp >= 27
+          OR   rel = 750 AND sp >= 28
           OR   rel = 751 AND sp >= 17
-          OR   rel = 752 AND sp >= 12
+          OR   rel = 752 AND sp >= 13
           OR   rel = 753 AND sp >= 11
           OR   rel = 754 AND sp >= 9
           OR   rel = 755 AND sp >= 7
@@ -1516,12 +1555,10 @@ CLASS lcl_report IMPLEMENTATION.
           "<fs_result>-note_3287611 = 'ok'.
           "APPEND VALUE #( fname = 'NOTE_3287611'  color-col = col_positive ) TO <fs_result>-t_color.
 
-
-        " Notes requires
-        ELSE.
+        ELSE. " Notes are required
 
           " Check note 3089413 - Capture-replay vulnerability in SAP NetWeaver AS for ABAP and ABAP Platform
-          data(NOTE_3089413_ok) = ABAP_TRUE.
+          DATA(note_3089413_ok) = abap_true.
           IF     rel = 700 AND sp < 41
             OR   rel = 701 AND sp < 26
             OR   rel = 702 AND sp < 26
@@ -1537,10 +1574,10 @@ CLASS lcl_report IMPLEMENTATION.
             OR   rel = 757 AND sp < 2
             .
             " Note 3089413 is required
-            constants NOTE_3089413_min_version(4) VALUE '0011'.
-            NOTE_3089413_ok = ABAP_FALSE.
+            CONSTANTS note_3089413_min_version(4) VALUE '0011'.
+            note_3089413_ok = abap_false.
 
-            find regex '(\d{4})' in <fs_result>-note_3089413 SUBMATCHES data(NOTE_3089413_version).
+            FIND REGEX '(\d{4})' IN <fs_result>-note_3089413 SUBMATCHES DATA(note_3089413_version).
             " E Completely implemented
             " V Obsolete version implemented
             "   Undefined Implementation State
@@ -1550,50 +1587,60 @@ CLASS lcl_report IMPLEMENTATION.
             " O Obsolete
             CASE <fs_result>-note_3089413_prstatus.
               WHEN 'E'.
-                if NOTE_3089413_version >= NOTE_3089413_min_version.
-                  <fs_result>-note_3089413 = `Version ` && NOTE_3089413_version && ' implemented'.
+                IF note_3089413_version >= note_3089413_min_version.
+                  if <fs_result>-note_3089413 is initial.
+                    <fs_result>-note_3089413 = `Version ` && note_3089413_version && ' implemented'.
+                  endif.
                   APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
-                  NOTE_3089413_ok = ABAP_TRUE.
-                else.
-                  <fs_result>-note_3089413 = `Old version ` && NOTE_3089413_version && ' implemented'.
+                  note_3089413_ok = abap_true.
+                ELSE.
+                  <fs_result>-note_3089413 = `Old version ` && note_3089413_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
-                endif.
+                ENDIF.
               WHEN 'V'.
-                  <fs_result>-note_3089413 = `Old version ` && NOTE_3089413_version && ' implemented'.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
+                if <fs_result>-note_3089413 is initial.
+                  <fs_result>-note_3089413 = `Old version ` && note_3089413_version && ' implemented'.
+                endif.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
+                if <fs_result>-note_3089413 is initial.
                   <fs_result>-note_3089413 = `required`.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
-              WHEN '-' or 'O'.
+                endif.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+              WHEN '-' OR 'O'.
+                if <fs_result>-note_3089413 is initial.
                   <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+                endif.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
+                if <fs_result>-note_3089413 is initial.
                   <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
+                endif.
+                APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.
 
           " Check note 3287611 - Bugfixes in Trusted/Trusting Migration
-          data(NOTE_3287611_ok) = ABAP_TRUE.
-          IF     rel = 700 AND sp < 41
-            OR   rel = 701 AND sp < 26
-            OR   rel = 702 AND sp < 26
-            OR   rel = 731 AND sp < 33
-            OR   rel = 740 AND sp < 30
-            OR   rel = 750 AND sp < 27
-            OR   rel = 751 AND sp < 17
-            OR   rel = 752 AND sp < 12
-            OR   rel = 753 AND sp < 11
-            OR   rel = 754 AND sp < 9
-            OR   rel = 755 AND sp < 7
-            OR   rel = 756 AND sp < 5
-            OR   rel = 757 AND sp < 3
+          DATA(note_3287611_ok) = abap_true.
+          IF     rel = 700 AND sp < 41 " v1
+            OR   rel = 701 AND sp < 26 " v1
+            OR   rel = 702 AND sp < 26 " v1
+            OR   rel = 731 AND sp < 34 " v1 SP 33, v9 SP 34
+            OR   rel = 740 AND sp < 30 " v1
+            OR   rel = 750 AND sp < 28 " v4 SP 27, v9 SP 28
+            OR   rel = 751 AND sp < 17 " v4
+            OR   rel = 752 AND sp < 13 " v4
+            OR   rel = 753 AND sp < 11 " v8
+            OR   rel = 754 AND sp < 9  " v8
+            OR   rel = 755 AND sp < 7  " v8
+            OR   rel = 756 AND sp < 5  " v8
+            OR   rel = 757 AND sp < 3  " v8
             .
             " Note 3287611 is required
-            constants NOTE_3287611_min_version(4) VALUE '0008'.
-            NOTE_3287611_ok = ABAP_FALSE.
+            CONSTANTS note_3287611_min_version(4) VALUE '0009'.
+            note_3287611_ok = abap_false.
 
-            find regex '(\d{4})' in <fs_result>-note_3287611 SUBMATCHES data(NOTE_3287611_version).
+            FIND REGEX '(\d{4})' IN <fs_result>-note_3287611 SUBMATCHES DATA(note_3287611_version).
             " E Completely implemented
             " V Obsolete version implemented
             "   Undefined Implementation State
@@ -1603,39 +1650,39 @@ CLASS lcl_report IMPLEMENTATION.
             " O Obsolete
             CASE <fs_result>-note_3287611_prstatus.
               WHEN 'E'.
-               if NOTE_3287611_version >= NOTE_3287611_min_version.
-                  <fs_result>-note_3287611 = `Version ` && NOTE_3287611_version && ' implemented'.
+                IF note_3287611_version >= note_3287611_min_version.
+                  <fs_result>-note_3287611 = `Version ` && note_3287611_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_positive ) TO <fs_result>-t_color.
-                  NOTE_3287611_ok = ABAP_TRUE.
-                else.
-                  <fs_result>-note_3287611 = `Old version ` && NOTE_3287611_version && ' implemented'.
+                  note_3287611_ok = abap_true.
+                ELSE.
+                  <fs_result>-note_3287611 = `Old version ` && note_3287611_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_total ) TO <fs_result>-t_color.
-                endif.
+                ENDIF.
               WHEN 'V'.
-                  <fs_result>-note_3287611 = `Old version ` && NOTE_3287611_version && ' implemented'.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_total ) TO <fs_result>-t_color.
+                <fs_result>-note_3287611 = `Old version ` && note_3287611_version && ' implemented'.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
-                  <fs_result>-note_3287611 = `required`.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
-              WHEN '-' or 'O'.
-                  <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3287611 = `required`.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+              WHEN '-' OR 'O'.
+                <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
-                  <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3287611 = `Strange status (` && <fs_result>-note_3287611_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3287611' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.
 
           " Check note 3304520 - Trusted Trusting: Note 3089413 implementation fails due to incorrect TCI package validity
-          data(NOTE_3304520_ok) = ABAP_TRUE.
+          DATA(note_3304520_ok) = abap_true.
           IF     rel = 731 AND sp < 33
             OR   rel = 740 AND sp < 30
             .
             " Note 3304520 is required
-            constants NOTE_3304520_min_version(4) VALUE '0002'.
-            NOTE_3304520_ok = ABAP_FALSE.
+            CONSTANTS note_3304520_min_version(4) VALUE '0002'.
+            note_3304520_ok = abap_false.
 
-            find regex '(\d{4})' in <fs_result>-note_3304520 SUBMATCHES data(NOTE_3304520_version).
+            FIND REGEX '(\d{4})' IN <fs_result>-note_3304520 SUBMATCHES DATA(note_3304520_version).
             " E Completely implemented
             " V Obsolete version implemented
             "   Undefined Implementation State
@@ -1645,44 +1692,44 @@ CLASS lcl_report IMPLEMENTATION.
             " O Obsolete
             CASE <fs_result>-note_3304520_prstatus.
               WHEN 'E'.
-                if NOTE_3304520_version >= NOTE_3304520_min_version.
-                  <fs_result>-note_3304520 = `Version ` && NOTE_3304520_version && ' implemented'.
+                IF note_3304520_version >= note_3304520_min_version.
+                  <fs_result>-note_3304520 = `Version ` && note_3304520_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_positive ) TO <fs_result>-t_color.
-                  NOTE_3304520_ok = ABAP_TRUE.
-                else.
-                  <fs_result>-note_3304520 = `Old version ` && NOTE_3304520_version && ' implemented'.
+                  note_3304520_ok = abap_true.
+                ELSE.
+                  <fs_result>-note_3304520 = `Old version ` && note_3304520_version && ' implemented'.
                   APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_total ) TO <fs_result>-t_color.
-                endif.
+                ENDIF.
               WHEN 'V'.
-                  <fs_result>-note_3304520 = `Old version ` && NOTE_3304520_version && ' implemented'.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_total ) TO <fs_result>-t_color.
+                <fs_result>-note_3304520 = `Old version ` && note_3304520_version && ' implemented'.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
-                  <fs_result>-note_3304520 = `required`.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
-              WHEN '-' or 'O'.
-                  <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3304520 = `required`.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
+              WHEN '-' OR 'O'.
+                <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
-                  <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
-                  APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
+                <fs_result>-note_3304520 = `Strange status (` && <fs_result>-note_3304520_prstatus && `)`.
+                APPEND VALUE #( fname = 'NOTE_3304520' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.
 
           " Adjust overall status
-          if    NOTE_3089413_ok = ABAP_TRUE
-            and NOTE_3287611_ok = ABAP_TRUE
-            and NOTE_3304520_ok = ABAP_TRUE
+          IF    note_3089413_ok = abap_true
+            AND note_3287611_ok = abap_true
+            AND note_3304520_ok = abap_true
             .
-            <FS_RESULT>-VALIDATE_ABAP = 'Notes are installed'.
+            <fs_result>-validate_abap = 'Notes are installed'.
             APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_positive ) TO <fs_result>-t_color.
-          else.
-            <FS_RESULT>-VALIDATE_ABAP = 'Note(s) are required'.
+          ELSE.
+            <fs_result>-validate_abap = 'Note(s) are required'.
             APPEND VALUE #( fname = 'VALIDATE_ABAP' color-col = col_total ) TO <fs_result>-t_color.
-          endif.
+          ENDIF.
 
-        endif. " Check SP and notes
+        ENDIF. " Check SP and notes
 
-      endif. " Unknown ABAP version
+      ENDIF. " Unknown ABAP version
 
 
       " Validate trusted systems

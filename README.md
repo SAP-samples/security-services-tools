@@ -72,10 +72,10 @@ Updated 28.08.2020
 - Report [`ZCHECK_NOTE_3089413`](/ABAP/solman/zcheck_note_3089413.prog.abap)  
 Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
-Updated 28.03.2023: New check about generic authorizations for S_RFCACL (configuration in CCDB needed)  
-Updated 29.06.2023: Updated Kernel prerequisites as described in note 3224161  
-Updated 29.06.2023: Updated Note prerequisites for note 3287611 v9  
-Updated 06.07.2023: Typo in text corrected  
+Updated 28.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)  
+Updated 29.06.2023 Updated Kernel prerequisites as described in note 3224161  
+Updated 29.06.2023 Updated Note prerequisites for note 3287611 v9  
+Updated 06.07.2023 Typo in text corrected  
 
 ### Configuration Validation
 
@@ -119,7 +119,9 @@ New 27.04.2023
 Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
 See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
 Updated 13.03.2023 Updated note 3287611, new note 3304520  
- 
+Updated 10.07.2023 Updated Kernel prerequisites as described in note 3224161  
+Updated 10.07.2023 Updated Note prerequisites for note 3287611 v9   
+
 ## Requirements
 None
 
