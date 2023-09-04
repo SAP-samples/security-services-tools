@@ -16,11 +16,12 @@
 *& 27.07.2022 Show results from EWA as well
 *& 19.05.2023 Show user count for SOS, too
 *& 30.05.2023 Optimized selection for user count entries
+*& 04.09.2023 Process not only GSS SOS but normal SOS as well
 *&---------------------------------------------------------------------*
 REPORT zsos_overview
   MESSAGE-ID dsvas.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '30.05.2023'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '04.09.2023'.
 
 *&---------------------------------------------------------------------*
 
@@ -31,6 +32,8 @@ TYPES:
     instno        TYPE dsvasdinstno,
     dbid          TYPE dsvasddbid,
     sessno        TYPE dsvasdsessino,
+    bundle_id     TYPE dsvassessadmin-bundle_id,    " Bundle id
+    sessitype     TYPE dsvasdsessitype,             " Session type
     change_date   TYPE dsvasdchangedate,
     creation_date TYPE dsvasdcreatdate,
     row           TYPE i,
@@ -240,22 +243,28 @@ AT SELECTION-SCREEN OUTPUT.
 
   IF s_ewa = 'X'.
     c_bundle_id  = 'EW_ALERT'.  " Bundle id
-    c_relid      = 'CT'.        " Check tables
     c_sessitype  = 'EA'.        " Session type
+
+    c_relid      = 'CT'.        " Check tables
     c_grp        = 'EA_HEAD'.   " Rating overview
     c_id         = '00003'.     " 00003 Check Overview, 00018 Alert Overview and Service Summary
-    c_ses_gr_typ = 'Earlywatch/Alert'.
-    c_pkg_id_typ = 'EW_ALERT/EA'.
+
+    c_ses_gr_typ = 'Earlywatch/Alert'.                 " Authorization check
+    c_pkg_id_typ = 'EW_ALERT/EA'.                      " Authorization check
+
     c_days       = 30.          " Get EWA sessions which are not older than one month
 
   ELSEIF s_sos = 'X'.
-    c_bundle_id  = 'GSS_SEC'.   " Bundle id
+    c_bundle_id  = 'GSS_SEC'.   " Bundle id GSS_SEC and SEC
+    c_sessitype  = 'GS'.        " Session type GS and SC
+
     c_relid      = 'CT'.        " Check tables
-    c_sessitype  = 'GS'.        " Session type
     c_grp        = 'SC_FINISH'. " Rating overview
     c_id         = '00013'.     " Rating overview, get it either from check 00013 or from check 00011
-    c_ses_gr_typ = 'GSS Security Service/Session GS'.
-    c_pkg_id_typ = 'GSS_SEC/GS'.
+
+    c_ses_gr_typ = 'GSS Security Service/Session GS'.  " Authorization check
+    c_pkg_id_typ = 'GSS_SEC/GS'.                       " Authorization check
+
     c_days       = 365.         " Get SOS sessions which are not older than one year
 
   ENDIF.
@@ -286,59 +295,125 @@ FORM f4_sessno
     "field_value     LIKE LINE OF dynpro_values,
     "field_tab       TYPE TABLE OF dfies  WITH HEADER LINE,
     field_mapping TYPE STANDARD TABLE OF dselc,
-    BEGIN OF value_tab OCCURS 0,
-      "sessitype     TYPE dsvassessadmin-sessitype,
+    BEGIN OF value_tab_EWA OCCURS 0,
       sessno      TYPE dsvassessadmin-sessno,
-      "bundle_id     TYPE dsvassessadmin-bundle_id,
+      "bundle_id   TYPE dsvassessadmin-bundle_id,
       "bundle_versnr TYPE dsvassessadmin-bundle_versnr,
+      "sessitype   TYPE dsvassessadmin-sessitype,
       dbid        TYPE dsvassessadmin-dbid,
       change_user TYPE dsvassessadmin-change_user,
       change_date TYPE dsvassessadmin-change_date,
       description TYPE dsvassessadmin-description,
-    END OF value_tab.
+    END OF value_tab_EWA,
+    BEGIN OF value_tab_SOS OCCURS 0,
+      sessno      TYPE dsvassessadmin-sessno,
+      bundle_id   TYPE dsvassessadmin-bundle_id,
+      "bundle_versnr TYPE dsvassessadmin-bundle_versnr,
+      sessitype   TYPE dsvassessadmin-sessitype,
+      dbid        TYPE dsvassessadmin-dbid,
+      change_user TYPE dsvassessadmin-change_user,
+      change_date TYPE dsvassessadmin-change_date,
+      description TYPE dsvassessadmin-description,
+    END OF value_tab_SOS.
 
   DATA(min_change_date) = sy-datum - c_days.
-  SELECT
-      "h~sessitype
-      h~sessno h~change_user h~change_date
-      "a~bundle_id a~bundle_versnr
-      a~dbid a~description
-    FROM dsvassessionhead AS h
-    JOIN dsvassessadmin   AS a
-      ON  a~sessno = h~sessno
-    JOIN dsvasresultsgen  AS r       " Only sessions having results
-      ON  r~relid      = c_relid     " Check tables
-      AND r~sessitype  = h~sessitype " Session type
-      AND r~sessno     = h~sessno
-      AND r~grp        = c_grp       " Rating overview
-      AND r~id         = c_id        " Check Overview
-      AND r~srtf2      = 0           " first entry
-    INTO CORRESPONDING FIELDS OF value_tab
-    WHERE a~bundle_id   =  c_bundle_id
-      AND h~sessitype   =  c_sessitype
-      AND a~change_date >= min_change_date
-    ORDER BY a~dbid ASCENDING a~change_date DESCENDING.
-    APPEND value_tab.
-  ENDSELECT.
-  "SORT value_tab BY dbid ASCENDING change_date DESCENDING.
+  IF s_ewa = 'X'.
+    SELECT
+        h~sessno,
+        "a~bundle_id,
+        "a~bundle_versnr,
+        "h~sessitype,
+        h~change_user,
+        h~change_date,
+        a~dbid,
+        a~description
+      FROM dsvassessionhead AS h
+      JOIN dsvassessadmin   AS a
+        ON  a~sessno = h~sessno
+      JOIN dsvasresultsgen  AS r       " Only sessions having results
+        ON  r~relid      = @c_relid     " Check tables
+        AND r~sessitype  = h~sessitype " Session type
+        AND r~sessno     = h~sessno
+        AND r~grp        = @c_grp       " Rating overview
+        AND r~id         = @c_id        " Check Overview
+        AND r~srtf2      = 0           " first entry
+      INTO CORRESPONDING FIELDS OF @value_tab_EWA
+      WHERE ( a~bundle_id =  @c_bundle_id AND h~sessitype = @c_sessitype )
+        AND a~dbid        IN @dbid
+        AND a~change_date >= @min_change_date
+      ORDER BY a~dbid ASCENDING, a~change_date DESCENDING.
+      APPEND value_tab_EWA.
+      "SORT value_tab_EWA BY dbid ASCENDING change_date DESCENDING.
+    ENDSELECT.
 
-  retfield = l_dynprofield.
-  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
-    EXPORTING
-      retfield        = 'SESSNO' "retfield "(I do not know why this works better)
-      dynpprog        = sy-cprog
-      dynpnr          = sy-dynnr
-      dynprofield     = l_dynprofield
-      value_org       = 'S'
-    TABLES
-*     field_tab       = field_tab
-      value_tab       = value_tab
-      "dynpfld_mapping = field_mapping
-    EXCEPTIONS
-      parameter_error = 1
-      no_values_found = 2.
-  IF sy-subrc <> 0.
-* Implement suitable error handling here
+    retfield = l_dynprofield.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'SESSNO' "retfield "(I do not know why this works better)
+        dynpprog        = sy-cprog
+        dynpnr          = sy-dynnr
+        dynprofield     = l_dynprofield
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = value_tab_EWA
+        "dynpfld_mapping = field_mapping
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
+  ELSEIF s_sos = 'X'.
+    SELECT
+        h~sessno,
+        a~bundle_id,
+        "a~bundle_versnr,
+        h~sessitype,
+        a~dbid,
+        h~change_user,
+        h~change_date,
+        a~description
+      FROM dsvassessionhead AS h
+      JOIN dsvassessadmin   AS a
+        ON  a~sessno = h~sessno
+      JOIN dsvasresultsgen  AS r       " Only sessions having results
+        ON  r~relid      = @c_relid     " Check tables
+        AND r~sessitype  = h~sessitype " Session type
+        AND r~sessno     = h~sessno
+        AND r~grp        = @c_grp       " Rating overview
+        AND r~id         = @c_id        " Check Overview
+        AND r~srtf2      = 0           " first entry
+      INTO CORRESPONDING FIELDS OF @value_tab_SOS
+      WHERE (   a~bundle_id   =  'GSS_SEC' AND h~sessitype   =  'GS'   " Guided SOS
+             OR a~bundle_id   =  'SEC'     AND h~sessitype   =  'SC' ) " Normal SOS
+        AND a~dbid        IN @dbid
+        AND a~change_date >= @min_change_date
+      ORDER BY a~dbid ASCENDING, a~change_date DESCENDING.
+      APPEND value_tab_SOS.
+      "SORT value_tab_SOS BY dbid ASCENDING change_date DESCENDING.
+    ENDSELECT.
+
+    retfield = l_dynprofield.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'SESSNO' "retfield "(I do not know why this works better)
+        dynpprog        = sy-cprog
+        dynpnr          = sy-dynnr
+        dynprofield     = l_dynprofield
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = value_tab_SOS
+        "dynpfld_mapping = field_mapping
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
   ENDIF.
 ENDFORM. "F4_SESSNO
 
@@ -514,39 +589,77 @@ FORM get_sessions.
 
   " load sessions
   DATA lt_dsvassessadmin TYPE TABLE OF dsvassessadmin.
-  SELECT
-      "h~sessitype,
-      "h~sessno,
-      "h~change_user,
-      "h~change_date,
-      "a~bundle_id,
-      "a~bundle_versnr,
-      a~sessno,
-      a~instno,
-      a~dbid,
-      a~change_date,
-      a~creation_date,
-      a~description
-    FROM dsvassessionhead AS h
-    JOIN dsvassessadmin   AS a
-      ON  a~sessno = h~sessno
-    JOIN dsvasresultsgen  AS r       " Only sessions having results
-      ON  r~relid         =  'CT'        " Check tables
-      AND r~sessitype     =  h~sessitype " Session type
-      AND r~sessno        =  h~sessno    " Session number
-      AND r~grp           =  @c_grp      " Rating overview
-      AND r~id            =  @c_id       " Rating overview, get it either from check 00013 or from check 00011
-      AND r~srtf2         =  0           " first entry
-    INTO CORRESPONDING FIELDS OF TABLE @lt_dsvassessadmin
-    WHERE a~bundle_id     =  @c_bundle_id
-      AND h~sessitype     =  @c_sessitype
-      AND a~sessno        IN @sessno
-      AND a~instno        IN @instno
-      AND a~dbid          IN @dbid
-      AND a~change_date   IN @chgdate
-      AND a~creation_date IN @credate
-    ORDER BY a~dbid, a~instno, a~change_date DESCENDING  " allow filtering for latest session per system
-    .
+
+  IF s_ewa = 'X'.
+    SELECT
+        h~sessitype,
+        "h~sessno,
+        "h~change_user,
+        "h~change_date,
+        a~bundle_id,
+        "a~bundle_versnr,
+        a~sessno,
+        a~instno,
+        a~dbid,
+        a~change_date,
+        a~creation_date,
+        a~description
+      FROM dsvassessionhead AS h
+      JOIN dsvassessadmin   AS a
+        ON  a~sessno = h~sessno
+      JOIN dsvasresultsgen  AS r       " Only sessions having results
+        ON  r~relid         =  @c_relid    " Check tables
+        AND r~sessitype     =  h~sessitype " Session type
+        AND r~sessno        =  h~sessno    " Session number
+        AND r~grp           =  @c_grp      " Rating overview
+        AND r~id            =  @c_id       " Rating overview, get it either from check 00013 or from check 00011
+        AND r~srtf2         =  0           " first entry
+      INTO CORRESPONDING FIELDS OF TABLE @lt_dsvassessadmin
+      WHERE ( a~bundle_id   =  @c_bundle_id AND h~sessitype = @c_sessitype )
+        AND a~sessno        IN @sessno
+        AND a~instno        IN @instno
+        AND a~dbid          IN @dbid
+        AND a~change_date   IN @chgdate
+        AND a~creation_date IN @credate
+      ORDER BY a~dbid, a~instno, a~change_date DESCENDING  " allow filtering for latest session per system
+      .
+
+  ELSEIF s_sos = 'X'.
+   SELECT
+       h~sessitype,
+       "h~sessno,
+       "h~change_user,
+       "h~change_date,
+       a~bundle_id,
+       "a~bundle_versnr,
+       a~sessno,
+       a~instno,
+       a~dbid,
+       a~change_date,
+       a~creation_date,
+       a~description
+     FROM dsvassessionhead AS h
+     JOIN dsvassessadmin   AS a
+       ON  a~sessno = h~sessno
+     JOIN dsvasresultsgen  AS r       " Only sessions having results
+       ON  r~relid         =  @c_relid    " Check tables
+       AND r~sessitype     =  h~sessitype " Session type
+       AND r~sessno        =  h~sessno    " Session number
+       AND r~grp           =  @c_grp      " Rating overview
+       AND r~id            =  @c_id       " Rating overview, get it either from check 00013 or from check 00011
+       AND r~srtf2         =  0           " first entry
+     INTO CORRESPONDING FIELDS OF TABLE @lt_dsvassessadmin
+     WHERE (   a~bundle_id =  'GSS_SEC' AND h~sessitype = 'GS'   " Guided SOS
+            OR a~bundle_id =  'SEC'     AND h~sessitype = 'SC' ) " Normal SOS
+       AND a~sessno        IN @sessno
+       AND a~instno        IN @instno
+       AND a~dbid          IN @dbid
+       AND a~change_date   IN @chgdate
+       AND a~creation_date IN @credate
+     ORDER BY a~dbid, a~instno, a~change_date DESCENDING  " allow filtering for latest session per system
+     .
+
+  ENDIF.
 
   " process sessions
   CLEAR ls_outtab.
@@ -560,6 +673,8 @@ FORM get_sessions.
     ls_outtab-instno        = ls_dsvassessadmin-instno.
     ls_outtab-dbid          = ls_dsvassessadmin-dbid.
     ls_outtab-sessno        = ls_dsvassessadmin-sessno.
+    ls_outtab-bundle_id     = ls_dsvassessadmin-bundle_id.
+    ls_outtab-sessitype     = ls_dsvassessadmin-sessitype.
     ls_outtab-change_date   = ls_dsvassessadmin-change_date.
     ls_outtab-creation_date = ls_dsvassessadmin-creation_date.
 
@@ -580,7 +695,7 @@ FORM get_resultsgen
   IF s_ewa = 'X'. " Show data from check 00018 Alert Overview and Service Summary, too
     SELECT * FROM dsvasresultsgen INTO TABLE @lt_dsvasresultsgen
       WHERE relid      = @c_relid
-        AND sessitype  = @c_sessitype
+        AND sessitype  = @ls_dsvassessadmin-sessitype
         AND sessno     = @ls_dsvassessadmin-sessno
         AND grp        = @c_grp
         AND id         = '00018'     " c_id = 00003 Check Overview, 00018 Alert Overview and Service Summary
@@ -610,7 +725,7 @@ FORM get_resultsgen
 
     SELECT * FROM dsvasresultsgen INTO TABLE @lt_dsvasresultsgen
       WHERE relid      = @c_relid
-        AND sessitype  = @c_sessitype
+        AND sessitype  = @ls_dsvassessadmin-sessitype
         AND sessno     = @ls_dsvassessadmin-sessno
         AND grp        = 'SC_INIT'
         AND id         = '00021'     " Client Overview
@@ -628,7 +743,7 @@ FORM get_resultsgen
   " Show overview about check
   SELECT * FROM dsvasresultsgen INTO TABLE @lt_dsvasresultsgen
     WHERE relid      = @c_relid
-      AND sessitype  = @c_sessitype
+      AND sessitype  = @ls_dsvassessadmin-sessitype
       AND sessno     = @ls_dsvassessadmin-sessno
       AND grp        = @c_grp
       AND id         = @c_id
@@ -1238,7 +1353,7 @@ CLASS lcl_handle_events IMPLEMENTATION.
               WITH language = sy-langu
               WITH mode     = 'R'       " read
               WITH sessno   = ls_outtab-sessno
-              WITH sesstype = c_sessitype
+              "WITH sesstype = ls_outtab-sessitype
               .
 
         ENDCASE.
@@ -1320,6 +1435,12 @@ FORM show_alv.
       lr_column->set_medium_text( 'Session number'(m10) ).
       lr_column->set_long_text( 'Session number'(l10) ).
       lr_column->set_color( ls_color_key ).
+
+      lr_column ?= lr_columns->get_column( 'BUNDLE_ID' ).
+      lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+      lr_column ?= lr_columns->get_column( 'SESSITYPE' ).
+      lr_column->set_visible( if_salv_c_bool_sap=>false ).
 
       lr_column ?= lr_columns->get_column( 'CHANGE_DATE' ).
       lr_column->set_color( ls_color_key ).
