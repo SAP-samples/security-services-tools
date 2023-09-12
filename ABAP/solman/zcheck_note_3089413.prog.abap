@@ -5,6 +5,7 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 08.09.2023 SLIN corrections
 *& 06.07.2023 Typo in text corrected
 *& 29.06.2023 Updated Kernel prerequisites as described in note 3224161
 *&            Updated Note prerequisites for note 3287611 v9
@@ -25,7 +26,7 @@
 *&---------------------------------------------------------------------*
 REPORT zcheck_note_3089413.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '06.07.2023 FBT'.
+CONSTANTS c_program_version(30) TYPE c VALUE '08.09.2023 FBT'.
 
 TYPE-POOLS: icon, col, sym.
 
@@ -608,7 +609,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -792,7 +793,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -917,7 +918,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -1062,7 +1063,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -1243,7 +1244,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -1576,7 +1577,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     LOOP AT lt_store_dir INTO DATA(ls_store_dir)
@@ -1716,7 +1717,7 @@ CLASS lcl_report IMPLEMENTATION.
         rc_text               = rc_text.
 
     IF rc IS NOT INITIAL.
-      MESSAGE e001(00) WITH rc_text.
+      MESSAGE e001(00) WITH rc_text ##MG_MISSING.
     ENDIF.
 
     " We might get multiple stores per system, sort by system, system type, client
@@ -1771,6 +1772,8 @@ CLASS lcl_report IMPLEMENTATION.
         l_customizing_xml  TYPE  xstring.
       FIELD-SYMBOLS: <cust_table> TYPE ANY TABLE.
 
+      DATA exc TYPE REF TO cx_diagst_retrieve_exception.
+      TRY.
       CALL FUNCTION 'DIAGST_GET_CUST_TTYPE'
         EXPORTING
           lscp_vk                      = 1 " ls_diagstc-lscp_vk
@@ -1781,12 +1784,12 @@ CLASS lcl_report IMPLEMENTATION.
           is_default                   = lv_is_default
           last_change                  = lv_last_change_ts
           r_cust_data                  = lr_cust_data
-        EXCEPTIONS
-          cx_diagst_retrieve_exception = 1.
-      IF sy-subrc NE 0.
-        ls_result-s_rfcacl_status = 'Error with store customizing'.
-      ELSE.
-
+          .
+        CATCH cx_diagst_retrieve_exception INTO exc.
+          MESSAGE exc->get_text( ) TYPE 'I'.
+          ls_result-s_rfcacl_status = 'Error with store customizing'.
+      ENDTRY.
+      IF exc is initial.
         ASSIGN lr_cust_data->* TO <cust_table>.  " <cust_table> gets type ls_DIAGSTC-CUST_TTYPE
         IF <cust_table> IS INITIAL.
           ls_result-s_rfcacl_status = 'No store customizing'.
@@ -2106,7 +2109,9 @@ CLASS lcl_report IMPLEMENTATION.
             CASE <fs_result>-note_3089413_prstatus.
               WHEN 'E'.
                 IF note_3089413_version >= note_3089413_min_version.
-                  <fs_result>-note_3089413 = `Version ` && note_3089413_version && ' implemented'.
+                  if <fs_result>-note_3089413 is initial.
+                    <fs_result>-note_3089413 = `Version ` && note_3089413_version && ' implemented'.
+                  endif.
                   APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_positive ) TO <fs_result>-t_color.
                   note_3089413_ok = abap_true.
                 ELSE.
@@ -2114,16 +2119,24 @@ CLASS lcl_report IMPLEMENTATION.
                   APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
                 ENDIF.
               WHEN 'V'.
-                <fs_result>-note_3089413 = `Old version ` && note_3089413_version && ' implemented'.
+                if <fs_result>-note_3089413 is initial.
+                  <fs_result>-note_3089413 = `Old version ` && note_3089413_version && ' implemented'.
+                endif.
                 APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_total ) TO <fs_result>-t_color.
               WHEN ' ' OR 'N' OR 'U'.
-                <fs_result>-note_3089413 = `required`.
+                if <fs_result>-note_3089413 is initial.
+                  <fs_result>-note_3089413 = `required`.
+                endif.
                 APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN '-' OR 'O'.
-                <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
+                if <fs_result>-note_3089413 is initial.
+                  <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
+                endif.
                 APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
               WHEN OTHERS.
-                <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
+                if <fs_result>-note_3089413 is initial.
+                  <fs_result>-note_3089413 = `Strange status (` && <fs_result>-note_3089413_prstatus && `)`.
+                endif.
                 APPEND VALUE #( fname = 'NOTE_3089413' color-col = col_negative ) TO <fs_result>-t_color.
             ENDCASE.
           ENDIF.

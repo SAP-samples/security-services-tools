@@ -77,12 +77,14 @@ Updated 28.03.2023 New check about generic authorizations for S_RFCACL (configur
 Updated 29.06.2023 Updated Kernel prerequisites as described in note 3224161  
 Updated 29.06.2023 Updated Note prerequisites for note 3287611 v9  
 Updated 06.07.2023 Typo in text corrected  
+Updated 08.09.2023 Extended syntax check  
 
 ### Configuration Validation
 
 - Report [`ZSHOW_CCDB_CUSTOMIZING`](/ABAP/solman/zshow_ccdb_customizing.prog.abap)  
 Show Store Customization of CCDB  
-Updated 19.04.2023 Corrections for showing only systems which ue a specific customizing  
+Updated 19.04.2023 Corrections for showing only systems which use a specific customizing  
+Updated 08.09.2023 Extended syntax check  
 
 - Report [`ZDIAGCV_TSCUS_HDR`](/ABAP/solman/zdiagcv_tscus_hdr.prog.abap)  
 Maintain descriptions of Target Systems of application Configuration Validation  

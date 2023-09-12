@@ -5,12 +5,13 @@
 *& Show customizing for CCDB data collectors
 *&
 *& 03.12.2020 Initial version
-*& 19.04.2023 Corrections for showing only systems which ue a specific customizing
+*& 19.04.2023 Corrections for showing only systems which use a specific customizing
+*& 08.09.2023 SLIN corrections
 *&---------------------------------------------------------------------*
 REPORT zshow_ccdb_customizing
   LINE-SIZE 1023.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '19.04.2023'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '08.09.2023 FBT'.
 
 *Tables:
 *  DIAGST_STORE,      " Header data of Configuration Stores
@@ -169,22 +170,24 @@ START-OF-SELECTION.
       l_customizing_xml  TYPE  xstring.
     FIELD-SYMBOLS: <cust_table> TYPE ANY TABLE.
 
-    CALL FUNCTION 'DIAGST_GET_CUST_TTYPE'
-      EXPORTING
-        lscp_vk                      = ls_diagstc-lscp_vk
-        cust_ttype                   = ls_diagstc-cust_ttype
-        cust_ttype_id                = ls_diagstc-cust_ttype_id
-      IMPORTING
-        cust_ttype_desc              = lv_cust_ttype_desc
-        is_default                   = lv_is_default
-        last_change                  = lv_last_change_ts
-        r_cust_data                  = lr_cust_data
-      EXCEPTIONS
-        cx_diagst_retrieve_exception = 1.
-    IF sy-subrc NE 0.
-      WRITE: / 'Error'(err) COLOR COL_NEGATIVE.
-      CONTINUE.
-    ENDIF.
+    DATA exc TYPE REF TO cx_diagst_retrieve_exception.
+    TRY.
+      CALL FUNCTION 'DIAGST_GET_CUST_TTYPE'
+        EXPORTING
+          lscp_vk                      = ls_diagstc-lscp_vk
+          cust_ttype                   = ls_diagstc-cust_ttype
+          cust_ttype_id                = ls_diagstc-cust_ttype_id
+        IMPORTING
+          cust_ttype_desc              = lv_cust_ttype_desc
+          is_default                   = lv_is_default
+          last_change                  = lv_last_change_ts
+          r_cust_data                  = lr_cust_data
+          .
+      CATCH cx_diagst_retrieve_exception INTO exc.
+        MESSAGE exc->get_text( ) TYPE 'I'.
+        WRITE: / 'Error'(err) COLOR COL_NEGATIVE.
+        CONTINUE.
+    ENDTRY.
 
     ASSIGN lr_cust_data->* TO <cust_table>.  " <cust_table> gets type ls_DIAGSTC-CUST_TTYPE
     IF <cust_table> IS INITIAL.
