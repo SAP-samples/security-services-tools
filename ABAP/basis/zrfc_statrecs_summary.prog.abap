@@ -190,7 +190,8 @@ types:
    RFCSLOGIN   TYPE RFCDISPLAY-RFCSLOGIN, " Trusted = Y
    RFCSAMEUSR  TYPE RFCDISPLAY-RFCSAMEUSR," Trusted with same user
    RFCTRUSTID_EXT type string,            " Table RFCTRUST fields RFCTRUSTID TLICENSE_NR RFCMSGSRV
-   RFCSNC      TYPE RFCDISPLAY-RFCSNC,    " SNC
+   RFCSNC      TYPE RFCDISPLAY-RFCSNC,    " SNC/TLS
+   SSLAPPLIC   TYPE RFCDISPLAY-SSLAPPLIC, " PSE
  end of ts_RFCOPTIONS.
 
 * Main result table
@@ -310,7 +311,7 @@ initialization.
 
   bfil     = 'Filter Options'(t13).
   t_USER   = 'User'(t14).
-  t_DEST   = 'RFC destination'(t15).
+  t_DEST   = 'Destination'(t15).
   t_FUNC   = 'RFC function'(t16).
   t_GROUP  = 'Function group'(t17).
 
@@ -641,8 +642,8 @@ FORM MAIN.
           perform get_user_data
             using    ls_rfcclnt-mandt ls_rfcclnt-account
             changing gs_result-USTYP  gs_result-CLASS.
-          perform get_rfc_data
-            using    ls_rfcclnt-TARGET
+          perform get_destination_data
+            using    gs_result-TARGET
             changing gs_result-rfcoptions.
 
           append gs_result to gt_result.
@@ -675,6 +676,25 @@ FORM MAIN.
           perform get_user_data
             using    ls_webc-mandt ls_webc-account
             changing gs_result-USTYP  gs_result-CLASS.
+          perform get_destination_data
+            using    gs_result-TARGET
+            changing gs_result-rfcoptions.
+*          if gs_result-protocol is INITIAL.
+*            if gs_result-rfcoptions-rfcsnc = 'X'.
+*              gs_result-protocol = 'https'.
+*            else.
+*              gs_result-protocol = 'http'.
+*            endif.
+*          endif.
+*          if gs_result-host is INITIAL.
+*            gs_result-host = gs_result-rfcoptions-rfchost.
+*          endif.
+*          if gs_result-port is INITIAL.
+*            gs_result-port = gs_result-rfcoptions-rfcsysid.
+*          endif.
+*          if gs_result-path is INITIAL.
+*            gs_result-path = gs_result-rfcoptions-PFADPRE.
+*          endif.
 
           if gs_result-path = '@H3@'. " Don't show this as an icon.
              clear gs_result-path.
@@ -883,8 +903,8 @@ FORM MAIN.
           perform get_user_data
             using    ls_rfcclnt-mandt ls_rfcclntdest-account
             changing gs_result-USTYP  gs_result-CLASS.
-          perform get_rfc_data
-            using    ls_rfcclntdest-TARGET
+          perform get_destination_data
+            using    gs_result-TARGET
             changing gs_result-rfcoptions.
           if ls_rfcclntdest-tasktype = 0 and ls_rfcclntdest-counter = 0.
             if gs_result-rfcoptions-RFCTRUSTID_EXT is initial.
@@ -939,6 +959,25 @@ FORM MAIN.
           perform get_user_data
             using    ls_webcd-mandt ls_webcd-account
             changing gs_result-USTYP  gs_result-CLASS.
+          perform get_destination_data
+            using    gs_result-TARGET
+            changing gs_result-rfcoptions.
+*          if gs_result-protocol is INITIAL.
+*            if gs_result-rfcoptions-rfcsnc = 'X'.
+*              gs_result-protocol = 'https'.
+*            else.
+*              gs_result-protocol = 'http'.
+*            endif.
+*          endif.
+*          if gs_result-host is INITIAL.
+*            gs_result-host = gs_result-rfcoptions-rfchost.
+*          endif.
+*          if gs_result-port is INITIAL.
+*            gs_result-port = gs_result-rfcoptions-rfcsysid.
+*          endif.
+*          if gs_result-path is INITIAL.
+*            gs_result-path = gs_result-rfcoptions-PFADPRE.
+*          endif.
 
           if gs_result-path = '@H3@'. " Don't show this as an icon.
              clear gs_result-path.
@@ -1531,10 +1570,10 @@ form get_authorization
 endform.
 
 *&---------------------------------------------------------------------*
-*&      Form  get_rfc_data
+*&      Form  get_destination_data
 *&---------------------------------------------------------------------*
 
-form get_rfc_data
+form get_destination_data
           using    l_rfcdest      "type rfcdes-rfcdest
           changing ls_RFCOPTIONS  type ts_RFCOPTIONS.
 
@@ -1543,6 +1582,8 @@ form get_rfc_data
 
   statics: lt_DD07V type table of DD07V.
   data:    ls_DD07V type DD07V.
+
+  check l_rfcdest is not initial.
 
 * Get texts of RFC type in DOMVALUE_L into DOMVALUE_H
 * (not used yet)
@@ -1619,7 +1660,15 @@ form get_rfc_data
     ls_RFCDISPLAY-RFCUSER = '<same user>'(002).
   endif.
 
+  if ls_RFCDISPLAY-RFCSNC is initial.
+    clear ls_RFCDISPLAY-SSLAPPLIC. " Don't show the PSE name if TLS is not active.
+  endif.
+
   MOVE-CORRESPONDING ls_RFCDISPLAY to ls_RFCOPTIONS.
+
+  if ls_RFCDISPLAY-RFCUSER is initial and ls_RFCDISPLAY-RFCALIAS+12 is initial.
+    ls_RFCOPTIONS-RFCUSER = ls_RFCDISPLAY-RFCALIAS.
+  endif.
 
   read table lt_DD07V into ls_DD07V
     with key DOMVALUE_L = ls_RFCDISPLAY-RFCTYPE.
@@ -1639,7 +1688,7 @@ form get_rfc_data
     clear ls_RFCOPTIONS-RFCTRUSTID_EXT.
   endif.
 
-endform.                    "get_rfc_data
+endform.                    "get_destination_data
 
 *=====================================================================*
 *  Show ALV
@@ -2165,72 +2214,72 @@ FORM set_columns_text_GT_RESULT
       lr_column ?= ir_columns->get_column( 'CALLS' ).
       lr_column->set_short_text(  '# Records'(s23) ).
       lr_column->set_medium_text( 'Number of recods'(m23) ).
-      lr_column->set_long_text(   'Number of processed recods'(l23) ).
-      if p_CLD is initial and p_SVD is initial.
+      lr_column->set_long_text(   'Number of processed records'(l23) ).
+      if p_CLD is initial and p_CLDH is initial and p_SVD is initial and p_SVDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCTYPE' ). "RFCDISPLAY-RFCTYPE
-      lr_column->set_short_text(  'RFC Type'(s24) ).
-      lr_column->set_medium_text( 'RFC Type'(m24) ).
-      lr_column->set_long_text(   'RFC Type'(l24) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'Dest.Type'(s24) ).
+      lr_column->set_medium_text( 'Destination Type'(m24) ).
+      lr_column->set_long_text(   'Destination Type'(l24) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCHOST' ).
-      lr_column->set_short_text(  'RFC Host'(s25) ).
-      lr_column->set_medium_text( 'RFC Host'(m25) ).
-      lr_column->set_long_text(   'RFC Host'(l25) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'Host'(s25) ).
+      lr_column->set_medium_text( 'Host'(m25) ).
+      lr_column->set_long_text(   'Host (of destination)'(l25) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCSERVICE' ).
-      lr_column->set_short_text(  'RFC Serv.'(s26) ).
-      lr_column->set_medium_text( 'RFC Service'(m26) ).
-      lr_column->set_long_text(   'RFC Service'(l26) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'Service'(s26) ).
+      lr_column->set_medium_text( 'Service'(m26) ).
+      lr_column->set_long_text(   'Service'(l26) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCSYSID' ).
-      lr_column->set_short_text(  'RFC SysID'(s27) ).
-      lr_column->set_medium_text( 'RFC System ID'(m27) ).
-      lr_column->set_long_text(   'RFC System ID'(l27) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'SysID'(s27) ).
+      lr_column->set_medium_text( 'System ID'(m27) ).
+      lr_column->set_long_text(   'System ID'(l27) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-PFADPRE' ).
-      lr_column->set_short_text(  'RFC Group'(s28) ).
-      lr_column->set_medium_text( 'RFC Logon group'(m28) ).
-      lr_column->set_long_text(   'RFC Logon group'(l28) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'Path'(s28) ).
+      lr_column->set_medium_text( 'Path'(m28) ).
+      lr_column->set_long_text(   'Path (of destination)'(l28) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCCLIENT' ).
-      lr_column->set_short_text(  'RFC Client'(s29) ).
-      lr_column->set_medium_text( 'RFC Client'(m29) ).
-      lr_column->set_long_text(   'RFC Client'(l29) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'Client'(s29) ).
+      lr_column->set_medium_text( 'Client'(m29) ).
+      lr_column->set_long_text(   'Client'(l29) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCUSER' ).
-      lr_column->set_short_text(  'RFC User'(s30) ).
-      lr_column->set_medium_text( 'RFC User'(m30) ).
-      lr_column->set_long_text(   'RFC User'(l30) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'RemoteUser'(s30) ).
+      lr_column->set_medium_text( 'Remote User'(m30) ).
+      lr_column->set_long_text(   'Remote User'(l30) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCAUTH' ).
-      lr_column->set_short_text(  'RFC Pwd'(s31) ).
-      lr_column->set_medium_text( 'RFC Password'(m31) ).
-      lr_column->set_long_text(   'RFC Password'(l31) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'Password'(s31) ).
+      lr_column->set_medium_text( 'Remote Password'(m31) ).
+      lr_column->set_long_text(   'Remote Password'(l31) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
@@ -2239,7 +2288,7 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_medium_text( 'Logon Procedure'(m34) ).
       lr_column->set_long_text(   'Logon Procedure (trusted, basic, no)'(l34) ).
       lr_column->SET_TOOLTIP( 'Y=Trusted RFC, B=Basic auth., A=No user'(t34) ). " 40 char
-      if p_CL is initial and p_CLD is initial.
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
@@ -2247,7 +2296,7 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_short_text(  'Same user'(s35) ).
       lr_column->set_medium_text( 'TrustedRFC same user'(m35) ).
       lr_column->set_long_text(   'Trusted-RFC with same user'(l35) ).
-      if p_CL is initial and p_CLD is initial.
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
@@ -2255,15 +2304,23 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_short_text(  'RFCTrustID'(s36) ).
       lr_column->set_medium_text( 'Trusting system ID'(m36) ).
       lr_column->set_long_text(   'Trusting system ID'(l36) ).
-      if p_CL is initial and p_CLD is initial.
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
       lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCSNC' ).
-      lr_column->set_short_text(  'SNC'(s37) ).
-      lr_column->set_medium_text( 'SNC'(m37) ).
-      lr_column->set_long_text(   'SNC'(l37) ).
-      if p_CL is initial and p_CLD is initial.
+      lr_column->set_short_text(  'SNC/TLS'(s42) ).
+      lr_column->set_medium_text( 'SNC/TLS'(m42) ).
+      lr_column->set_long_text(   'SNC/TLS'(l42) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial and p_CLDH is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'RFCOPTIONS-SSLAPPLIC' ).
+      lr_column->set_short_text(  'PSE'(s43) ).
+      lr_column->set_medium_text( 'SSL Applic. (PSE)'(m43) ).
+      lr_column->set_long_text(   'SSL Application (PSE)'(l43) ).
+      if p_CLH is initial and p_CLDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
