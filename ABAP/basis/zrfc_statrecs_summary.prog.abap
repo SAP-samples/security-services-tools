@@ -39,12 +39,14 @@
 *& 26.03.2018 Allow exclude selection for S_USER and S_DEST
 *& 26.08.2022 Updated list of tast types
 *&            Prepare to analyse authorizations for S_RFCACL
-*& 18.01.2023 Tooltip for column Logon Procedure (trusted, basic, no)
+*& 18.01.2023 Tooltip for column Logon Procedure (trusted, basic, no user)
+*& 14.09.2023 Show SNC status of outgoing destinations
+*&            Show http connections, too
 *&---------------------------------------------------------------------*
 
 REPORT  ZRFC_STATRECS_SUMMARY.
 
-constants: c_program_version(14) type c value '18.01.2023 FBT'.
+constants: c_program_version(14) type c value '14.09.2023 FBT'.
 
 * see function SWNC_COLLECTOR_GET_AGGREGATES
 * in include LSCSM_COLLECTORU04
@@ -89,29 +91,54 @@ selection-screen end of line.
 selection-SCREEN END OF BLOCK bsel.
 
 selection-SCREEN BEGIN OF BLOCK bdat WITH FRAME TITLE bdat.
+
 selection-screen begin of line.
 parameters: p_CL     as checkbox default ' '.
 selection-SCREEN comment 3(79) t_CL.
 selection-screen end of line.
 selection-screen begin of line.
+parameters: p_CLH    as checkbox default ' '.
+selection-SCREEN comment 3(79) t_CLH.
+selection-screen end of line.
+
+selection-screen skip.
+
+selection-screen begin of line.
 parameters: p_SV     as checkbox default 'X'.
 selection-SCREEN comment 3(79) t_SV.
 selection-screen end of line.
 selection-screen begin of line.
+parameters: p_SVH    as checkbox default 'X'.
+selection-SCREEN comment 3(79) t_SVH.
+selection-screen end of line.
+
+selection-screen skip.
+
+selection-screen begin of line.
 parameters: p_CLD    as checkbox default ' '.
 selection-SCREEN comment 3(79) t_CLD.
 selection-screen end of line.
-
+selection-screen begin of line.
+parameters: p_CLDH   as checkbox default ' '.
+selection-SCREEN comment 3(79) t_CLDH.
+selection-screen end of line.
 selection-screen begin of line.
 selection-screen POSITION 3.
 parameters: p_CLDNU  as checkbox default 'X'.
 selection-SCREEN comment 5(31) t_CLDNU.
 selection-screen end of line.
 
+selection-screen skip.
+
 selection-screen begin of line.
 parameters: p_SVD    as checkbox default ' '.
 selection-SCREEN comment 3(79) t_SVD.
 selection-screen end of line.
+selection-screen begin of line.
+parameters: p_SVDH   as checkbox default ' '.
+selection-SCREEN comment 3(79) t_SVDH.
+selection-screen end of line.
+
 selection-SCREEN END OF BLOCK bdat.
 
 selection-SCREEN BEGIN OF BLOCK bfil WITH FRAME TITLE bfil.
@@ -163,6 +190,7 @@ types:
    RFCSLOGIN   TYPE RFCDISPLAY-RFCSLOGIN, " Trusted = Y
    RFCSAMEUSR  TYPE RFCDISPLAY-RFCSAMEUSR," Trusted with same user
    RFCTRUSTID_EXT type string,            " Table RFCTRUST fields RFCTRUSTID TLICENSE_NR RFCMSGSRV
+   RFCSNC      TYPE RFCDISPLAY-RFCSNC,    " SNC
  end of ts_RFCOPTIONS.
 
 * Main result table
@@ -174,22 +202,26 @@ types: begin of ts_result,
          ACCOUNT    like SWNCINCRFCH-ACCOUNT,
          USTYP      like USR02-USTYP,
          CLASS      like usr02-class,
-         USERID     like SWNCINCRFCH-USERID,
-         RFC_CALLER like SWNCINCRFCH-USERID, "No CALLER for client
+         USERID     like SWNCINCRFCH-USERID,       " RFC only
+         RFC_CALLER like SWNCINCRFCH-USERID,       " RFC server only
          TARGET     like SWNCINCRFCH-TARGET,
-         LOCAL_DEST like SWNCINCRFCH-LOCAL_DEST,
-         REMOT_DEST like SWNCINCRFCH-REMOT_DEST,
-         FUNC_NAME  like RS38L-NAME,
+         LOCAL_DEST like SWNCINCRFCH-LOCAL_DEST,   " RFC only
+         REMOT_DEST like SWNCINCRFCH-REMOT_DEST,   " RFC only
+         FUNC_NAME  like RS38L-NAME,               " RFC only
          GROUP      like RS38L-AREA,
-         AUTH_S_RFC type string,
-         AUTH_S_RFCACL type string,
-         PROG_NAME  like RS38L-PROGNAME,     "No PROG_NAME for server
+         AUTH_S_RFC type string,                   " RFC only
+         AUTH_S_RFCACL type string,                " RFC only
+         PROG_NAME  like RS38L-PROGNAME,           " RFC client only
+         PROTOCOL   type string,                   " SWNCWEBPROT, HTTP only
+         HOST       type SWNCTXT128,               " HTTP only
+         PORT       type SWNCTXT08,                " HTTP only
+         PATH       type SWNCTXT250,               " HTTP only
          ENTRY_ID   like SWNCINCRFCH-ENTRY_ID,
          COUNTER    like SWNCINCRFCB-COUNTER,
-         RECEIVE    like SWNCINCRFCB-RECEIVE,
-         SEND       like SWNCINCRFCB-SEND,
-         EXE_TIME   like SWNCINCRFCB-EXE_TIME,
-         CALL_TIME  like SWNCINCRFCB-CALL_TIME,
+         RECEIVE    like SWNCINCRFCB-RECEIVE,      " Corresponding field for HTTP: DATA_RECEIVE
+         SEND       like SWNCINCRFCB-SEND,         " Corresponding field for HTTP: DATA_SEND
+         EXE_TIME   like SWNCINCRFCB-EXE_TIME,     " Corresponding field for HTTP: EXECUTION_TI
+         CALL_TIME  like SWNCINCRFCB-CALL_TIME,    " Corresponding field for HTTP: CALLTIME
          CALLS      like SWNCAGGRFCCLNTDEST-CALLS,
          RFCOPTIONS type ts_RFCOPTIONS,
        end of ts_result.
@@ -264,10 +296,17 @@ initialization.
   bdat     = 'Data Options'(t07).
 *             1234567890123456789012345678901234567890123456789012345678901234567890123456789
   t_CL     = 'CL: Show RFC functions executed by RFC client'(t08).
+  t_CLH    = 'CL: Show HTTP calls executed by HTTP client'(t19).
+
   t_SV     = 'SV: Show RFC functions executing in RFC server (and show RFC authorizations)'(t09).
+  t_SVH    = 'SV: Show HTTP calls executing in HTTP server'(t20).
+
   t_CLD    = 'CLD: Show RFC destinations called by RFC client'(t10).
   t_CLDNU  = 'show unused destinations, too'(t11).
+  t_CLDH   = 'CLD: Show HTTP destinations called by HTTP client'(t21).
+
   t_SVD    = 'SVD: Show RFC destinations calling into RFC server'(t12).
+  t_SVDH   = 'SVD: Show http destinations calling into HTTP server'(t22).
 
   bfil     = 'Filter Options'(t13).
   t_USER   = 'User'(t14).
@@ -375,6 +414,7 @@ FORM MAIN.
   data: lt_DIRECTORY_KEYS   TYPE TABLE OF SWNCMONIKEY,
         ls_DIRECTORY_KEYS   TYPE          SWNCMONIKEY,
 *      lT_DIRECTORY_MONI   TYPE TABLE OF SWNCMONIKEYRELID,
+        " RFC data
         lt_rfcclnt          TYPE          swnc_t_aggrfccli,  "wo
         ls_rfcclnt          TYPE LINE OF  swnc_t_aggrfccli,
         lt_rfcsrvr          TYPE          swnc_t_aggrfcsrv,  "wq
@@ -383,6 +423,16 @@ FORM MAIN.
         ls_rfcclntdest      TYPE LINE OF  swnc_t_aggrfcclid,
         lt_rfcsrvrdest      TYPE          swnc_t_aggrfcsrvd, "wp
         ls_rfcsrvrdest      TYPE LINE OF  swnc_t_aggrfcsrvd,
+        " HTTP data
+        lt_webc             TYPE          SWNC_T_AGGWEBCLNT,
+        ls_webc             TYPE          SWNCAGGWEBCLNT,
+        lt_webcd            TYPE          SWNC_T_AGGWEBDEST,
+        ls_webcd            TYPE          SWNCAGGWEBDEST,
+        lt_webs             TYPE          SWNC_T_AGGWEBCLNT,
+        ls_webs             TYPE          SWNCAGGWEBCLNT,
+        lt_websd            TYPE          SWNC_T_AGGWEBDEST,
+        ls_websd            TYPE          SWNCAGGWEBDEST,
+
         division_factor     TYPE SWNCDIVFACTOR value 1000.
 
 
@@ -531,7 +581,7 @@ FORM MAIN.
 *   RFC_CALLER:     empty
 *   RFCUSER:        called user in RFC server (as defined in RFC dest. or "<same user>")
 
-    if p_CL = 'X'.
+    if p_CL = 'X' or p_CLH = 'X'.
       CALL FUNCTION 'SWNC_COLLECTOR_GET_AGGREGATES'
         EXPORTING
           COMPONENT     = ls_DIRECTORY_KEYS-COMPONENT
@@ -545,6 +595,10 @@ FORM MAIN.
 *         RFCCLNTDEST   = lt_rfcclntdest   "wp
 *         RFCSRVR       = lt_rfcsrvr       "wq
 *         RFCSRVRDEST   = lt_rfcsrvrdest   "wr
+          WEBC          = lt_webc          " TYPE SWNCAGGWEBCLNT
+*         WEBCD         = lt_webcd         " TYPE SWNCAGGWEBDEST
+*         WEBS          = lt_webs          " TYPE SWNCAGGWEBCLNT
+*         WEBSD         = lt_websd         " TYPE SWNCAGGWEBDEST
         EXCEPTIONS
           NO_DATA_FOUND = 1
           OTHERS        = 2.
@@ -556,41 +610,81 @@ FORM MAIN.
       clear gs_result.
       gs_result-recordtype = 'CL'.
       gs_result-date       = ls_DIRECTORY_KEYS-PERIODSTRT.
-      loop at lt_rfcclnt into ls_rfcclnt
-        where FUNC_NAME  in s_FUNC.
-        if     S_USER_SIGN = 'I'.
-          check ls_rfcclnt-account    in s_USER
-             or ls_rfcclnt-userid     in s_USER.
-        elseif S_USER_SIGN = 'E'.
-          check ls_rfcclnt-account    in s_USER
-            AND ls_rfcclnt-userid     in s_USER.
-        endif.
-        if     S_DEST_SIGN = 'I'.
-          check ls_rfcclnt-TARGET     in s_DEST
-             or ls_rfcclnt-LOCAL_DEST in s_DEST
-             or ls_rfcclnt-REMOT_DEST in s_DEST.
-        elseif S_DEST_SIGN = 'E'.
-          check ls_rfcclnt-TARGET     in s_DEST
-            AND ls_rfcclnt-LOCAL_DEST in s_DEST
-            AND ls_rfcclnt-REMOT_DEST in s_DEST.
-        endif.
 
-        move-CORRESPONDING ls_rfcclnt to gs_result.
-        PERFORM translate_tasktype using ls_rfcclnt-tasktype.
-        perform get_function_group
-          using    ls_rfcclnt-FUNC_NAME
-          changing gs_result-group.
-        check gs_result-GROUP      in s_GROUP.
-        perform get_user_data
-          using    ls_rfcclnt-mandt ls_rfcclnt-account
-          changing gs_result-USTYP  gs_result-CLASS.
-        perform get_rfc_data
-          using    ls_rfcclnt-TARGET
-          changing gs_result-rfcoptions.
+      " RFC
+      if p_CL = 'X'.
+        loop at lt_rfcclnt into ls_rfcclnt
+          where FUNC_NAME  in s_FUNC.
+          if     S_USER_SIGN = 'I'.
+            check ls_rfcclnt-account    in s_USER
+               or ls_rfcclnt-userid     in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_rfcclnt-account    in s_USER
+              AND ls_rfcclnt-userid     in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_rfcclnt-TARGET     in s_DEST
+               or ls_rfcclnt-LOCAL_DEST in s_DEST
+               or ls_rfcclnt-REMOT_DEST in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_rfcclnt-TARGET     in s_DEST
+              AND ls_rfcclnt-LOCAL_DEST in s_DEST
+              AND ls_rfcclnt-REMOT_DEST in s_DEST.
+          endif.
 
-        append gs_result to gt_result.
-      endloop.
+          move-CORRESPONDING ls_rfcclnt to gs_result.
+          PERFORM translate_tasktype using ls_rfcclnt-tasktype.
+          perform get_function_group
+            using    ls_rfcclnt-FUNC_NAME
+            changing gs_result-group.
+          check gs_result-GROUP      in s_GROUP.
+          perform get_user_data
+            using    ls_rfcclnt-mandt ls_rfcclnt-account
+            changing gs_result-USTYP  gs_result-CLASS.
+          perform get_rfc_data
+            using    ls_rfcclnt-TARGET
+            changing gs_result-rfcoptions.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
       free lt_rfcclnt.
+
+      " HTTP
+      if p_CLH = 'X'.
+        loop at lt_webc into ls_webc.
+          if     S_USER_SIGN = 'I'.
+            check ls_webc-account    in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_webc-account    in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_webc-DESTINATION in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_webc-DESTINATION in s_DEST.
+          endif.
+
+          move-CORRESPONDING ls_webc to gs_result.
+          gs_result-TARGET    = ls_webc-DESTINATION.
+          gs_result-RECEIVE   = ls_webc-DATA_RECEIVE.
+          gs_result-SEND      = ls_webc-DATA_SEND.
+          gs_result-EXE_TIME  = ls_webc-EXECUTION_TI.
+          gs_result-CALL_TIME = ls_webc-CALLTIME.
+          PERFORM translate_tasktype using ls_webc-tasktype.
+          perform translate_protocol USING gs_result-protocol.
+          perform get_user_data
+            using    ls_webc-mandt ls_webc-account
+            changing gs_result-USTYP  gs_result-CLASS.
+
+          if gs_result-path = '@H3@'. " Don't show this as an icon.
+             clear gs_result-path.
+          endif.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
+      free lt_webc.
+
     endif.
 
 *   RFC Server
@@ -600,7 +694,7 @@ FORM MAIN.
 *   RFC_CALLER:     called user in RFC server (local system)
 *   RFCUSER:        empty
 
-    if p_SV = 'X'.
+    if p_SV = 'X' or p_SVH = 'X'.
       CALL FUNCTION 'SWNC_COLLECTOR_GET_AGGREGATES'
         EXPORTING
           COMPONENT     = ls_DIRECTORY_KEYS-COMPONENT
@@ -614,7 +708,11 @@ FORM MAIN.
 *         RFCCLNTDEST   = lt_rfcclntdest   "wp
           RFCSRVR       = lt_rfcsrvr       "wq
 *         RFCSRVRDEST   = lt_rfcsrvrdest   "wr
-        EXCEPTIONS
+*         WEBC          = lt_webc          " TYPE SWNCAGGWEBCLNT
+*         WEBCD         = lt_webcd         " TYPE SWNCAGGWEBDEST
+          WEBS          = lt_webs          " TYPE SWNCAGGWEBCLNT
+*         WEBSD         = lt_websd         " TYPE SWNCAGGWEBDEST
+       EXCEPTIONS
           NO_DATA_FOUND = 1
           OTHERS        = 2.
       IF SY-SUBRC <> 0.
@@ -625,46 +723,86 @@ FORM MAIN.
       clear gs_result.
       gs_result-recordtype = 'SV'.
       gs_result-date       = ls_DIRECTORY_KEYS-PERIODSTRT.
+
+      " RFC
+      if p_SV = 'X'.
       loop at lt_rfcsrvr into ls_rfcsrvr
         where FUNC_NAME  in s_FUNC.
-        if     S_USER_SIGN = 'I'.
-          check ls_rfcsrvr-account    in s_USER
-             or ls_rfcsrvr-userid     in s_USER
-             or ls_rfcsrvr-rfc_caller in s_USER.
-        elseif S_USER_SIGN = 'E'.
-          check ls_rfcsrvr-account    in s_USER
-            AND ls_rfcsrvr-userid     in s_USER
-            AND ls_rfcsrvr-rfc_caller in s_USER.
-        endif.
-        if     S_DEST_SIGN = 'I'.
-          check ls_rfcsrvr-TARGET     in s_DEST
-             or ls_rfcsrvr-LOCAL_DEST in s_DEST
-             or ls_rfcsrvr-REMOT_DEST in s_DEST.
-        elseif S_DEST_SIGN = 'E'.
-          check ls_rfcsrvr-TARGET     in s_DEST
-            AND ls_rfcsrvr-LOCAL_DEST in s_DEST
-            AND ls_rfcsrvr-REMOT_DEST in s_DEST.
-        endif.
+          if     S_USER_SIGN = 'I'.
+            check ls_rfcsrvr-account    in s_USER
+               or ls_rfcsrvr-userid     in s_USER
+               or ls_rfcsrvr-rfc_caller in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_rfcsrvr-account    in s_USER
+              AND ls_rfcsrvr-userid     in s_USER
+              AND ls_rfcsrvr-rfc_caller in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_rfcsrvr-TARGET     in s_DEST
+               or ls_rfcsrvr-LOCAL_DEST in s_DEST
+               or ls_rfcsrvr-REMOT_DEST in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_rfcsrvr-TARGET     in s_DEST
+              AND ls_rfcsrvr-LOCAL_DEST in s_DEST
+              AND ls_rfcsrvr-REMOT_DEST in s_DEST.
+          endif.
 
-        move-CORRESPONDING ls_rfcsrvr to gs_result.
-        clear gs_result-prog_name. "Not useful for RFC Server
-        PERFORM translate_tasktype using ls_rfcsrvr-tasktype.
-        perform get_function_group
-          using    ls_rfcsrvr-FUNC_NAME
-          changing gs_result-group.
-        check gs_result-GROUP      in s_GROUP.
-        perform get_user_data
-          using    ls_rfcsrvr-mandt ls_rfcsrvr-account
-          changing gs_result-USTYP  gs_result-CLASS.
-        perform get_authorization
-          using    ls_rfcsrvr-mandt ls_rfcsrvr-account
-                   gs_result-FUNC_NAME gs_result-GROUP
-          changing gs_result-AUTH_S_RFC
-                   gs_result-AUTH_S_RFCACL.
+          move-CORRESPONDING ls_rfcsrvr to gs_result.
+          clear gs_result-prog_name. "Not useful for RFC Server
+          PERFORM translate_tasktype using ls_rfcsrvr-tasktype.
+          perform get_function_group
+            using    ls_rfcsrvr-FUNC_NAME
+            changing gs_result-group.
+          check gs_result-GROUP      in s_GROUP.
+          perform get_user_data
+            using    ls_rfcsrvr-mandt ls_rfcsrvr-account
+            changing gs_result-USTYP  gs_result-CLASS.
+          perform get_authorization
+            using    ls_rfcsrvr-mandt ls_rfcsrvr-account
+                     gs_result-FUNC_NAME gs_result-GROUP
+            changing gs_result-AUTH_S_RFC
+                     gs_result-AUTH_S_RFCACL.
 
-        append gs_result to gt_result.
-      endloop.
+          append gs_result to gt_result.
+        endloop.
+      endif.
       free lt_rfcsrvr.
+
+      " HTTP
+      if p_SVH = 'X'.
+        loop at lt_webs into ls_webs.
+          if     S_USER_SIGN = 'I'.
+            check ls_webs-account    in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_webs-account    in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_webs-DESTINATION in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_webs-DESTINATION in s_DEST.
+          endif.
+
+          move-CORRESPONDING ls_webs to gs_result.
+          gs_result-TARGET    = ls_webs-DESTINATION.
+          gs_result-RECEIVE   = ls_webs-DATA_RECEIVE.
+          gs_result-SEND      = ls_webs-DATA_SEND.
+          gs_result-EXE_TIME  = ls_webs-EXECUTION_TI.
+          gs_result-CALL_TIME = ls_webs-CALLTIME.
+          PERFORM translate_tasktype using ls_webs-tasktype.
+          perform translate_protocol USING gs_result-protocol.
+          perform get_user_data
+            using    ls_webs-mandt ls_webs-account
+            changing gs_result-USTYP  gs_result-CLASS.
+
+          if gs_result-path = '@H3@'. " Don't show this as an icon.
+             clear gs_result-path.
+          endif.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
+      free lt_webs.
+
     endif.
 
 *   RFC Client Destinations
@@ -674,7 +812,7 @@ FORM MAIN.
 *   RFC_CALLER:     empty
 *   RFCUSER:        called user in RFC server (as defined in RFC dest. or "<same user>")
 
-    if p_CLD = 'X'.
+    if p_CLD = 'X' or p_CLDH = 'X'.
       CALL FUNCTION 'SWNC_COLLECTOR_GET_AGGREGATES'
         EXPORTING
           COMPONENT     = ls_DIRECTORY_KEYS-COMPONENT
@@ -688,6 +826,10 @@ FORM MAIN.
           RFCCLNTDEST   = lt_rfcclntdest   "wp
 *         RFCSRVR       = lt_rfcsrvr       "wq
 *         RFCSRVRDEST   = lt_rfcsrvrdest   "wr
+*         WEBC          = lt_webc          " TYPE SWNCAGGWEBCLNT
+          WEBCD         = lt_webcd         " TYPE SWNCAGGWEBDEST
+*         WEBS          = lt_webs          " TYPE SWNCAGGWEBCLNT
+*         WEBSD         = lt_websd         " TYPE SWNCAGGWEBDEST
         EXCEPTIONS
           NO_DATA_FOUND = 1
           OTHERS        = 2.
@@ -697,60 +839,115 @@ FORM MAIN.
         clear lt_rfcclntdest[].
       ENDIF.
 
-*     Add not-used RFC destinations
-      if p_CLDNU = 'X'.
-        clear ls_rfcclntdest.
-        select RFCDEST from RFCDES into ls_rfcclntdest-TARGET
-          where RFCDEST in s_DEST.
-
-          read table lt_rfcclntdest transporting no fields
-            with key TARGET = ls_rfcclntdest-TARGET.
-          if sy-subrc is not initial.
-            append ls_rfcclntdest to lt_rfcclntdest.
-          endif.
-        endselect.
-      endif.
-
       clear gs_result.
       gs_result-recordtype = 'CLD'.
       gs_result-date       = ls_DIRECTORY_KEYS-PERIODSTRT.
-      loop at lt_rfcclntdest into ls_rfcclntdest.
-        if     S_USER_SIGN = 'I'.
-          check ls_rfcclntdest-account    in s_USER
-             or ls_rfcclntdest-userid     in s_USER.
-        elseif S_USER_SIGN = 'E'.
-          check ls_rfcclntdest-account    in s_USER
-            AND ls_rfcclntdest-userid     in s_USER.
-        endif.
-        if     S_DEST_SIGN = 'I'.
-          check ls_rfcclntdest-TARGET     in s_DEST
-             or ls_rfcclntdest-LOCAL_DEST in s_DEST
-             or ls_rfcclntdest-REMOT_DEST in s_DEST.
-        elseif S_DEST_SIGN = 'E'.
-          check ls_rfcclntdest-TARGET     in s_DEST
-            AND ls_rfcclntdest-LOCAL_DEST in s_DEST
-            AND ls_rfcclntdest-REMOT_DEST in s_DEST.
+
+      " RFC
+      if p_CLD = 'X'.
+*       Add not-used RFC destinations
+        if p_CLDNU = 'X'.
+          clear ls_rfcclntdest.
+          select RFCDEST from RFCDES into ls_rfcclntdest-TARGET
+            where RFCDEST in s_DEST
+              and RFCTYPE = '3'.
+
+            read table lt_rfcclntdest transporting no fields
+              with key TARGET = ls_rfcclntdest-TARGET.
+            if sy-subrc is not initial.
+              append ls_rfcclntdest to lt_rfcclntdest.
+            endif.
+          endselect.
         endif.
 
-        move-CORRESPONDING ls_rfcclntdest to gs_result.
-        PERFORM translate_tasktype using ls_rfcclntdest-tasktype.
-        perform get_user_data
-          using    ls_rfcclnt-mandt ls_rfcclntdest-account
-          changing gs_result-USTYP  gs_result-CLASS.
-        perform get_rfc_data
-          using    ls_rfcclntdest-TARGET
-          changing gs_result-rfcoptions.
-        if ls_rfcclntdest-tasktype = 0 and ls_rfcclntdest-counter = 0.
-          if gs_result-rfcoptions-RFCTRUSTID_EXT is initial.
-            gs_result-tasktype = 'NOT USED'.
-          else.
-            gs_result-tasktype = 'NOT USED/REQUIRED'.
+        loop at lt_rfcclntdest into ls_rfcclntdest.
+          if     S_USER_SIGN = 'I'.
+            check ls_rfcclntdest-account    in s_USER
+               or ls_rfcclntdest-userid     in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_rfcclntdest-account    in s_USER
+              AND ls_rfcclntdest-userid     in s_USER.
           endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_rfcclntdest-TARGET     in s_DEST
+               or ls_rfcclntdest-LOCAL_DEST in s_DEST
+               or ls_rfcclntdest-REMOT_DEST in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_rfcclntdest-TARGET     in s_DEST
+              AND ls_rfcclntdest-LOCAL_DEST in s_DEST
+              AND ls_rfcclntdest-REMOT_DEST in s_DEST.
+          endif.
+
+          move-CORRESPONDING ls_rfcclntdest to gs_result.
+          PERFORM translate_tasktype using ls_rfcclntdest-tasktype.
+          perform get_user_data
+            using    ls_rfcclnt-mandt ls_rfcclntdest-account
+            changing gs_result-USTYP  gs_result-CLASS.
+          perform get_rfc_data
+            using    ls_rfcclntdest-TARGET
+            changing gs_result-rfcoptions.
+          if ls_rfcclntdest-tasktype = 0 and ls_rfcclntdest-counter = 0.
+            if gs_result-rfcoptions-RFCTRUSTID_EXT is initial.
+              gs_result-tasktype = 'NOT USED'.
+            else.
+              gs_result-tasktype = 'NOT USED/REQUIRED'.
+            endif.
+          endif.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
+      free lt_rfcclnt.
+
+      " HTTP
+      if p_CLDH = 'X'.
+*       Add not-used HTTP destinations
+        if p_CLDNU = 'X'.
+          clear ls_webcd.
+          select RFCDEST from RFCDES into ls_webcd-DESTINATION
+            where RFCDEST in s_DEST
+              and ( RFCTYPE = 'G' or RFCTYPE = 'H' ).
+
+            read table lt_webcd transporting no fields
+              with key DESTINATION = ls_webcd-DESTINATION.
+            if sy-subrc is not initial.
+              append ls_webcd to lt_webcd.
+            endif.
+          endselect.
         endif.
 
-        append gs_result to gt_result.
-      endloop.
-      free lt_rfcclnt.
+        loop at lt_webcd into ls_webcd.
+          if     S_USER_SIGN = 'I'.
+            check ls_webcd-account    in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_webcd-account    in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_webcd-DESTINATION in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_webcd-DESTINATION in s_DEST.
+          endif.
+
+          move-CORRESPONDING ls_webcd to gs_result.
+          gs_result-TARGET    = ls_webcd-DESTINATION.
+          gs_result-RECEIVE   = ls_webcd-DATA_RECEIVE.
+          gs_result-SEND      = ls_webcd-DATA_SEND.
+          gs_result-EXE_TIME  = ls_webcd-EXECUTION_TI.
+          gs_result-CALL_TIME = ls_webcd-CALLTIME.
+          PERFORM translate_tasktype using ls_webcd-tasktype.
+          perform translate_protocol USING gs_result-protocol.
+          perform get_user_data
+            using    ls_webcd-mandt ls_webcd-account
+            changing gs_result-USTYP  gs_result-CLASS.
+
+          if gs_result-path = '@H3@'. " Don't show this as an icon.
+             clear gs_result-path.
+          endif.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
+      free lt_webcd.
     endif.
 
 *   RFC Server Destinations
@@ -760,7 +957,7 @@ FORM MAIN.
 *   RFC_CALLER:     called user in RFC server (local system)
 *   RFCUSER:        empty
 
-    if p_SVD = 'X'.
+    if p_SVD = 'X' or p_SVDH = 'X'.
       CALL FUNCTION 'SWNC_COLLECTOR_GET_AGGREGATES'
         EXPORTING
           COMPONENT     = ls_DIRECTORY_KEYS-COMPONENT
@@ -774,6 +971,10 @@ FORM MAIN.
 *         RFCCLNTDEST   = lt_rfcclntdest   "wp
 *         RFCSRVR       = lt_rfcsrvr       "wq
           RFCSRVRDEST   = lt_rfcsrvrdest   "wr
+*         WEBC          = lt_webc          " TYPE SWNCAGGWEBCLNT
+*         WEBCD         = lt_webcd         " TYPE SWNCAGGWEBDEST
+*         WEBS          = lt_webs          " TYPE SWNCAGGWEBCLNT
+          WEBSD         = lt_websd         " TYPE SWNCAGGWEBDEST
         EXCEPTIONS
           NO_DATA_FOUND = 1
           OTHERS        = 2.
@@ -785,35 +986,74 @@ FORM MAIN.
       clear gs_result.
       gs_result-recordtype = 'SVD'.
       gs_result-date       = ls_DIRECTORY_KEYS-PERIODSTRT.
-      loop at lt_rfcsrvrdest into ls_rfcsrvrdest.
-        if     S_USER_SIGN = 'I'.
-          check ls_rfcsrvrdest-account    in s_USER
-             or ls_rfcsrvrdest-userid     in s_USER
-             or ls_rfcsrvrdest-rfc_caller in s_USER.
-        elseif S_USER_SIGN = 'E'.
-          check ls_rfcsrvrdest-account    in s_USER
-            AND ls_rfcsrvrdest-userid     in s_USER
-            AND ls_rfcsrvrdest-rfc_caller in s_USER.
-        endif.
-        if     S_DEST_SIGN = 'I'.
-          check ls_rfcsrvrdest-TARGET     in s_DEST
-             or ls_rfcsrvrdest-LOCAL_DEST in s_DEST
-             or ls_rfcsrvrdest-REMOT_DEST in s_DEST.
-        elseif S_DEST_SIGN = 'E'.
-          check ls_rfcsrvrdest-TARGET     in s_DEST
-            AND ls_rfcsrvrdest-LOCAL_DEST in s_DEST
-            AND ls_rfcsrvrdest-REMOT_DEST in s_DEST.
-        endif.
 
-        move-CORRESPONDING ls_rfcsrvrdest to gs_result.
-        PERFORM translate_tasktype using ls_rfcsrvrdest-tasktype.
-        perform get_user_data
-          using    ls_rfcsrvrdest-mandt ls_rfcsrvrdest-account
-          changing gs_result-USTYP      gs_result-CLASS.
+      " RFC
+      if p_SVD = 'X'.
+        loop at lt_rfcsrvrdest into ls_rfcsrvrdest.
+          if     S_USER_SIGN = 'I'.
+            check ls_rfcsrvrdest-account    in s_USER
+               or ls_rfcsrvrdest-userid     in s_USER
+               or ls_rfcsrvrdest-rfc_caller in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_rfcsrvrdest-account    in s_USER
+              AND ls_rfcsrvrdest-userid     in s_USER
+              AND ls_rfcsrvrdest-rfc_caller in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_rfcsrvrdest-TARGET     in s_DEST
+               or ls_rfcsrvrdest-LOCAL_DEST in s_DEST
+               or ls_rfcsrvrdest-REMOT_DEST in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_rfcsrvrdest-TARGET     in s_DEST
+              AND ls_rfcsrvrdest-LOCAL_DEST in s_DEST
+              AND ls_rfcsrvrdest-REMOT_DEST in s_DEST.
+          endif.
 
-        append gs_result to gt_result.
-      endloop.
+          move-CORRESPONDING ls_rfcsrvrdest to gs_result.
+          PERFORM translate_tasktype using ls_rfcsrvrdest-tasktype.
+          perform get_user_data
+            using    ls_rfcsrvrdest-mandt ls_rfcsrvrdest-account
+            changing gs_result-USTYP      gs_result-CLASS.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
       free lt_rfcsrvr.
+
+      " HTTP
+      if p_SVDH = 'X'.
+        loop at lt_websd into ls_websd.
+          if     S_USER_SIGN = 'I'.
+            check ls_websd-account    in s_USER.
+          elseif S_USER_SIGN = 'E'.
+            check ls_websd-account    in s_USER.
+          endif.
+          if     S_DEST_SIGN = 'I'.
+            check ls_websd-DESTINATION in s_DEST.
+          elseif S_DEST_SIGN = 'E'.
+            check ls_websd-DESTINATION in s_DEST.
+          endif.
+
+          move-CORRESPONDING ls_websd to gs_result.
+          gs_result-TARGET    = ls_websd-DESTINATION.
+          gs_result-RECEIVE   = ls_websd-DATA_RECEIVE.
+          gs_result-SEND      = ls_websd-DATA_SEND.
+          gs_result-EXE_TIME  = ls_websd-EXECUTION_TI.
+          gs_result-CALL_TIME = ls_websd-CALLTIME.
+          PERFORM translate_tasktype using ls_websd-tasktype.
+          perform translate_protocol USING gs_result-protocol.
+          perform get_user_data
+            using    ls_websd-mandt ls_websd-account
+            changing gs_result-USTYP  gs_result-CLASS.
+
+          if gs_result-path = '@H3@'. " Don't show this as an icon.
+             clear gs_result-path.
+          endif.
+
+          append gs_result to gt_result.
+        endloop.
+      endif.
+
     endif.
 
   endloop. "lt_DIRECTORY_KEYS
@@ -848,7 +1088,7 @@ form translate_tasktype
     WHEN 'Y'.    gs_result-tasktype = 'Buffer Sync.'(409).
     WHEN 'A'.    gs_result-tasktype = 'Auto ABAP'(410).
     WHEN '7'.    gs_result-tasktype = 'Auto RFC'(416).
-    WHEN 'ยง'.    gs_result-tasktype = 'lrrfc'. "(417)
+    WHEN 'ง'.    gs_result-tasktype = 'lrrfc'. "(417)
     WHEN '2'.    gs_result-tasktype = 'Update (V2)'(404).
     WHEN 'C'.    gs_result-tasktype = 'CPI-C'(411).
     WHEN 'R'.    gs_result-tasktype = 'RFC'(412).
@@ -889,6 +1129,22 @@ form translate_tasktype
   concatenate l_char gs_result-tasktype
     into gs_result-tasktype SEPARATED BY SPACE.
 endform.                    "translate_tasktype
+
+*&---------------------------------------------------------------------*
+*&      Form  translate_protocol
+*&---------------------------------------------------------------------*
+form translate_protocol
+  USING protocol type string.
+
+  case protocol.
+    when 0. clear gs_result-protocol.
+    when 1. gs_result-protocol = 'http'.
+    when 2. gs_result-protocol = 'https'.
+    when 4. gs_result-protocol = 'smtp'.
+    when others.
+            gs_result-protocol = protocol.
+  endcase.
+endform.
 
 *&---------------------------------------------------------------------*
 *&      Form  Get_function_group
@@ -1544,7 +1800,7 @@ class lcl_handle_events implementation.
       when 'TARGET'.
         check gs_result-RECORDTYPE = 'CL'
            or gs_result-RECORDTYPE = 'CLD'.
-        check gs_result-TARGET ne 'NONE'.
+        check gs_result-TARGET is not initial and gs_result-TARGET ne 'NONE'.
         data: ls_rfcdes      TYPE rfcdes.
         SELECT SINGLE * FROM rfcdes INTO ls_rfcdes
           WHERE rfcdest = gs_result-TARGET.
@@ -1744,7 +2000,7 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_medium_text( 'User type'(m06) ).
       lr_column->set_long_text(   'User type of account in local system'(l06) ).
       lr_column->SET_COLOR( LS_COLOR_ACCOUNT ).
-      if p_CL is initial and p_SV is initial.
+      if p_CL is initial and p_CLH is initial and p_SV is initial and p_SVH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
@@ -1753,7 +2009,7 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_medium_text( 'User group'(m07) ).
       lr_column->set_long_text(   'User group of account in local system'(l07) ).
       lr_column->SET_COLOR( LS_COLOR_ACCOUNT ).
-      if p_CL is initial and p_SV is initial.
+      if p_CL is initial and p_CLH is initial and p_SV is initial and p_SVH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
@@ -1777,6 +2033,9 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_short_text(  'Target'(s10) ).
       lr_column->set_medium_text( 'Target'(m10) ).
       lr_column->set_long_text(   'Target'(l10) ).
+      if p_CL is initial and p_CLH is initial and p_CLD is initial  and p_CLDH is initial and p_SV is initial and p_SVD is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
 
       lr_column ?= ir_columns->get_column( 'LOCAL_DEST' ).
       lr_column->set_short_text(  'Local Inst'(s11) ).
@@ -1788,6 +2047,9 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_short_text(  'RemoteInst'(s12) ).
       lr_column->set_medium_text( 'Remote instance'(m12) ).
       lr_column->set_long_text(   'Remote instance'(l12) ).
+      if p_CL is initial and p_CLD is initial and p_SV is initial and p_SVD is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
 
       lr_column ?= ir_columns->get_column( 'FUNC_NAME' ). "RS38L-NAME
       lr_column->set_short_text(  'Function'(s13) ).
@@ -1829,6 +2091,39 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_medium_text( 'Program name'(m16) ).
       lr_column->set_long_text(   'Name of calling program'(l16) ).
       if p_CL is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'PROTOCOL' ).
+      lr_column->set_short_text(  'Protocol'(s38) ).
+      lr_column->set_medium_text( 'Protocol'(m38) ).
+      lr_column->set_long_text(   'Protocol'(l38) ).
+      if p_CLH is initial and p_CLDH is initial and p_SVH is initial and p_SVDH is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'HOST' ).
+      lr_column->set_short_text(  'Host'(s39) ).
+      lr_column->set_medium_text( 'Host'(m39) ).
+      lr_column->set_long_text(   'Host'(l39) ).
+      if p_CLH is initial and p_CLDH is initial and p_SVH is initial and p_SVDH is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'PORT' ).
+      lr_column->set_short_text(  'Port'(s40) ).
+      lr_column->set_medium_text( 'Port'(m40) ).
+      lr_column->set_long_text(   'Port'(l40) ).
+      if p_CLH is initial and p_CLDH is initial and p_SVH is initial and p_SVDH is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'PATH' ).
+      lr_column->set_short_text(  'Path'(s41) ).
+      lr_column->set_medium_text( 'Path'(m41) ).
+      lr_column->set_long_text(   'Path'(l41) ).
+      lr_column->set_icon( if_salv_c_bool_sap=>false ). " Does not work ?
+      if p_CLH is initial and p_CLDH is initial and p_SVH is initial and p_SVDH is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
 
@@ -1960,6 +2255,14 @@ FORM set_columns_text_GT_RESULT
       lr_column->set_short_text(  'RFCTrustID'(s36) ).
       lr_column->set_medium_text( 'Trusting system ID'(m36) ).
       lr_column->set_long_text(   'Trusting system ID'(l36) ).
+      if p_CL is initial and p_CLD is initial.
+        lr_column->set_technical( if_salv_c_bool_sap=>true ).
+      endif.
+
+      lr_column ?= ir_columns->get_column( 'RFCOPTIONS-RFCSNC' ).
+      lr_column->set_short_text(  'SNC'(s37) ).
+      lr_column->set_medium_text( 'SNC'(m37) ).
+      lr_column->set_long_text(   'SNC'(l37) ).
       if p_CL is initial and p_CLD is initial.
         lr_column->set_technical( if_salv_c_bool_sap=>true ).
       endif.
