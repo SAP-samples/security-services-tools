@@ -23,7 +23,8 @@ Updated 18.01.2023
 Show SNC status of active users on current application server  
 See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
 You can use the Z-reports from note [748424](https://me.sap.com/notes/748424) - Evaluation of SAP GUI versions and patches  
-Updated 09.05.2023  
+Updated 09.05.2023 Tooltip for column Logon Procedure (trusted, basic, no user)  
+Updated 14.09.2023 Show SNC status of outgoing destinations  
 
 - Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
@@ -47,6 +48,10 @@ Updated 31.01.2023
 - Report [`ZRSPFPAR_DYNAMIC_CD`](/ABAP/basis/zrspfpar_dynamic_cd.prog.abap)  
 Show history of dynamic profile parameters  
 Updated 29.03.2023 Show all instance specific change documents (and the changing client if available depending on the release)  
+
+- Report [`ZSUSR_SNC_GUIFLAG`](/ABAP/basis/zsusr_snc_guiflag.prog.abap)  
+Set/unset the SNC GUIFLAG of users  
+New 14.09.2023  
 
 ## SAP Solution Manager (SolMan)
 
