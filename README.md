@@ -51,8 +51,9 @@ Show history of dynamic profile parameters
 Updated 29.03.2023 Show all instance specific change documents (and the changing client if available depending on the release)  
 
 - Report [`ZSUSR_SNC_GUIFLAG`](/ABAP/basis/zsusr_snc_guiflag.prog.abap)  
-Set/unset the SNC GUIFLAG of users  
+Set/unset the SNC GUIFLAG of users which permits/disallows password based logon instead of using single sign-on  
 New 14.09.2023  
+Updated 15.09.2023 Refactored for using an interactive ALV  
 
 ## SAP Solution Manager (SolMan)
 
