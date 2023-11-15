@@ -10,11 +10,12 @@
 *& 18.04.2023 Change recommendation for rdisp/gui_auto_logout from 1H to 3600
 *&            Show multiple long lines in a textedit control
 *& 19.04.2023 Change notes link to me.sap.com
+*& 15.11.2023 S/4HANA 2023
 *&---------------------------------------------------------------------*
 
 report rspfrecommended no standard page heading message-id pf.
 
-constants: C_PROGRAM_VERSION(30) type C value '19.04.2023'.
+constants: C_PROGRAM_VERSION(30) type C value '15.11.2023 FBT'.
 
 type-pools: slis.
 
@@ -591,4 +592,6 @@ form add_security_parameters CHANGING lt_all_recommended_values type spfl_recomm
     add_value 'icf/log/active'                            '1'    ''.        " as of S/4HANA 2022
   endif.
 
+  " S/4HANA 2023
+  add_value 'rfc/allowoldticket4tt'                       '0'    '3157268'.
 endform.
