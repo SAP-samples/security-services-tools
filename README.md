@@ -18,6 +18,7 @@ Show Workload Statistic of RFC calls
 See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
 Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://me.sap.com/notes/2080378))  
 Updated 18.01.2023 Tooltip for column Logon Procedure (trusted, basic, no user)  
+Updated 14.09.2023 Show SNC status of outgoing destinations  
 Updated 15.09.2023 Show http connections, too  
 
 - Report [`ZSM04000_SNC`](/ABAP/basis/zsm04000_snc.prog.abap)  
@@ -25,7 +26,6 @@ Show SNC status of active users on current application server
 See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
 You can use the Z-reports from note [748424](https://me.sap.com/notes/748424) - Evaluation of SAP GUI versions and patches  
 Updated 09.05.2023 Tooltip for column Logon Procedure (trusted, basic, no user)  
-Updated 14.09.2023 Show SNC status of outgoing destinations  
 
 - Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
