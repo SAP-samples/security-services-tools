@@ -35,7 +35,8 @@ Updated 22.12.2022
 - Report [`ZSHOW_SECPOL`](/ABAP/basis/zshow_secpol.prog.abap)  
 Show security policy attributes (SECPOL) and compare them with the default values  
 See blog [Show overview about security policies (SECPOL)](https://blogs.sap.com/2022/10/07/show-overview-about-security-policies-secpol/)  
-Updated 19.10.2022  
+Updated 19.10.2022 Selection mode: single cell  
+Updated 05.02.2024 Extension to 40 columns  
 
 - Report [`ZSPFRECOMMENDED`](/ABAP/basis/zspfrecommended.prog.abap)  
 Show recommended profile parameter values according to the secure-by-default project of S/4HANA  

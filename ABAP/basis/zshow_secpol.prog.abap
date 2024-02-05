@@ -1,14 +1,16 @@
 *&---------------------------------------------------------------------*
-*& Report Z_SECPOL
+*& Report ZSHOW_SECPOL
 *&---------------------------------------------------------------------*
+*& Author: Frank Buchholz, SAP CoE Security Services
+*& Published on: https://github.com/SAP-samples/security-services-tools
 *&
 *& 07.10.2022 Initial version
 *& 19.10.2022 Selection mode: single cell
+*& 05.02.2024 Extension to 40 columns
 *&---------------------------------------------------------------------*
-REPORT z_secpol
- LINE-SIZE 255.
+REPORT zshow_secpol.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '19.10.2022 S41'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '05.02.2024 S41'.
 
 " see class CL_SECURITY_POLICY with methods like GET_ATTRIBUTE_VALUE_LIST
 
@@ -19,7 +21,7 @@ TABLES:
   sec_policy_rt.    " Security Policy (Runtime Details, Kernel Use)
 
 TYPES:
-  BEGIN OF ts_RESULT,
+  BEGIN OF ts_result,
     type                       TYPE security_policy_attrib_type,
     attribute_type             TYPE dd07v-ddtext,
     name                       TYPE security_policy_attrib_key,
@@ -46,22 +48,42 @@ TYPES:
     policy18                   TYPE sec_policy_attrib_default_val,
     policy19                   TYPE sec_policy_attrib_default_val,
     policy20                   TYPE sec_policy_attrib_default_val,
+    policy21                   TYPE sec_policy_attrib_default_val,
+    policy22                   TYPE sec_policy_attrib_default_val,
+    policy23                   TYPE sec_policy_attrib_default_val,
+    policy24                   TYPE sec_policy_attrib_default_val,
+    policy25                   TYPE sec_policy_attrib_default_val,
+    policy26                   TYPE sec_policy_attrib_default_val,
+    policy27                   TYPE sec_policy_attrib_default_val,
+    policy28                   TYPE sec_policy_attrib_default_val,
+    policy29                   TYPE sec_policy_attrib_default_val,
+    policy30                   TYPE sec_policy_attrib_default_val,
+    policy31                   TYPE sec_policy_attrib_default_val,
+    policy32                   TYPE sec_policy_attrib_default_val,
+    policy33                   TYPE sec_policy_attrib_default_val,
+    policy34                   TYPE sec_policy_attrib_default_val,
+    policy35                   TYPE sec_policy_attrib_default_val,
+    policy36                   TYPE sec_policy_attrib_default_val,
+    policy37                   TYPE sec_policy_attrib_default_val,
+    policy38                   TYPE sec_policy_attrib_default_val,
+    policy39                   TYPE sec_policy_attrib_default_val,
+    policy40                   TYPE sec_policy_attrib_default_val,
 
     description                TYPE dd04v-scrtext_l,
 
     redeemed_profile_parameter TYPE pfeparname,
     profile_parameter_value(6), " type SEC_POLICY_ATTRIB_DEFAULT_VAL,
-    Kernel_default_value(6),    " type SEC_POLICY_ATTRIB_DEFAULT_VAL,
+    kernel_default_value(6),    " type SEC_POLICY_ATTRIB_DEFAULT_VAL,
 
     t_color                    TYPE lvc_t_scol, " ALV color of row
-  END OF ts_RESULT.
+  END OF ts_result.
 
 DATA:
-  ls_RESULT TYPE          ts_RESULT,
-  lt_RESULT TYPE TABLE OF ts_RESULT.
+  ls_result TYPE          ts_result,
+  lt_result TYPE TABLE OF ts_result.
 
 DATA:
-  max_columns        TYPE i VALUE 20,
+  max_columns        TYPE i VALUE 40,
   lt_sec_policy_cust TYPE TABLE OF sec_policy_cust.
 
 *------------------------------------------------------------------------*
@@ -79,7 +101,7 @@ SELECTION-SCREEN COMMENT 1(60) ss_vers.
 
 INITIALIZATION.
 
-  s_secpol = 'Security policy (max 20)'.
+  s_secpol = 'Security policy (max 40)'.
 
   CONCATENATE 'Program version:'(ver) c_program_version INTO ss_vers
     SEPARATED BY space.
@@ -159,19 +181,19 @@ FORM load_data.
 
   " Read attribute data
   SELECT * FROM sec_policy_attr
-    INTO CORRESPONDING FIELDS OF TABLE lt_RESULT
+    INTO CORRESPONDING FIELDS OF TABLE lt_result
     ORDER BY type name.
 
-  LOOP AT lt_RESULT INTO ls_RESULT.
+  LOOP AT lt_result INTO ls_result.
     " Get attribute type text
-    READ TABLE lt_dd07v_tab_a INTO ls_dd07v INDEX ls_RESULT-type.
-    ls_RESULT-attribute_type = ls_dd07v-ddtext.
+    READ TABLE lt_dd07v_tab_a INTO ls_dd07v INDEX ls_result-type.
+    ls_result-attribute_type = ls_dd07v-ddtext.
 
     " Get description
     DATA l_dd04v TYPE dd04v.
     CALL FUNCTION 'DDIF_DTEL_GET'
       EXPORTING
-        name          = ls_RESULT-ddic_dataelement
+        name          = ls_result-ddic_dataelement
 *       STATE         = 'A'
         langu         = sy-langu
       IMPORTING
@@ -182,21 +204,21 @@ FORM load_data.
         illegal_input = 1
         OTHERS        = 2.
     IF sy-subrc = 0.
-      ls_RESULT-description = l_dd04v-scrtext_l.
+      ls_result-description = l_dd04v-scrtext_l.
     ENDIF.
 
     " Get parameter
-    IF ls_RESULT-redeemed_profile_parameter IS NOT INITIAL.
+    IF ls_result-redeemed_profile_parameter IS NOT INITIAL.
       " Curront profile parameter value
       CALL 'C_SAPGPARAM'
-        ID 'NAME'    FIELD ls_RESULT-redeemed_profile_parameter
-        ID 'VALUE'   FIELD ls_RESULT-profile_parameter_value
+        ID 'NAME'    FIELD ls_result-redeemed_profile_parameter
+        ID 'VALUE'   FIELD ls_result-profile_parameter_value
         .
 
       " Kernel default value
       CALL 'C_SAPGPARAM'
-         ID 'NAME'    FIELD ls_RESULT-redeemed_profile_parameter
-         ID 'VALUE11' FIELD  ls_RESULT-Kernel_default_value "static initialization
+         ID 'NAME'    FIELD ls_result-redeemed_profile_parameter
+         ID 'VALUE11' FIELD  ls_result-kernel_default_value "static initialization
          "ID 'VALUE21' FIELD PAR_VALUE21 "<11> and DEFAULT.PFL
          "ID 'VALUE31' FIELD PAR_VALUE31 "<21> and pf=..-file
          "ID 'VALUE32' FIELD PAR_VALUE32 "<31> and argv, env
@@ -208,7 +230,7 @@ FORM load_data.
 
     CLEAR: ls_color, lt_color.
     ls_color-fname = 'PROFILE_PARAMETER_VALUE'.
-    IF ls_RESULT-profile_parameter_value = ls_RESULT-Kernel_default_value.
+    IF ls_result-profile_parameter_value = ls_result-kernel_default_value.
       ls_color-color-col = col_normal.
     ELSE.
       ls_color-color-col = col_negative.
@@ -218,7 +240,7 @@ FORM load_data.
     ls_result-t_color = lt_color.
 
     " Store it
-    MODIFY lt_RESULT FROM ls_RESULT.
+    MODIFY lt_result FROM ls_result.
   ENDLOOP.
 
   " Get security policy data
@@ -280,13 +302,33 @@ FORM load_data.
         WHEN 18. ls_result-policy18 = value.
         WHEN 19. ls_result-policy19 = value.
         WHEN 20. ls_result-policy20 = value.
+        WHEN 21. ls_result-policy21 = value.
+        WHEN 22. ls_result-policy22 = value.
+        WHEN 23. ls_result-policy23 = value.
+        WHEN 24. ls_result-policy24 = value.
+        WHEN 25. ls_result-policy25 = value.
+        WHEN 26. ls_result-policy26 = value.
+        WHEN 27. ls_result-policy27 = value.
+        WHEN 28. ls_result-policy28 = value.
+        WHEN 29. ls_result-policy29 = value.
+        WHEN 30. ls_result-policy30 = value.
+        WHEN 31. ls_result-policy31 = value.
+        WHEN 32. ls_result-policy32 = value.
+        WHEN 33. ls_result-policy33 = value.
+        WHEN 34. ls_result-policy34 = value.
+        WHEN 35. ls_result-policy35 = value.
+        WHEN 36. ls_result-policy36 = value.
+        WHEN 37. ls_result-policy37 = value.
+        WHEN 38. ls_result-policy38 = value.
+        WHEN 39. ls_result-policy39 = value.
+        WHEN 40. ls_result-policy40 = value.
       ENDCASE.
 
       APPEND ls_color TO ls_result-t_color.
 
     ENDLOOP.
 
-    MODIFY lt_RESULT FROM ls_RESULT INDEX tabix.
+    MODIFY lt_result FROM ls_result INDEX tabix.
   ENDLOOP.
 
   " Add count of assigned users
@@ -320,6 +362,26 @@ FORM load_data.
       WHEN 18. ls_result-policy18 = value.
       WHEN 19. ls_result-policy19 = value.
       WHEN 20. ls_result-policy20 = value.
+      WHEN 21. ls_result-policy21 = value.
+      WHEN 22. ls_result-policy22 = value.
+      WHEN 23. ls_result-policy23 = value.
+      WHEN 24. ls_result-policy24 = value.
+      WHEN 25. ls_result-policy25 = value.
+      WHEN 26. ls_result-policy26 = value.
+      WHEN 27. ls_result-policy27 = value.
+      WHEN 28. ls_result-policy28 = value.
+      WHEN 29. ls_result-policy29 = value.
+      WHEN 30. ls_result-policy30 = value.
+      WHEN 31. ls_result-policy31 = value.
+      WHEN 32. ls_result-policy32 = value.
+      WHEN 33. ls_result-policy33 = value.
+      WHEN 34. ls_result-policy34 = value.
+      WHEN 35. ls_result-policy35 = value.
+      WHEN 36. ls_result-policy36 = value.
+      WHEN 37. ls_result-policy37 = value.
+      WHEN 38. ls_result-policy38 = value.
+      WHEN 39. ls_result-policy39 = value.
+      WHEN 40. ls_result-policy40 = value.
     ENDCASE.
 
   ENDLOOP.
@@ -371,7 +433,7 @@ CLASS lcl_handle_events IMPLEMENTATION.
   METHOD on_user_command.
 *    importing e_salv_function
 
-    DATA: ls_result       TYPE ts_RESULT,
+    DATA: ls_result       TYPE ts_result,
           lr_selections   TYPE REF TO cl_salv_selections,
           ls_cell         TYPE salv_s_cell,
           lt_seleced_rows TYPE salv_t_row,
@@ -387,7 +449,7 @@ CLASS lcl_handle_events IMPLEMENTATION.
       WHEN 'PICK'. " Double click
         IF ls_cell-row > 0.
           CLEAR ls_result.
-          READ TABLE lt_RESULT INTO ls_RESULT INDEX ls_cell-row.
+          READ TABLE lt_result INTO ls_result INDEX ls_cell-row.
           IF sy-subrc = 0.
             "...
           ENDIF.
@@ -400,12 +462,12 @@ CLASS lcl_handle_events IMPLEMENTATION.
   METHOD on_double_click.
 *   importing row column
 
-    DATA: ls_result    TYPE        ts_RESULT.
-    DATA: lr_Selections TYPE REF TO cl_Salv_selections,
+    DATA: ls_result    TYPE        ts_result.
+    DATA: lr_selections TYPE REF TO cl_salv_selections,
           ls_cell       TYPE        salv_s_cell.
 
 *   Get selected item
-    lr_selections = gr_ALV_TABLE->get_selections( ).
+    lr_selections = gr_alv_table->get_selections( ).
     ls_cell = lr_selections->get_current_cell( ).
 
     " Call view custer for security policy
@@ -427,9 +489,9 @@ CLASS lcl_handle_events IMPLEMENTATION.
 
       IF ls_cell-row > 0.
         CLEAR ls_result.
-        READ TABLE lt_RESULT INTO ls_RESULT INDEX ls_cell-row.
-        IF sy-subrc = 0 AND ls_RESULT-redeemed_profile_parameter IS NOT INITIAL.
-          PERFORM call_RZ11 USING ls_RESULT-redeemed_profile_parameter.
+        READ TABLE lt_result INTO ls_result INDEX ls_cell-row.
+        IF sy-subrc = 0 AND ls_result-redeemed_profile_parameter IS NOT INITIAL.
+          PERFORM call_rz11 USING ls_result-redeemed_profile_parameter.
         ENDIF.
       ENDIF.
     ENDIF.
@@ -474,7 +536,7 @@ FORM show_result.
         IMPORTING
           r_salv_table = gr_alv_table
         CHANGING
-          t_table      = lt_RESULT ).
+          t_table      = lt_result ).
 
     CATCH cx_salv_msg
           INTO lr_exception.
@@ -493,7 +555,7 @@ FORM show_result.
 
   " Selection mode: single cell
   lr_selections   = gr_alv_table->get_selections( ).
-  lr_selections->SET_SELECTION_MODE( IF_SALV_C_SELECTION_MODE=>CELL ).
+  lr_selections->set_selection_mode( if_salv_c_selection_mode=>cell ).
 
 * Set the columns visible
   lr_columns = gr_alv_table->get_columns( ).
@@ -668,20 +730,20 @@ FORM call_view_cluster
 
   " Selection for view cluster
   DATA:
-    ls_DBA_SELLIST TYPE          vimsellist,
-    lt_DBA_SELLIST TYPE TABLE OF vimsellist.
-  CLEAR ls_DBA_SELLIST.
-  ls_DBA_SELLIST-viewfield = 'NAME'.
-  ls_DBA_SELLIST-operator  = 'EQ'.
-  ls_DBA_SELLIST-value     = policy_name.
+    ls_dba_sellist TYPE          vimsellist,
+    lt_dba_sellist TYPE TABLE OF vimsellist.
+  CLEAR ls_dba_sellist.
+  ls_dba_sellist-viewfield = 'NAME'.
+  ls_dba_sellist-operator  = 'EQ'.
+  ls_dba_sellist-value     = policy_name.
   "ls_DBA_SELLIST-AND_OR    = 'AND'.
-  APPEND ls_DBA_SELLIST TO lt_DBA_SELLIST.
+  APPEND ls_dba_sellist TO lt_dba_sellist.
 
   DATA:
-    ls_DBA_SELLIST_CLUSTER TYPE LINE OF  vclty_sellist_table,
-    lt_DBA_SELLIST_CLUSTER TYPE          vclty_sellist_table.
+    ls_dba_sellist_cluster TYPE LINE OF  vclty_sellist_table,
+    lt_dba_sellist_cluster TYPE          vclty_sellist_table.
   ls_dba_sellist_cluster-object = 'V_SEC_POLICY_CUS'. "first_object
-  ls_dba_sellist_cluster-sellist[] = lt_DBA_SELLIST[].
+  ls_dba_sellist_cluster-sellist[] = lt_dba_sellist[].
   APPEND ls_dba_sellist_cluster TO lt_dba_sellist_cluster.
 
   CALL FUNCTION 'VIEWCLUSTER_MAINTENANCE_CALL'
@@ -697,7 +759,7 @@ FORM call_view_cluster
 *     SUPPRESS_WA_POPUP            = ' '
     TABLES
 *     DBA_SELLIST                  = lt_DBA_SELLIST
-      dba_sellist_cluster          = lt_DBA_SELLIST_CLUSTER
+      dba_sellist_cluster          = lt_dba_sellist_cluster
 *     EXCL_CUA_FUNCT_ALL_OBJECTS   =
 *     EXCL_CUA_FUNCT_CLUSTER       =
 *     DPL_SELLIST_FOR_START_OBJECT =
@@ -724,7 +786,7 @@ FORM call_view_cluster
 
 ENDFORM.
 
-FORM call_RZ11
+FORM call_rz11
   USING profile_parameter.
 
   DATA: bdcdata_wa  TYPE bdcdata,
