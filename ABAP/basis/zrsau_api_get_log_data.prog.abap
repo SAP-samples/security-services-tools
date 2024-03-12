@@ -19,6 +19,9 @@
 * SUBID      System log: Third character of message name [Hide field]
 * MSG        System log message Identifier
 * SLGUSER    Character field of length 40 ['User']
+**USERALIAS	 Internet user alias (new field, not available in all releases)
+**SMTP_ADDR  E-Mail Address (new field, not available in all releases)
+**CLASS      User Group (new field, not available in all releases)
 * COUNTER    2 Byte Signed Integer ['Counter']
 * SLGLTRM2   Character field of length 40 ['Terminal']
 * TERM_IPV6  IPv6 - Terminal IP Address
@@ -116,7 +119,7 @@ SELECTION-SCREEN END OF LINE.
 
 * Layout of ALV output
 SELECTION-SCREEN BEGIN OF LINE.
-  SELECTION-SCREEN COMMENT 1(33) t_layout FOR FIELD layout.
+  SELECTION-SCREEN COMMENT 1(35) t_layout FOR FIELD layout.
   PARAMETERS       layout TYPE disvariant-variant.
 SELECTION-SCREEN END OF LINE.
 
@@ -199,7 +202,7 @@ CLASS lcl_report IMPLEMENTATION.
     t_dest   = 'RFC Destination'.
 
     t_sel    = 'Selection'.
-    t_msg    = 'SAL Event'.
+    t_msg    = 'Event (Audit message)'.
     t_from   = 'Date/time from'.
     t_to     = 'Date/time to'.
     t_mandt  = 'Client'.
@@ -224,14 +227,15 @@ CLASS lcl_report IMPLEMENTATION.
 
     CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
       EXPORTING
-        is_variant    = gs_alv_lout_variant
-        i_save        = 'A'
+        is_variant         = gs_alv_lout_variant
+        i_save             = 'A'
+        i_display_via_grid = 'X'
       IMPORTING
-        es_variant    = gs_alv_lout_variant
+        es_variant         = gs_alv_lout_variant
       EXCEPTIONS
-        not_found     = 1
-        program_error = 2
-        OTHERS        = 3.
+        not_found          = 1
+        program_error      = 2
+        OTHERS             = 3.
 
     IF sy-subrc = 0.
       layout = gs_alv_lout_variant-variant.
@@ -266,7 +270,7 @@ CLASS lcl_report IMPLEMENTATION.
         it_r_instance         = it_r_instance  " Selection option: Application instance
       IMPORTING
         et_log                = et_log         " Log data (system time stamp)
-        et_log_utc            = et_log_utc     " Log data (UTC time stamp), available depending on the release
+        et_log_utc            = et_log_utc     " Log data (UTC time stamp), NOT USED YET
         et_fstat              = et_fstat       " Statistics information for data sources
         et_return             = et_return      " Application messages
       EXCEPTIONS
@@ -421,19 +425,19 @@ CLASS lcl_alv IMPLEMENTATION.
         lr_column->set_long_text( 'User' ).
 
         lr_column ?= lr_columns->get_column( 'COUNTER' ).
-        lr_column->set_short_text( 'Counter' ).
-        lr_column->set_medium_text( 'Counter' ).
-        lr_column->set_long_text( 'Counter' ).
+        lr_column->set_short_text( 'Number' ).
+        lr_column->set_medium_text( 'Event number' ).
+        lr_column->set_long_text( 'Event number inside a second' ).
 
         lr_column ?= lr_columns->get_column( 'SLGLTRM2' ).
         lr_column->set_short_text( 'Terminal' ).
-        lr_column->set_medium_text( 'Terminal' ).
-        lr_column->set_long_text( 'Terminal' ).
+        lr_column->set_medium_text( 'Terminal name' ).
+        lr_column->set_long_text( 'Terminal name' ).
 
         lr_column ?= lr_columns->get_column( 'SEVERITY_S' ).
-        lr_column->set_short_text( 'Severity' ).
-        lr_column->set_medium_text( 'Severity' ).
-        lr_column->set_long_text( 'Severity' ).
+        lr_column->set_short_text( 'Critical.' ).
+        lr_column->set_medium_text( 'Criticality' ).
+        lr_column->set_long_text( 'Criticality' ).
 
         lr_column ?= lr_columns->get_column( 'PARAM1' ).
         lr_column->set_short_text( 'Variable 1' ).
@@ -451,14 +455,14 @@ CLASS lcl_alv IMPLEMENTATION.
         lr_column->set_long_text( 'Variable 3' ).
 
         lr_column ?= lr_columns->get_column( 'PARAMX' ).
-        lr_column->set_short_text( 'Variable 4' ).
-        lr_column->set_medium_text( 'Variable 4' ).
-        lr_column->set_long_text( 'Variable 4' ).
+        lr_column->set_short_text( 'Variable X' ).
+        lr_column->set_medium_text( 'Other variables' ).
+        lr_column->set_long_text( 'Other variables' ).
 
         lr_column ?= lr_columns->get_column( 'MFD_FLAG' ).
-        lr_column->set_short_text( 'MFD flag' ).
-        lr_column->set_medium_text( 'MFD flag' ).
-        lr_column->set_long_text( 'MFD flag' ).
+        lr_column->set_short_text( 'Deletion' ).
+        lr_column->set_medium_text( 'Marked for deletion' ).
+        lr_column->set_long_text( 'Marked for deletion' ).
 
         lr_column ?= lr_columns->get_column( 'ALERT_FLAG' ).
         lr_column->set_short_text( 'Alert flag' ).
@@ -525,14 +529,6 @@ CLASS lcl_alv IMPLEMENTATION.
 
         ENDIF.
 
-        " Set the color of cells
-        "    TRY.
-        "        lr_columns->set_color_column( 'CTAB' ). " Does not work in all releases: The color field has to have type LVC_T_SCOL but not RSAU_T_COLOR
-        "      CATCH cx_salv_data_error.
-        "    ENDTRY.
-        lr_column ?= lr_columns->get_column( 'CTAB' ).
-        lr_column->set_technical( if_salv_c_bool_sap=>true ). " Hide color field as it does not work in all releases.
-
       CATCH cx_salv_not_found
         INTO lr_exception.
         lv_message = lr_exception->get_message( ).
@@ -540,6 +536,26 @@ CLASS lcl_alv IMPLEMENTATION.
                 NUMBER lv_message-msgno
                 WITH lv_message-msgv1 lv_message-msgv2
                      lv_message-msgv3 lv_message-msgv4.
+    ENDTRY.
+
+    " Set the color of cells
+    TRY.
+        lr_columns->set_color_column( 'CTAB' ). " Does not work: The color field has to have type LVC_T_SCOL but not RSAU_T_COLOR
+      CATCH
+        cx_salv_data_error    " column not in data table
+        cx_salv_invalid_input " invalid input type, requires is type LVC_T_SCOL
+        .
+        TRY.
+            lr_column ?= lr_columns->get_column( 'CTAB' ).
+            lr_column->set_technical( if_salv_c_bool_sap=>true ). " Hide color field
+          CATCH cx_salv_not_found
+           INTO lr_exception.
+            lv_message = lr_exception->get_message( ).
+            MESSAGE ID lv_message-msgid TYPE lv_message-msgty
+                    NUMBER lv_message-msgno
+                    WITH lv_message-msgv1 lv_message-msgv2
+                         lv_message-msgv3 lv_message-msgv4.
+        ENDTRY.
     ENDTRY.
 
     " Footer (not visible on gui container)
@@ -605,7 +621,41 @@ ENDCLASS.                    "cl_alv IMPLEMENTATION
 INITIALIZATION.
   lcl_report=>initialization( ).
 
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR r_msg-low.
+  CALL METHOD cl_sal_f4=>f4_for_tsl1d
+    EXPORTING
+      iv_repid     = sy-repid
+      iv_dynnr     = '1000'
+      iv_fieldname = 'R_MSG-LOW'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR r_msg-high.
+  CALL METHOD cl_sal_f4=>f4_for_tsl1d
+    EXPORTING
+      iv_repid     = sy-repid
+      iv_dynnr     = '1000'
+      iv_fieldname = 'R_MSG-HIGH'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR r_inst-low.
+  CALL METHOD cl_sal_f4=>f4_for_sel_server
+    EXPORTING
+      iv_repid     = sy-repid
+      iv_dynnr     = '1000'
+      iv_fieldname = 'R_INST-LOW'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR r_inst-high.
+  CALL METHOD cl_sal_f4=>f4_for_sel_server
+    EXPORTING
+      iv_repid     = sy-repid
+      iv_dynnr     = '1000'
+      iv_fieldname = 'R_INST-HIGH'.
+
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR layout.
+  "  call method cl_sal_f4=>f4_for_vari  " works well, too
+  "    exporting
+  "      iv_repid     = sy-repid
+  "      iv_dynnr     = '1000'
+  "      iv_fieldname = 'LAYOUT'
+  "      iv_alv_clas  = ' '.
   lcl_report=>at_selection_screen_f4_layout(
     CHANGING layout = layout
   ).
