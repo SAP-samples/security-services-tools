@@ -15,7 +15,7 @@ Show installed software components and verify the age of the support packages
 
 - Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/basis/zrfc_statrecs_summary.prog.abap)  
 Show Workload Statistic of RFC calls  
-See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://blogs.sap.com/2010/12/05/how-to-get-rfc-call-traces-to-build-authorizations-for-srfc-for-free/)  
+See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://community.sap.com/t5/application-development-blog-posts/how-to-get-rfc-call-traces-to-build-authorizations-for-s-rfc-for-free/ba-p/12900590)  
 Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://me.sap.com/notes/2080378))  
 Updated 18.01.2023 Tooltip for column Logon Procedure (trusted, basic, no user)  
 Updated 14.09.2023 Show SNC status of outgoing destinations  
@@ -23,24 +23,24 @@ Updated 15.09.2023 Show http connections, too
 
 - Report [`ZSM04000_SNC`](/ABAP/basis/zsm04000_snc.prog.abap)  
 Show SNC status of active users on current application server  
-See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://blogs.sap.com/2013/09/30/report-zsm04000snc-show-snc-status-of-current-user-sessions/)  
+See blog [Report ZSM04000_SNC – Show SNC status of current user sessions](https://community.sap.com/t5/application-development-blog-posts/report-zsm04000-snc-zrsusr000-620-show-snc-status-of-current-user-sessions/ba-p/13027982)  
 You can use the Z-reports from note [748424](https://me.sap.com/notes/748424) - Evaluation of SAP GUI versions and patches  
 Updated 09.05.2023 Tooltip for column Logon Procedure (trusted, basic, no user)  
 
 - Report [`ZCLEANUP_PASSWORD_HASH_VALUESX`](/ABAP/basis/zcleanup_password_hash_valuesx.prog.abap)  
 Remove all weak password hash values in user master data, change documents and password history  
-See blog [Remove weak password hash values](https://blogs.sap.com/2022/07/22/report-zcleanup_password_hash_valuesx-remove-weak-password-hash-values/)  
+See blog [Remove weak password hash values](https://community.sap.com/t5/application-development-blog-posts/report-zcleanup-password-hash-valuesx-remove-weak-password-hash-values/ba-p/13525553)  
 Updated 22.12.2022  
 
 - Report [`ZSHOW_SECPOL`](/ABAP/basis/zshow_secpol.prog.abap)  
 Show security policy attributes (SECPOL) and compare them with the default values  
-See blog [Show overview about security policies (SECPOL)](https://blogs.sap.com/2022/10/07/show-overview-about-security-policies-secpol/)  
+See blog [Show overview about security policies (SECPOL)](https://community.sap.com/t5/application-development-blog-posts/show-overview-about-security-policies-secpol/ba-p/13535999)  
 Updated 19.10.2022 Selection mode: single cell  
 Updated 05.02.2024 Extension to 40 columns  
 
 - Report [`ZSPFRECOMMENDED`](/ABAP/basis/zspfrecommended.prog.abap)  
 Show recommended profile parameter values according to the secure-by-default project of S/4HANA  
-See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=635281119)  
+See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974695.html)  
 Updated 19.04.2023 Show long lines in a textedit control; Change recommendation for rdisp/gui_auto_logout from 1H to 3600  
 Updated 15.11.2023 Parameter added for S/4HANA 2023  
 
@@ -63,7 +63,7 @@ Updated 15.09.2023 Refactored for using an interactive ALV
 
 - Report [`ZSOS_OVERVIEW`](/ABAP/solman/zsos_overview.prog.abap)  
 Show overview about results from the Security Optimization Service  
-See blog [Show the results of the Security Optimization Service](https://blogs.sap.com/2022/01/19/show-the-results-of-the-security-optimization-service/)  
+See blog [Show the results of the Security Optimization Service](https://community.sap.com/t5/technology-blogs-by-sap/show-the-results-of-the-security-optimization-service/ba-p/13532666)  
 Updated 30.05.2023 Show user count for SOS, too  
 Updated 04.09.2023 Process not only GSS SOS but normal SOS as well  
 
@@ -71,17 +71,17 @@ Updated 04.09.2023 Process not only GSS SOS but normal SOS as well
 
 - Report [`ZSYSREC_NOTELIST_72_SP08`](/ABAP/solman/zsysrec_notelist_72_sp08.prog.abap)  
 Show results from application System Recommendations  
-See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/)  
+See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://community.sap.com/t5/application-development-blog-posts/report-zsysrec-notelist-show-results-of-system-recommendation/ba-p/13006390)  
 Updated 18.04.2023 Solved error which was introduced in recent update from February 2023  
 
 - Report [`ZCHECK_NOTE_2934135`](/ABAP/solman/zcheck_note_2934135.prog.abap)  
 Check the implementation status of note [2934135](https://me.sap.com/notes/2934135) for connected Java systems  
-See note [2953257](https://launchpad.support.sap.com/#/notes/2953257)  
+See note [2953257](https://me.sap.com/notes/notes/2953257)  
 Updated 28.08.2020  
 
 - Report [`ZCHECK_NOTE_3089413`](/ABAP/solman/zcheck_note_3089413.prog.abap)  
 Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
-See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
+See Security Notes Webinar [2023-02](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974335.html)  
 Updated 28.03.2023 New check about generic authorizations for S_RFCACL (configuration in CCDB needed)  
 Updated 29.06.2023 Updated Kernel prerequisites as described in note 3224161  
 Updated 29.06.2023 Updated Note prerequisites for note 3287611 v9  
@@ -99,6 +99,7 @@ Updated 08.09.2023 Extended syntax check
 Maintain descriptions of Target Systems of application Configuration Validation  
 See ZIP archive [Security Baseline Template](https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/Security_Baseline_Template_V2.zip)  
 Updated 02.09.2022  
+Updated 25.03.2024 Selection by description added  
 
 - Report [`ZDSH_BUILDER_SHOW`](/ABAP/solman/zdsh_builder_show.prog.abap)  
 Show Dashboard Builder definitions  
@@ -129,7 +130,7 @@ New 27.04.2023
 
 - Report [`ZCHECK_NOTE_3089413_FRUN`](/ABAP/frun/zcheck_note_3089413_frun.prog.abap)  
 Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
-See Security Notes Webinar [2023-02](https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=644615782#Note3089413CapturereplayvulnerabilityinSAPNetWeaverASforABAPandABAPPlatform(reloaded)-HowtousetheSAPSolutionManagertogetanoverviewabouttheimplementationprocess)  
+See Security Notes Webinar [2023-02](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974335.html)  
 Updated 13.03.2023 Updated note 3287611, new note 3304520  
 Updated 10.07.2023 Updated Kernel prerequisites as described in note 3224161  
 Updated 10.07.2023 Updated Note prerequisites for note 3287611 v9   

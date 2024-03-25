@@ -3,11 +3,12 @@
 *& Author: Frank Buchholz, SAP Security Services
 *&---------------------------------------------------------------------*
 *& ConfigVal: Maintain Descriptions of Target Systems
-*&
+*& 02.09.2022 Updated
+*& 25.03.2024 Selection by description added
 *&---------------------------------------------------------------------*
 REPORT zdiagcv_tscus_hdr.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '02.09.2022'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '25.03.2024 FBT'.
 
 TABLES diagcv_tscus_hdr.
 types: icon.
@@ -27,12 +28,18 @@ SELECTION-SCREEN COMMENT 1(25) ss_ref FOR FIELD ref_id.
 SELECT-OPTIONS: ref_id FOR diagcv_tscus_hdr-ref_id MATCHCODE OBJECT h_target_system.
 SELECTION-SCREEN END OF LINE.
 
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(25) ss_desc FOR FIELD desc.
+SELECT-OPTIONS: desc FOR diagcv_tscus_hdr-DESCRIPTION LOWER CASE.
+SELECTION-SCREEN END OF LINE.
+
 SELECTION-SCREEN SKIP.
 SELECTION-SCREEN COMMENT 1(60) ss_vers.
 
 INITIALIZATION.
 
   ss_ref = 'Target System'(001).
+  ss_desc = 'Description'(006).
 
   CONCATENATE 'Program version:'(VER) c_program_version INTO ss_vers
     SEPARATED BY space.
@@ -59,6 +66,7 @@ START-OF-SELECTION.
   SELECT DISTINCT ref_id, description FROM diagcv_tscus_hdr
     INTO TABLE @lt_tsys
     WHERE ref_id IN @ref_id
+      AND description IN @desc
     ORDER BY ref_id.
 
   LOOP AT  lt_tsys INTO ls_tsys.
