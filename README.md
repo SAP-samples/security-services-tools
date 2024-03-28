@@ -73,6 +73,7 @@ Updated 04.09.2023 Process not only GSS SOS but normal SOS as well
 Show results from application System Recommendations  
 See blog [Report ZSYSREC_NOTELIST – Show results of System Recommendation](https://community.sap.com/t5/application-development-blog-posts/report-zsysrec-notelist-show-results-of-system-recommendation/ba-p/13006390)  
 Updated 18.04.2023 Solved error which was introduced in recent update from February 2023  
+Updated 28.03.2024 Opion to restrict the size of the header (important for backgroud processing)  
 
 - Report [`ZCHECK_NOTE_2934135`](/ABAP/solman/zcheck_note_2934135.prog.abap)  
 Check the implementation status of note [2934135](https://me.sap.com/notes/2934135) for connected Java systems  

@@ -8,7 +8,9 @@
 * Source: https://github.com/SAP-samples/security-services-tools
 * Documentation:
 * https://blogs.sap.com/2011/07/18/report-zsysrecnotelist-show-results-of-system-recommendation/
+* https://community.sap.com/t5/application-development-blog-posts/report-zsysrec-notelist-show-results-of-system-recommendation/ba-p/13006390
 *
+* 28.03.2024 Restrict the size of the header (important for backgroud processing)
 * 18.04.2023 Customizing SYSREC_MAX_RFC_TIME deactivatied, was added to AGSSN on 18.11.2022
 * 17.02.2023 Some ABAPlint corrections, optimized value help
 * 28.02.2019 perform DISPLAY_NOTE_TEXT updated for ST-A/PI Release 01T_731, SP 1
@@ -45,8 +47,7 @@ report RSYSREC_NOTELIST
   message-id AGSNO_MESSAGE
   line-size 1023.
 
-constants C_PROGRAM_VERSION(30) type C value '17.02.2023 FBT'.
-
+constants C_PROGRAM_VERSION(30) type C value '28.03.2024 FBT'.
 
 type-pools AGSNO.
 
@@ -220,6 +221,12 @@ selection-screen end of line.
 selection-screen begin of line.
 selection-screen comment 1(30) PS_LOUT for field P_LAYOUT.
 parameters       P_LAYOUT type DISVARIANT-VARIANT.
+selection-screen end of line.
+
+* Omit system list in header
+selection-screen begin of line.
+selection-screen comment 1(30) PS_HDR for field P_HDR.
+parameters       P_HDR as checkbox default ' '.
 selection-screen end of line.
 
 * Show configuration status
@@ -453,6 +460,8 @@ initialization.
   clear P_FC06.
 
   PS_LOUT     = 'Layout'(t18).
+
+  PS_HDR      = 'Omit system list in header'(094).
 
   PS_DNOC     = ICON_SYSTEM_SETTINGS.  " ICON_SYSTEM_SETTINGS or ICON_SETTINGS or ICON_PARAMETER (see report RSTXICON)
   PS_DNOC1    = 'Customizing table DNOC_USERCFG'(090). "'Customizing'(089)
@@ -4134,97 +4143,101 @@ form ALV_SHOW_NOTELIST.
 
   data LO_EX  type ref to CX_LMDB_UNKNOWN_SYSTEM_TYPE.
 
-  call function 'AGSNO_API_GET_CHKED_SYSTEMS'
-    importing
-      ET_SYSTEM = LT_SYSTEM.
-
-  LR_GRID_HEADER->CREATE_TEXT(
-       ROW    = L_LINE
-       COLUMN = 1
-       TEXT   = 'Systems:'(064) ).
-
-  loop at LT_SYSTEM into LS_SYSTEM
-    where SYSTEM_NAME in S_SYS
-      and SYSTEM_TYPE in S_TYPE.
-
-    convert time stamp LS_SYSTEM-LAST_CHK
-        time zone SY-ZONLO
-        into date LAST_CHK_DATE
-             time LAST_CHK_TIME.
-
-    data LS_SYSTEM_INFO type  AGS_SR_S_LMDB_SYSTEM.
-    try.
-        call function 'AGSNO_GET_SYSTEM_INFO'
-          exporting
-            SYSTEM_NAME = LS_SYSTEM-SYSTEM_NAME
-            SYSTEM_TYPE = LS_SYSTEM-SYSTEM_TYPE
-*           ROLE        =
-*           PRIORITY    =
-          importing
-            SYSTEM_INFO = LS_SYSTEM_INFO.
-      catch CX_LMDB_UNKNOWN_SYSTEM_TYPE into LO_EX.
-        write: /(30) 'AGSNO_GET_SYSTEM_INFO' color col_negative, LS_SYSTEM-SYSTEM_NAME, LS_SYSTEM-SYSTEM_TYPE, LO_EX->GET_TEXT( ).
-    endtry.
+  if P_HDR is initial. " 'X': Omit system list in header
+    call function 'AGSNO_API_GET_CHKED_SYSTEMS'
+      importing
+        ET_SYSTEM = LT_SYSTEM.
 
     LR_GRID_HEADER->CREATE_TEXT(
          ROW    = L_LINE
-         COLUMN = 2
-         TEXT   = LS_SYSTEM-SYSTEM_NAME ).
+         COLUMN = 1
+         TEXT   = 'Systems:'(064) ).
 
-    LR_GRID_HEADER->CREATE_TEXT(
-         ROW    = L_LINE
-         COLUMN = 3
-         TEXT   = LS_SYSTEM-SYSTEM_TYPE ).
+    loop at LT_SYSTEM into LS_SYSTEM
+      where SYSTEM_NAME in S_SYS
+        and SYSTEM_TYPE in S_TYPE.
 
-    data LS_KV type AGS_SR_S_KV.
-    read table GT_SYSTEM_ROLES into LS_KV
-      with key SR_KEY = LS_SYSTEM_INFO-ROLE.
-    if SY-SUBRC = 0.
-      LR_GRID_HEADER->CREATE_TEXT(
-         ROW    = L_LINE
-         COLUMN = 4
-         TEXT   = LS_KV-SR_VALUE ).
-    else.
-      LR_GRID_HEADER->CREATE_TEXT(
-         ROW    = L_LINE
-         COLUMN = 4
-         TEXT   = LS_SYSTEM_INFO-ROLE ).
-    endif.
+      convert time stamp LS_SYSTEM-LAST_CHK
+          time zone SY-ZONLO
+          into date LAST_CHK_DATE
+               time LAST_CHK_TIME.
 
-    read table GT_SYSTEM_PRIORITIES into LS_KV
-      with key SR_KEY = LS_SYSTEM_INFO-PRIORITY.
-    if SY-SUBRC = 0.
-      LR_GRID_HEADER->CREATE_TEXT(
-         ROW    = L_LINE
-         COLUMN = 5
-         TEXT   = LS_KV-SR_VALUE ).
-    else.
-      LR_GRID_HEADER->CREATE_TEXT(
-         ROW    = L_LINE
-         COLUMN = 5
-         TEXT   = LS_SYSTEM_INFO-PRIORITY ).
-    endif.
+      data LS_SYSTEM_INFO type  AGS_SR_S_LMDB_SYSTEM.
+      try.
+          call function 'AGSNO_GET_SYSTEM_INFO'
+            exporting
+              SYSTEM_NAME = LS_SYSTEM-SYSTEM_NAME
+              SYSTEM_TYPE = LS_SYSTEM-SYSTEM_TYPE
+*             ROLE        =
+*             PRIORITY    =
+            importing
+              SYSTEM_INFO = LS_SYSTEM_INFO.
+        catch CX_LMDB_UNKNOWN_SYSTEM_TYPE into LO_EX.
+          write: /(30) 'AGSNO_GET_SYSTEM_INFO' color col_negative, LS_SYSTEM-SYSTEM_NAME, LS_SYSTEM-SYSTEM_TYPE, LO_EX->GET_TEXT( ).
+      endtry.
 
-    clear L_MSG.
-    write LAST_CHK_DATE dd/mm/yyyy to L_MSG(10).
-    write LAST_CHK_TIME using edit mask '__:__:__' to L_MSG+11(8).
-    LR_GRID_HEADER->CREATE_TEXT(
-         ROW    = L_LINE
-         COLUMN = 6
-         TEXT   = L_MSG ).
-    add 1 to L_LINE.
-  endloop.
+      LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 2
+           TEXT   = LS_SYSTEM-SYSTEM_NAME ).
+
+      LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 3
+           TEXT   = LS_SYSTEM-SYSTEM_TYPE ).
+
+      data LS_KV type AGS_SR_S_KV.
+      read table GT_SYSTEM_ROLES into LS_KV
+        with key SR_KEY = LS_SYSTEM_INFO-ROLE.
+      if SY-SUBRC = 0.
+        LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 4
+           TEXT   = LS_KV-SR_VALUE ).
+      else.
+        LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 4
+           TEXT   = LS_SYSTEM_INFO-ROLE ).
+      endif.
+
+      read table GT_SYSTEM_PRIORITIES into LS_KV
+        with key SR_KEY = LS_SYSTEM_INFO-PRIORITY.
+      if SY-SUBRC = 0.
+        LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 5
+           TEXT   = LS_KV-SR_VALUE ).
+      else.
+        LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 5
+           TEXT   = LS_SYSTEM_INFO-PRIORITY ).
+      endif.
+
+      clear L_MSG.
+      write LAST_CHK_DATE dd/mm/yyyy to L_MSG(10).
+      write LAST_CHK_TIME using edit mask '__:__:__' to L_MSG+11(8).
+      LR_GRID_HEADER->CREATE_TEXT(
+           ROW    = L_LINE
+           COLUMN = 6
+           TEXT   = L_MSG ).
+      add 1 to L_LINE.
+    endloop.
+  endif.
 
 * Show information about status maintenance
-  lr_grid_header->create_text(
-       row    = l_line
-       column = 1
-       text   = 'Maintain status:'(032) ).
-  lr_grid_header->create_text(
-       row    = l_line
-       column = 2
-       text   = 'Use function STATUS to maintain status and to enter comments'(024) ).
-  add 1 to l_line.
+  if sy-batch is initial.
+    lr_grid_header->create_text(
+         row    = l_line
+         column = 1
+         text   = 'Maintain status:'(032) ).
+    lr_grid_header->create_text(
+         row    = l_line
+         column = 2
+         text   = 'Use function STATUS to maintain status and to enter comments'(024) ).
+    add 1 to l_line.
+  endif.
 
   GR_ALV_TABLE->SET_TOP_OF_LIST( LR_GRID_HEADER ).
 
