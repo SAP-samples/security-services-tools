@@ -5,11 +5,11 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Published on: https://github.com/SAP-samples/security-services-tools
 *&
-*& 25.04.2024 Initial version
+*& 26.04.2024 Initial version
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '25.04.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '26.04.2024 S41'.
 
 * Selection screen
 
@@ -614,6 +614,7 @@ CLASS lcl_report IMPLEMENTATION.
     LOOP AT lt_called_rfm_list INTO DATA(ls_called_rfm_list)
       WHERE called_user IN sel_bname.
 
+      CLEAR ls_data.
       MOVE-CORRESPONDING ls_called_rfm_list TO ls_data.
 
       " Get function data
