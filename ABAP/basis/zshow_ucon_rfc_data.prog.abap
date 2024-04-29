@@ -1,4 +1,4 @@
-*&---------------------------------------------------------------------*
+*&-.-------------------------------------------------------------------*
 *& Report ZSHOW_UCON_RFC_DATA
 *& Show extended UCON data for RFC
 *&---------------------------------------------------------------------*
@@ -6,10 +6,13 @@
 *& Published on: https://github.com/SAP-samples/security-services-tools
 *&
 *& 26.04.2024 Initial version
+*& 29.04.2024 Value help for function, and user
+*&            Additional columns to mark called functions, function groups, packages, and software components
+*&            Freeze function column while scrolling horizontally
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '26.04.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '29.04.2024 S41'.
 
 * Selection screen
 
@@ -50,6 +53,10 @@ SELECTION-SCREEN BEGIN OF BLOCK fumo WITH FRAME TITLE tit_fum.
     DATA dlvunit TYPE tdevc-dlvunit.
     SELECT-OPTIONS so_unit FOR dlvunit.
   SELECTION-SCREEN END OF LINE.
+"  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_bl_srv NO-DISPLAY. "AS CHECKBOX.
+"    SELECTION-SCREEN COMMENT (60) t_bl_srv FOR FIELD p_bl_srv.
+"  SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END   OF BLOCK fumo.
 
 " Called users
@@ -154,11 +161,16 @@ CLASS lcl_report DEFINITION.
 
         fmode                  TYPE tfdir-fmode,               " additional field
         func_text              TYPE tftit-stext,               " additional field
+        func_called            TYPE char1,                     " additional field
         area                   TYPE enlfdir-area,              " additional field
         area_text              TYPE tlibt-areat,               " additional field
+        area_called            TYPE char1,                     " additional field
         devclass               TYPE tadir-devclass,            " additional field
         devclass_text          TYPE tdevct-ctext,              " additional field
+        devclass_called        TYPE char1,                     " additional field
         dlvunit                TYPE tdevc-dlvunit,             " additional field
+        dlvunit_called         TYPE char1,                     " additional field
+        blpackage              TYPE DEVCLASS,                  " additional field, view v_rfcbl_server-blpackage exists as of 7.50
 
         actual_phase           TYPE  uconrfcphase,             "* CHAR 1   Phase of an RFC Function module in CA fill process
         "spau_relevant          TYPE  uconspaurelevant,        "  CHAR 1   RFC Service should apear in SPAU
@@ -224,38 +236,43 @@ CLASS lcl_report DEFINITION.
 
       initialization,
 
+      at_selection_screen_f4_fumo,
+
+      at_selection_screen_f4_bname,
+
       at_selection_screen_f4_layout
         CHANGING
           layout TYPE disvariant-variant,
 
       start_of_selection
         IMPORTING
-          ext_list     TYPE abap_bool " Enhanced list
+          ext_list         TYPE abap_bool " Enhanced list
 
-          sel_function TYPE ucon_func_list_range "ranges tables
-          sel_area     TYPE tt_sel_area
-          sel_devclass TYPE tt_sel_devclass
-          sel_dlvunit  TYPE tt_sel_dlvunit
+          sel_function     TYPE ucon_func_list_range "ranges tables
+          sel_area         TYPE tt_sel_area
+          sel_devclass     TYPE tt_sel_devclass
+          sel_dlvunit      TYPE tt_sel_dlvunit
+          blocklist_server TYPE abap_bool
 
-          sel_bname    TYPE tt_sel_bname
-          sel_ustyp    TYPE tt_sel_ustyp
-          sel_class    TYPE tt_sel_class
+          sel_bname        TYPE tt_sel_bname
+          sel_ustyp        TYPE tt_sel_ustyp
+          sel_class        TYPE tt_sel_class
 
-          p_mon        TYPE abap_bool " Called Function Modules
-          p_nmon       TYPE abap_bool " Uncalled Function Modules
-          p_all        TYPE abap_bool " All Function Modules
+          p_mon            TYPE abap_bool " Called Function Modules
+          p_nmon           TYPE abap_bool " Uncalled Function Modules
+          p_all            TYPE abap_bool " All Function Modules
 
-          p_assi       TYPE abap_bool " RFMs Assigned to Default CA
-          p_unas       TYPE abap_bool " Unassigned RFMs
-          p_both       TYPE abap_bool " Assigned and Unassigned RFMs
-          p_assi_s     TYPE abap_bool " Assigned to SNC CA
+          p_assi           TYPE abap_bool " RFMs Assigned to Default CA
+          p_unas           TYPE abap_bool " Unassigned RFMs
+          p_both           TYPE abap_bool " Assigned and Unassigned RFMs
+          p_assi_s         TYPE abap_bool " Assigned to SNC CA
 
-          p_log        TYPE abap_bool " RFMs in Logging Phase
-          p_eval       TYPE abap_bool " RFMs in Evaluation Phase
-          p_act        TYPE abap_bool " RFMs in Final Phase
-          p_log_e      TYPE abap_bool " Expired RFMs in Logg. Phase
-          p_eval_e     TYPE abap_bool " Expired RFMs in Eval. Phase
-          p_all_p      TYPE abap_bool " All Phases
+          p_log            TYPE abap_bool " RFMs in Logging Phase
+          p_eval           TYPE abap_bool " RFMs in Evaluation Phase
+          p_act            TYPE abap_bool " RFMs in Final Phase
+          p_log_e          TYPE abap_bool " Expired RFMs in Logg. Phase
+          p_eval_e         TYPE abap_bool " Expired RFMs in Eval. Phase
+          p_all_p          TYPE abap_bool " All Phases
         .
 
   PRIVATE SECTION.
@@ -269,6 +286,7 @@ CLASS lcl_report DEFINITION.
           sel_area           TYPE tt_sel_area
           sel_devclass       TYPE tt_sel_devclass
           sel_dlvunit        TYPE tt_sel_dlvunit
+          blocklist_server   TYPE abap_bool
           sel_bname          TYPE tt_sel_bname
           sel_ustyp          TYPE tt_sel_ustyp
           sel_class          TYPE tt_sel_class
@@ -335,6 +353,7 @@ CLASS lcl_report IMPLEMENTATION.
     t_area   = 'Function group'.
     t_devc   = 'Package'.
     t_unit   = 'Software component'.
+"    t_bl_srv = 'Only functions of blocklist V_RFC_BL_SERVER'.
 
     tit_usr  = 'Called Users'.
     t_bname  = 'User'.
@@ -366,6 +385,107 @@ CLASS lcl_report IMPLEMENTATION.
        SEPARATED BY space.
 
   ENDMETHOD. " initialization
+
+  METHOD at_selection_screen_f4_fumo.
+
+    TYPES:
+      BEGIN OF ts_f4_function,
+        funcname     TYPE uconrfcstatehead-funcname,
+        actual_phase TYPE uconrfcstatehead-actual_phase,
+      END OF ts_f4_function,
+      tt_f4_function TYPE STANDARD TABLE OF ts_f4_function.
+
+    STATICS:
+      "f4_value     TYPE ts_f4_function,
+      f4_value_tab TYPE tt_f4_function.
+
+    IF f4_value_tab IS INITIAL.
+      SELECT DISTINCT
+          funcname,
+          actual_phase
+        FROM uconrfcstatehead
+        ORDER BY
+          funcname
+        INTO TABLE @f4_value_tab.
+    ENDIF.
+
+    DATA(progname) = sy-repid.
+    DATA(dynnum)   = sy-dynnr.
+    DATA field TYPE dynfnam.
+    DATA stepl TYPE sy-stepl.
+    GET CURSOR FIELD field LINE stepl.
+    DATA return_tab TYPE TABLE OF ddshretval.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'FUNCNAME'
+        dynpprog        = progname
+        dynpnr          = dynnum
+        dynprofield     = field
+        stepl           = stepl
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = f4_value_tab
+        "return_tab      = return_tab " surprisingly required to get lower case values
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
+  ENDMETHOD. " at_selection_screen_f4_fumo
+
+  METHOD at_selection_screen_f4_bname.
+
+    TYPES:
+      BEGIN OF ts_f4_bname,
+        mandt TYPE uconrfmcalleratt-called_client,
+        bname TYPE uconrfmcalleratt-called_user,
+      END OF ts_f4_bname,
+      tt_f4_bname TYPE STANDARD TABLE OF ts_f4_bname.
+
+    STATICS:
+      "f4_value     TYPE ts_f4_bname,
+      f4_value_tab TYPE tt_f4_bname.
+
+    IF f4_value_tab IS INITIAL.
+      SELECT DISTINCT
+          called_client,
+          called_user
+        FROM uconrfmcalleratt
+        ORDER BY
+          called_client,
+          called_user
+        INTO TABLE @f4_value_tab.
+    ENDIF.
+
+    DATA(progname) = sy-repid.
+    DATA(dynnum)   = sy-dynnr.
+    DATA field TYPE dynfnam.
+    DATA stepl TYPE sy-stepl.
+    GET CURSOR FIELD field LINE stepl.
+    DATA return_tab TYPE TABLE OF ddshretval.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'CALLED_USER'
+        dynpprog        = progname
+        dynpnr          = dynnum
+        dynprofield     = field
+        stepl           = stepl
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = f4_value_tab
+        "return_tab      = return_tab " surprisingly required to get lower case values
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
+  ENDMETHOD. " at_selection_screen_f4_bname
 
   METHOD at_selection_screen_f4_layout.
 
@@ -556,6 +676,7 @@ CLASS lcl_report IMPLEMENTATION.
         sel_area     = sel_area
         sel_devclass = sel_devclass
         sel_dlvunit  = sel_dlvunit
+        blocklist_server = blocklist_server
         sel_bname    = sel_bname
         sel_ustyp    = sel_ustyp
         sel_class    = sel_class
@@ -563,6 +684,110 @@ CLASS lcl_report IMPLEMENTATION.
         lt_data = DATA(lt_data)
       ).
     FREE lt_called_rfm_list.
+
+    " Add marker if function group respective package has some called functions
+    TYPES:
+      BEGIN OF ts_fugr,
+        area TYPE enlfdir-area,
+      END OF ts_fugr,
+      tt_fugr TYPE SORTED TABLE OF ts_fugr WITH UNIQUE KEY area,
+      BEGIN OF ts_devclass,
+        devclass TYPE tdevc-devclass,
+      END OF ts_devclass,
+      tt_devclass TYPE SORTED TABLE OF ts_devclass WITH UNIQUE KEY devclass,
+      BEGIN OF ts_dlvunit,
+        dlvunit TYPE tdevc-dlvunit,
+      END OF ts_dlvunit,
+      tt_dlvunit TYPE SORTED TABLE OF ts_dlvunit WITH UNIQUE KEY dlvunit.
+
+    DATA:
+      lt_fugr     TYPE tt_fugr,
+      lt_devclass TYPE tt_devclass,
+      lt_dlvunit  TYPE tt_dlvunit.
+
+    " Get called function groups
+    SELECT DISTINCT
+        enlfdir~area   " Function group
+      FROM tfdir                       " Function
+      JOIN enlfdir                     " Function group
+        ON enlfdir~funcname = tfdir~funcname
+      WHERE tfdir~fmode ne ' '         " RFC mode
+        AND EXISTS ( SELECT * FROM uconrfmcalleratt
+                       WHERE uconrfmcalleratt~called_rfm = tfdir~funcname
+                         AND uconrfmcalleratt~called_sid = @sysid
+                         AND uconrfmcalleratt~called_installation_nr = @installation_nr )
+      ORDER BY
+        enlfdir~area
+      INTO TABLE @lt_fugr.
+
+    " Get called packages
+    SELECT DISTINCT
+        tadir~devclass   " Package
+      FROM tfdir                       " Function
+      JOIN enlfdir                     " Function group
+        ON enlfdir~funcname = tfdir~funcname
+      JOIN tadir                       " Package
+        ON    tadir~pgmid    = 'R3TR'
+          AND tadir~object   = 'FUGR'
+          AND tadir~obj_name = enlfdir~area
+      WHERE tfdir~fmode ne ' '         " RFC mode
+        AND EXISTS ( SELECT * FROM uconrfmcalleratt
+                       WHERE uconrfmcalleratt~called_rfm = tfdir~funcname
+                         AND uconrfmcalleratt~called_sid = @sysid
+                         AND uconrfmcalleratt~called_installation_nr = @installation_nr )
+      ORDER BY
+        tadir~devclass
+      INTO TABLE @lt_devclass.
+
+    " Get called software components
+    SELECT DISTINCT
+        tdevc~dlvunit                  " Software component
+      FROM tfdir                       " Function
+      JOIN enlfdir                     " Function group
+        ON enlfdir~funcname = tfdir~funcname
+      JOIN tadir                       " Package
+        ON    tadir~pgmid    = 'R3TR'
+          AND tadir~object   = 'FUGR'
+          AND tadir~obj_name = enlfdir~area
+      JOIN tdevc                       " Software component
+        ON tdevc~devclass = tadir~devclass
+      WHERE tfdir~fmode ne ' '         " RFC mode
+        AND EXISTS ( SELECT * FROM uconrfmcalleratt
+                       WHERE uconrfmcalleratt~called_rfm = tfdir~funcname
+                         AND uconrfmcalleratt~called_sid = @sysid
+                         AND uconrfmcalleratt~called_installation_nr = @installation_nr )
+      ORDER BY
+        tdevc~dlvunit
+      INTO TABLE @lt_dlvunit.
+
+    LOOP AT lt_data ASSIGNING FIELD-SYMBOL(<ls_data>).
+      IF <ls_data>-counter > 0.
+        <ls_data>-func_called = sym_filled_circle. "'called'.
+      ELSE.
+        <ls_data>-func_called = sym_circle.
+      ENDIF.
+
+      READ TABLE lt_fugr WITH TABLE KEY area = <ls_data>-area TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        <ls_data>-area_called = sym_filled_circle. "'called'.
+      ELSE.
+        <ls_data>-area_called = sym_circle.
+      ENDIF.
+
+      READ TABLE lt_devclass WITH TABLE KEY devclass = <ls_data>-devclass TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        <ls_data>-devclass_called = sym_filled_circle. "'called'.
+      ELSE.
+        <ls_data>-devclass_called = sym_circle.
+      ENDIF.
+
+      READ TABLE lt_dlvunit WITH TABLE KEY dlvunit = <ls_data>-dlvunit TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        <ls_data>-dlvunit_called = sym_filled_circle. "'called'.
+      ELSE.
+        <ls_data>-dlvunit_called = sym_circle.
+      ENDIF.
+    ENDLOOP.
 
     " Show result
     lcl_alv=>show_result(
@@ -601,6 +826,7 @@ CLASS lcl_report IMPLEMENTATION.
         devclass      TYPE tadir-devclass,
         devclass_text TYPE tdevct-ctext,
         dlvunit       TYPE tdevc-dlvunit,
+        blpackage     TYPE devclass, "v_rfcbl_server-blpackage exists as of 7.50
       END OF ts_function,
       tt_function TYPE SORTED TABLE OF ts_function WITH UNIQUE KEY funcname.
 
@@ -613,6 +839,19 @@ CLASS lcl_report IMPLEMENTATION.
 
     LOOP AT lt_called_rfm_list INTO DATA(ls_called_rfm_list)
       WHERE called_user IN sel_bname.
+
+      " Select functions of the blocklist view V_RFC_BL_SERVER only
+      IF sy-SAPRL >= 750 and blocklist_server IS NOT INITIAL.
+        data v_rfcbl_server(30) value 'V_RFCBL_SERVER'.
+        SELECT SINGLE rfm_name
+          FROM (v_rfcbl_server)
+          WHERE rfm_name = @ls_called_rfm_list-funcname
+            AND version = 'A'
+          INTO @ls_data-funcname.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
 
       CLEAR ls_data.
       MOVE-CORRESPONDING ls_called_rfm_list TO ls_data.
@@ -629,7 +868,8 @@ CLASS lcl_report IMPLEMENTATION.
             tlibt~areat,    " Function group text
             tadir~devclass, " Package
             tdevct~ctext,   " Package text
-            tdevc~dlvunit   " Delivery unit
+            tdevc~dlvunit",   " Delivery unit
+"            v_rfcbl_server~blpackage    " Blocklist view V_RFC_BL_SERVER
           FROM tfdir                       " Function
           LEFT OUTER JOIN tftit            " Function text
             ON    tftit~funcname = tfdir~funcname
@@ -648,6 +888,9 @@ CLASS lcl_report IMPLEMENTATION.
               AND tdevct~spras = @sy-langu
           JOIN tdevc                       " Delivery unit
             ON    tdevc~devclass = tadir~devclass
+"          LEFT OUTER JOIN v_rfcbl_server   " Blocklist view V_RFC_BL_SERVER
+"            ON    v_rfcbl_server~rfm_name = tfdir~funcname
+"              AND v_rfcbl_server~blpackage = 'A'
           WHERE tfdir~funcname = @ls_data-funcname
           INTO @ls_function.
         IF sy-subrc = 0.
@@ -664,6 +907,7 @@ CLASS lcl_report IMPLEMENTATION.
       ls_data-devclass      = ls_function-devclass.
       ls_data-devclass_text = ls_function-devclass_text.
       ls_data-dlvunit       = ls_function-dlvunit.
+      ls_data-blpackage     = ls_function-blpackage.
 
       " Get user data (user type and user group)
       IF ls_data-called_sid = sy-sysid AND ls_data-called_client IS NOT INITIAL AND ls_data-called_user IS NOT INITIAL.
@@ -808,6 +1052,7 @@ CLASS lcl_alv IMPLEMENTATION.
 
     " Set the column width
     lr_columns->set_optimize( if_salv_c_bool_sap=>true ).
+    lr_columns->set_key_fixation( if_salv_c_bool_sap=>true ).
 
     " Set field descriptions and attributes
     DATA ls_color_called  TYPE lvc_s_colo.
@@ -860,7 +1105,8 @@ CLASS lcl_alv IMPLEMENTATION.
 * SET_TEXT_COLUMN         Set Text Column
 
         lr_column ?= lr_columns->get_column( 'FUNCNAME' ).
-        lr_column->set_cell_type( ).
+        lr_column->set_key( if_salv_c_bool_sap=>true ).
+        "lr_column->set_cell_type( ). " dropdown, link, hotspot, checkbox_hotspot
 
         lr_column ?= lr_columns->get_column( 'FMODE' ).
         lr_column->set_long_text( 'RFC Mode' ).
@@ -873,7 +1119,14 @@ CLASS lcl_alv IMPLEMENTATION.
         lr_column->set_medium_text( 'Function text' ).
         lr_column->set_short_text( 'Function' ).
 
+        lr_column ?= lr_columns->get_column( 'FUNC_CALLED' ).
+        lr_column->set_long_text( 'Called function' ).
+        lr_column->set_medium_text( 'Called function' ).
+        lr_column->set_short_text( 'CalledFunc' ).
+        lr_column->set_symbol( if_salv_c_bool_sap=>true ).
+
         lr_column ?= lr_columns->get_column( 'AREA' ).
+        "lr_column->set_key( if_salv_c_bool_sap=>true ).
 
         lr_column ?= lr_columns->get_column( 'AREA_TEXT' ).
         lr_column->set_long_text( 'Function group text' ).
@@ -881,7 +1134,14 @@ CLASS lcl_alv IMPLEMENTATION.
         lr_column->set_short_text( 'Func.Group' ).
         lr_column->set_visible( if_salv_c_bool_sap=>false ).
 
+        lr_column ?= lr_columns->get_column( 'AREA_CALLED' ).
+        lr_column->set_long_text( 'Function group with called functions' ).
+        lr_column->set_medium_text( 'Called funct. group' ).
+        lr_column->set_short_text( 'CalledGrp' ).
+        lr_column->set_symbol( if_salv_c_bool_sap=>true ).
+
         lr_column ?= lr_columns->get_column( 'DEVCLASS' ).
+        "lr_column->set_key( if_salv_c_bool_sap=>true ).
 
         lr_column ?= lr_columns->get_column( 'DEVCLASS_TEXT' ).
         lr_column->set_long_text( 'Package text' ).
@@ -889,7 +1149,28 @@ CLASS lcl_alv IMPLEMENTATION.
         lr_column->set_short_text( 'Package' ).
         lr_column->set_visible( if_salv_c_bool_sap=>false ).
 
+        lr_column ?= lr_columns->get_column( 'DEVCLASS_CALLED' ).
+        lr_column->set_long_text( 'Package with called functions' ).
+        lr_column->set_medium_text( 'Called package' ).
+        lr_column->set_short_text( 'CalledPack' ).
+        lr_column->set_symbol( if_salv_c_bool_sap=>true ).
+
         lr_column ?= lr_columns->get_column( 'DLVUNIT' ).
+        "lr_column->set_key( if_salv_c_bool_sap=>true ).
+
+        lr_column ?= lr_columns->get_column( 'DLVUNIT_CALLED' ).
+        lr_column->set_long_text( 'Called software component' ).
+        lr_column->set_medium_text( 'Called SW component' ).
+        lr_column->set_short_text( 'CalledSW' ).
+        lr_column->set_symbol( if_salv_c_bool_sap=>true ).
+
+        lr_column ?= lr_columns->get_column( 'BLPACKAGE' ).
+        lr_column->set_long_text( 'Blocklist package' ).
+        lr_column->set_medium_text( 'Blocklist package' ).
+        lr_column->set_short_text( 'Blocklist' ).
+"        IF sy-SAPRL < 750.
+          lr_column->set_technical( if_salv_c_bool_sap=>false ).
+"        endif.
 
 
         lr_column ?= lr_columns->get_column( 'ACTUAL_PHASE' ).
@@ -1093,6 +1374,18 @@ ENDCLASS.                    "cl_alv IMPLEMENTATION
 INITIALIZATION.
   lcl_report=>initialization( ).
 
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_fumo-low.
+  lcl_report=>at_selection_screen_f4_fumo( ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_fumo-high.
+  lcl_report=>at_selection_screen_f4_fumo(  ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_bname-low.
+  lcl_report=>at_selection_screen_f4_bname( ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_bname-high.
+  lcl_report=>at_selection_screen_f4_bname(  ).
+
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR layout.
   lcl_report=>at_selection_screen_f4_layout(
     CHANGING layout = layout
@@ -1107,6 +1400,7 @@ START-OF-SELECTION.
       sel_area     = so_area[]  " Function groups
       sel_devclass = so_devc[]  " Packages
       sel_dlvunit  = so_unit[]  " Software component
+      blocklist_server = p_bl_srv
 
       sel_bname    = so_bname[] " Users
       sel_ustyp    = so_ustyp[] " User types
