@@ -12,21 +12,26 @@
 *& 30.04.2024 Show blocklist package from view V_RFCBL_SERVER as of 7.50
 *&            Store radio button selection in (hidden) user parameter
 *&            Show authorizations of users in extended view
+*& 06.05.2024 Small performance optimization
+*&            Hide selection for client and user in case of the simple view
+*&            Value help for client and user group
+*&            Show authorizations in red if there are any * authorizations
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '30.04.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '06.05.2024 S41'.
 
 * Selection screen
+TABLES sscrfields.
 
 " Standard view for functions / Enhanced view incl. destinations and users
 SELECTION-SCREEN BEGIN OF BLOCK cols WITH FRAME TITLE tit_col.
   SELECTION-SCREEN BEGIN OF LINE.
-    PARAMETERS p_simp  RADIOBUTTON GROUP cols.
+    PARAMETERS p_simp  RADIOBUTTON GROUP cols USER-COMMAND cols.
     SELECTION-SCREEN COMMENT (28) t_simp FOR FIELD p_simp.
     SELECTION-SCREEN POSITION 32.
     PARAMETERS p_comp  RADIOBUTTON GROUP cols.
-    SELECTION-SCREEN COMMENT (28) t_comp FOR FIELD p_comp.
+    SELECTION-SCREEN COMMENT (40) t_comp FOR FIELD p_comp.
   SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END OF BLOCK cols.
 
@@ -66,27 +71,27 @@ SELECTION-SCREEN END   OF BLOCK fumo.
 SELECTION-SCREEN BEGIN OF BLOCK user WITH FRAME TITLE tit_usr.
   " Client
   SELECTION-SCREEN BEGIN OF LINE.
-    SELECTION-SCREEN COMMENT 1(28) t_mandt FOR FIELD so_mandt.
+    SELECTION-SCREEN COMMENT 1(28) t_mandt FOR FIELD so_mandt MODIF ID usr.
     DATA mandt TYPE usr02-mandt.
-    SELECT-OPTIONS so_mandt FOR mandt DEFAULT sy-mandt.
+    SELECT-OPTIONS so_mandt FOR mandt DEFAULT sy-mandt MODIF ID usr.
   SELECTION-SCREEN END OF LINE.
   " User
   SELECTION-SCREEN BEGIN OF LINE.
-    SELECTION-SCREEN COMMENT 1(28) t_bname FOR FIELD so_bname.
+    SELECTION-SCREEN COMMENT 1(28) t_bname FOR FIELD so_bname MODIF ID usr.
     DATA bname TYPE usr02-bname.
-    SELECT-OPTIONS so_bname FOR bname.
+    SELECT-OPTIONS so_bname FOR bname MODIF ID usr.
   SELECTION-SCREEN END OF LINE.
   " User type
   SELECTION-SCREEN BEGIN OF LINE.
-    SELECTION-SCREEN COMMENT 1(28) t_ustyp FOR FIELD so_ustyp.
+    SELECTION-SCREEN COMMENT 1(28) t_ustyp FOR FIELD so_ustyp MODIF ID usr.
     DATA ustyp TYPE usr02-ustyp.
-    SELECT-OPTIONS so_ustyp FOR ustyp.
+    SELECT-OPTIONS so_ustyp FOR ustyp MODIF ID usr.
   SELECTION-SCREEN END OF LINE.
   " User group
   SELECTION-SCREEN BEGIN OF LINE.
-    SELECTION-SCREEN COMMENT 1(28) t_class FOR FIELD so_class.
+    SELECTION-SCREEN COMMENT 1(28) t_class FOR FIELD so_class MODIF ID usr.
     DATA class TYPE usr02-class.
-    SELECT-OPTIONS so_class FOR class.
+    SELECT-OPTIONS so_class FOR class MODIF ID usr.
   SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END   OF BLOCK user.
 
@@ -274,11 +279,17 @@ CLASS lcl_report DEFINITION.
 
       at_selection_screen_f4_fumo,
 
+      at_selection_screen_f4_mandt,
+
       at_selection_screen_f4_bname,
+
+      at_selection_screen_f4_class,
 
       at_selection_screen_f4_layout
         CHANGING
           layout TYPE disvariant-variant,
+
+      at_selection_screen,
 
       start_of_selection
         IMPORTING
@@ -319,7 +330,12 @@ CLASS lcl_report DEFINITION.
 
       c_v_rfcbl_server(30) VALUE 'V_RFCBL_SERVER'. "View V_RFCBL_SERVER exists as of 7.50
 
+    CLASS-DATA:
+      auth_change            TYPE abap_bool.
+
     CLASS-METHODS:
+
+      authority_check,
 
       " Extend the UCON date with additional information
       extend_data
@@ -329,10 +345,10 @@ CLASS lcl_report DEFINITION.
           sel_devclass       TYPE tt_sel_devclass
           sel_dlvunit        TYPE tt_sel_dlvunit
           blocklist_server   TYPE abap_bool
-          sel_mandt          TYPE tt_sel_mandt
-          sel_bname          TYPE tt_sel_bname
-          sel_ustyp          TYPE tt_sel_ustyp
-          sel_class          TYPE tt_sel_class
+          sel_mandt          TYPE tt_sel_mandt  OPTIONAL
+          sel_bname          TYPE tt_sel_bname  OPTIONAL
+          sel_ustyp          TYPE tt_sel_ustyp  OPTIONAL
+          sel_class          TYPE tt_sel_class  OPTIONAL
         EXPORTING
           lt_data            TYPE tt_ucon_phase_tool_fields_ext
         .
@@ -370,26 +386,13 @@ CLASS lcl_report IMPLEMENTATION.
 
   METHOD initialization.
 
-    " Authority check
-    " Class cl_ucon_api_auth_check method if_ucon_api_auth_check~check_auth does not exist in 7.40
-    AUTHORITY-CHECK OBJECT 'S_UCON_ADM'
-       ID 'UCON_TYPE' DUMMY " Field is not used yet
-       ID 'UCON_NAME' DUMMY " Field is not used yet
-       ID 'ACTVT' FIELD '03'.
-    IF sy-subrc <> 0.
-      LOOP AT SCREEN.
-        screen-active = 0.
-        MODIFY SCREEN.
-      ENDLOOP.
-      MESSAGE e219(s_ucon_lm).
-      LEAVE TO SCREEN 0.
-    ENDIF.
+    authority_check( ).
 
     sy-title = 'Show extended UCON RFC data'(tit).
 
     tit_col  = 'Displayed Fields'.
-    t_simp   = 'Standard View'.
-    t_comp   = 'Enhanced View'.
+    t_simp   = 'Standard view'.
+    t_comp   = 'Enhanced view incl. called users'.
 
     tit_fum  = 'Remote Function Modules (RFMs)'.
     t_fumo   = 'Selection Range for RFMs'.
@@ -475,6 +478,34 @@ CLASS lcl_report IMPLEMENTATION.
     ENDIF.
   ENDMETHOD. " initialization
 
+  METHOD authority_check.
+
+    " Authority check for display
+    " Class cl_ucon_api_auth_check method if_ucon_api_auth_check~check_auth does not exist in 7.40
+    AUTHORITY-CHECK OBJECT 'S_UCON_ADM'
+       ID 'UCON_TYPE' DUMMY " Field is not used yet
+       ID 'UCON_NAME' DUMMY " Field is not used yet
+       ID 'ACTVT' FIELD '03'.
+    IF sy-subrc <> 0.
+      LOOP AT SCREEN.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDLOOP.
+      MESSAGE e219(s_ucon_lm).
+      LEAVE TO SCREEN 0.
+    ENDIF.
+
+    " Authority check for change
+    AUTHORITY-CHECK OBJECT 'S_UCON_ADM'
+       ID 'UCON_TYPE' DUMMY " Field is not used yet
+       ID 'UCON_NAME' DUMMY " Field is not used yet
+       ID 'ACTVT' FIELD '02'.
+    IF sy-subrc = 0.
+      auth_change = abap_true.
+    ENDIF.
+
+  ENDMETHOD. " authority_check
+
   METHOD at_selection_screen_output.
     " Blocklist packages exist as of SAP_BAIS 7.50
     IF sy-saprl < 750.
@@ -485,6 +516,19 @@ CLASS lcl_report IMPLEMENTATION.
         MODIFY SCREEN FROM ls_screen.
       ENDLOOP.
     ENDIF.
+
+    " Hide client and user fields in case of the simple output list
+    LOOP AT SCREEN INTO ls_screen.
+      IF ls_screen-group1 = 'USR'.
+        IF p_comp IS INITIAL.
+          ls_screen-active = '0'.
+        ELSE.
+          ls_screen-active = '1'.
+        ENDIF.
+        MODIFY SCREEN FROM ls_screen.
+      ENDIF.
+    ENDLOOP.
+
   ENDMETHOD. " at_selection_screen_output
 
   METHOD at_selection_screen_f4_fumo.
@@ -537,6 +581,54 @@ CLASS lcl_report IMPLEMENTATION.
 
   ENDMETHOD. " at_selection_screen_f4_fumo
 
+  METHOD at_selection_screen_f4_mandt.
+
+    TYPES:
+      BEGIN OF ts_f4_mandt,
+        mandt TYPE uconrfmcalleratt-called_client,
+      END OF ts_f4_mandt,
+      tt_f4_mandt TYPE STANDARD TABLE OF ts_f4_mandt.
+
+    STATICS:
+      "f4_value     TYPE ts_f4_mandtd,
+      f4_value_tab TYPE tt_f4_mandt.
+
+    IF f4_value_tab IS INITIAL.
+      SELECT DISTINCT
+          called_client
+        FROM uconrfmcalleratt
+        ORDER BY
+          called_client
+        INTO TABLE @f4_value_tab.
+    ENDIF.
+
+    DATA(progname) = sy-repid.
+    DATA(dynnum)   = sy-dynnr.
+    DATA field TYPE dynfnam.
+    DATA stepl TYPE sy-stepl.
+    GET CURSOR FIELD field LINE stepl.
+    DATA return_tab TYPE TABLE OF ddshretval.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'CALLED_MANDT'
+        dynpprog        = progname
+        dynpnr          = dynnum
+        dynprofield     = field
+        stepl           = stepl
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = f4_value_tab
+        "return_tab      = return_tab " surprisingly required to get lower case values
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
+  ENDMETHOD. " at_selection_screen_f4_mandt
+
   METHOD at_selection_screen_f4_bname.
 
     TYPES:
@@ -558,6 +650,70 @@ CLASS lcl_report IMPLEMENTATION.
         ORDER BY
           called_client,
           called_user
+        INTO TABLE @f4_value_tab.
+    ENDIF.
+
+    DATA(progname) = sy-repid.
+    DATA(dynnum)   = sy-dynnr.
+    DATA field TYPE dynfnam.
+    DATA stepl TYPE sy-stepl.
+    GET CURSOR FIELD field LINE stepl.
+    DATA return_tab TYPE TABLE OF ddshretval.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'CALLED_USER'
+        dynpprog        = progname
+        dynpnr          = dynnum
+        dynprofield     = field
+        stepl           = stepl
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = f4_value_tab
+        "return_tab      = return_tab " surprisingly required to get lower case values
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
+  ENDMETHOD. " at_selection_screen_f4_bname
+
+  METHOD at_selection_screen_f4_class.
+
+    TYPES:
+      BEGIN OF ts_f4_class,
+        mandt TYPE usr02-mandt,
+        class TYPE usr02-class,
+      END OF ts_f4_class,
+      tt_f4_class TYPE STANDARD TABLE OF ts_f4_class.
+
+    STATICS:
+      "f4_value     TYPE ts_f4_class,
+      f4_value_tab TYPE tt_f4_class.
+
+    IF f4_value_tab IS INITIAL.
+      "SELECT DISTINCT
+      "    mandt,
+      "    class
+      "  FROM usr02 CLIENT SPECIFIED
+      "  ORDER BY
+      "    mandt,
+      "    class
+      "  INTO TABLE @f4_value_tab.
+      SELECT DISTINCT
+          uconrfmcalleratt~called_client,
+          usr02~class
+        FROM uconrfmcalleratt
+        JOIN usr02
+          ON    usr02~mandt = uconrfmcalleratt~called_client
+            AND usr02~bname = uconrfmcalleratt~called_user
+            "AND usr02~class IS NOT INITIAL
+        CLIENT SPECIFIED
+        ORDER BY
+          uconrfmcalleratt~called_client,
+          usr02~class
         INTO TABLE @f4_value_tab.
     ENDIF.
 
@@ -614,6 +770,12 @@ CLASS lcl_report IMPLEMENTATION.
     ENDIF.
 
   ENDMETHOD. " at_selection_screen_on_layout
+
+  METHOD at_selection_screen.
+    IF sscrfields-ucomm = 'COLS'.
+      " see AT SELECTION SCREEN OUTPUT
+    ENDIF.
+  ENDMETHOD. " at_selection_screen
 
   METHOD start_of_selection.
 
@@ -673,7 +835,7 @@ CLASS lcl_report IMPLEMENTATION.
       lt_called_rfm_list TYPE ucon_phase_tool_fields_tt,
       result_limit       TYPE abap_bool.
 
-    " Prepare selection parametes
+    " Prepare selection parameters
 
     REFRESH cols.
     IF p_comp = abap_false.
@@ -752,7 +914,7 @@ CLASS lcl_report IMPLEMENTATION.
       CLEAR phase_mode.
     ENDIF.
 
-    " Optimise selection for function groups respective package (does not work as the SQL statement become too big.)
+    " Optimize selection for function groups respective package (does not work as the SQL statement become too big.)
     "if sel_function is initial and sel_area is not initial.
     "  data sel_func type line of ucon_func_list_range.
     "  sel_func-option = 'EQ'.
@@ -796,20 +958,37 @@ CLASS lcl_report IMPLEMENTATION.
     ENDIF.
 
     " Extend the result table
-    extend_data(
-      EXPORTING
-        lt_called_rfm_list = lt_called_rfm_list
-        sel_area     = sel_area
-        sel_devclass = sel_devclass
-        sel_dlvunit  = sel_dlvunit
-        blocklist_server = blocklist_server
-        sel_mandt    = sel_mandt
-        sel_bname    = sel_bname
-        sel_ustyp    = sel_ustyp
-        sel_class    = sel_class
-      IMPORTING
-        lt_data = DATA(lt_data)
-      ).
+    IF p_simp = 'X'.
+      extend_data(
+        EXPORTING
+          lt_called_rfm_list = lt_called_rfm_list
+          sel_area     = sel_area
+          sel_devclass = sel_devclass
+          sel_dlvunit  = sel_dlvunit
+          blocklist_server = blocklist_server
+          "sel_mandt    = sel_mandt
+          "sel_bname    = sel_bname
+          "sel_ustyp    = sel_ustyp
+          "sel_class    = sel_class
+        IMPORTING
+          lt_data = DATA(lt_data)
+        ).
+    ELSE.
+      extend_data(
+        EXPORTING
+          lt_called_rfm_list = lt_called_rfm_list
+          sel_area     = sel_area
+          sel_devclass = sel_devclass
+          sel_dlvunit  = sel_dlvunit
+          blocklist_server = blocklist_server
+          sel_mandt    = sel_mandt
+          sel_bname    = sel_bname
+          sel_ustyp    = sel_ustyp
+          sel_class    = sel_class
+        IMPORTING
+          lt_data = lt_data
+        ).
+    ENDIF.
     FREE lt_called_rfm_list.
 
     " Add marker if function group respective package has some called functions
@@ -935,7 +1114,7 @@ CLASS lcl_report IMPLEMENTATION.
         bname       TYPE usr02-bname,
         ustyp       TYPE usr02-ustyp,
         class       TYPE usr02-class,
-        auth_values TYPE STANDARD TABLE OF USVALUES WITH DEFAULT KEY,
+        auth_values TYPE STANDARD TABLE OF usvalues WITH DEFAULT KEY,
       END OF ts_user,
       tt_user TYPE SORTED TABLE OF ts_user WITH UNIQUE KEY mandt bname.
 
@@ -1039,9 +1218,12 @@ CLASS lcl_report IMPLEMENTATION.
       ls_data-blpackage     = ls_function-blpackage.
 
       CASE ls_data-actual_phase.
-        WHEN 'L'. ls_data-phasetext = 'Logging'.
-        WHEN 'E'. ls_data-phasetext = 'Evaluation'.
-        WHEN 'A'. ls_data-phasetext = 'Final'.
+        WHEN 'L'.
+          ls_data-phasetext = 'Logging'.
+        WHEN 'E'.
+          ls_data-phasetext = 'Evaluation'.
+        WHEN 'A'.
+          ls_data-phasetext = 'Final'.
       ENDCASE.
 
       " Get user data: user type, user group, and authorizations for S_RFC
@@ -1062,47 +1244,53 @@ CLASS lcl_report IMPLEMENTATION.
             INTO CORRESPONDING FIELDS OF @ls_user.
           IF sy-subrc = 0. " Yes, the user exists in current system
 
-            " Get authorization data for S_RFC
-            "IF ls_user-mandt = sy-mandt.
-            "  CALL FUNCTION 'GET_AUTH_VALUES' " Works only for current client
-            "    EXPORTING
-            "      object1           = 'S_RFC'
-            "      user              = ls_user-bname
-            "      "OPTIMIZE          =
-            "    TABLES
-            "      values            = ls_user-auth_values
-            "    EXCEPTIONS
-            "      user_doesnt_exist = 1
-            "      OTHERS            = 2.
-            "  IF sy-subrc <> 0.
-            "    " Implement suitable error handling here
-            "  ENDIF.
-            "ENDIF.
-            CALL FUNCTION 'SUSR_USER_AUTH_FOR_OBJ_GET'
-              EXPORTING
-*               NEW_BUFFERING       = 3
-                mandant             = ls_user-mandt
-                user_name           = ls_user-bname
-                sel_object          = 'S_RFC'
-*               NO_TRACE            =
-*               OPTIMIZE            =
-*               RESPECT_DISABLEMNT_4_AUTH_CHK       =
-*               SACF_SCENARIO       = ' '
+            " Do we like to see more data for this user?
+            IF    ls_user-ustyp IN sel_ustyp
+              AND ls_user-class IN sel_class.
+
+              " Get authorization data for S_RFC
+              "IF ls_user-mandt = sy-mandt.
+              "  CALL FUNCTION 'GET_AUTH_VALUES' " Works only for current client
+              "    EXPORTING
+              "      object1           = 'S_RFC'
+              "      user              = ls_user-bname
+              "      "OPTIMIZE          =
+              "    TABLES
+              "      values            = ls_user-auth_values
+              "    EXCEPTIONS
+              "      user_doesnt_exist = 1
+              "      OTHERS            = 2.
+              "  IF sy-subrc <> 0.
+              "    " Implement suitable error handling here
+              "  ENDIF.
+              "ENDIF.
+              CALL FUNCTION 'SUSR_USER_AUTH_FOR_OBJ_GET'
+                EXPORTING
+*                 NEW_BUFFERING       = 3
+                  mandant             = ls_user-mandt
+                  user_name           = ls_user-bname
+                  sel_object          = 'S_RFC'
+*                 NO_TRACE            =
+*                 OPTIMIZE            =
+*                 RESPECT_DISABLEMNT_4_AUTH_CHK       =
+*                 SACF_SCENARIO       = ' '
 *             IMPORTING
-*               FULLY_AUTHORIZED    =
-              TABLES
-                values              = ls_user-auth_values
-*               IT_FILTERS          =
-              EXCEPTIONS
-                user_name_not_exist = 1
-                not_authorized      = 2
-                internal_error      = 3
-                OTHERS              = 4.
-            IF sy-subrc <> 0.
-              " Implement suitable error handling here
-              CLEAR ls_user-auth_values.
+*                 FULLY_AUTHORIZED    =
+                TABLES
+                  values              = ls_user-auth_values
+*                 IT_FILTERS          =
+                EXCEPTIONS
+                  user_name_not_exist = 1
+                  not_authorized      = 2
+                  internal_error      = 3
+                  OTHERS              = 4.
+              IF sy-subrc <> 0.
+                " Implement suitable error handling here
+                CLEAR ls_user-auth_values.
+              ENDIF.
+              SORT ls_user-auth_values BY objct auth field von bis.
+
             ENDIF.
-            SORT ls_user-auth_values BY objct auth FIELD von bis.
 
             " Storev the user
             INSERT ls_user INTO lt_user INDEX tabix.
@@ -1120,9 +1308,11 @@ CLASS lcl_report IMPLEMENTATION.
         " Copy authorization data2
         " Let's assume that ACTVT=16 does not need to get verified and that RFC_TYPE has one of the values *, FUGR or FUNC
         CLEAR ls_data-authorizations.
-        data:
-          ls_auth type USVALUES,
-          ls_rfc_name type USVALUES.
+        DATA auth_star TYPE abap_bool.
+        CLEAR auth_star.
+        DATA:
+          ls_auth     TYPE usvalues,
+          ls_rfc_name TYPE usvalues.
         LOOP AT ls_user-auth_values INTO ls_auth
           WHERE field = 'RFC_TYPE'.
 
@@ -1132,7 +1322,7 @@ CLASS lcl_report IMPLEMENTATION.
               LOOP AT ls_user-auth_values INTO ls_rfc_name
                 WHERE auth  = ls_auth-auth
                   AND field = 'RFC_NAME'
-                  and von   = '*'.
+                  AND von   = '*'.
                 CONCATENATE
                   ls_data-authorizations
                   ls_rfc_name-auth
@@ -1141,13 +1331,14 @@ CLASS lcl_report IMPLEMENTATION.
                   ','
                   INTO ls_data-authorizations SEPARATED BY space.
               ENDLOOP.
+              auth_star = 'X'.
 
             WHEN 'FUGR'.
               " Authorization match to function group
               LOOP AT ls_user-auth_values INTO ls_rfc_name
                 WHERE auth  = ls_auth-auth
                   AND field = 'RFC_NAME'
-                  and von   = ls_data-area.
+                  AND von   = ls_data-area.
                 CONCATENATE
                   ls_data-authorizations
                   ls_rfc_name-auth
@@ -1159,10 +1350,10 @@ CLASS lcl_report IMPLEMENTATION.
               " Generic authorization for function group
               " ... tbd...
               " Authorization range
-               LOOP AT ls_user-auth_values INTO ls_rfc_name
-                WHERE auth  = ls_auth-auth
-                  AND field = 'RFC_NAME'
-                  and ( von <= ls_data-area and bis >= ls_data-area ).
+              LOOP AT ls_user-auth_values INTO ls_rfc_name
+               WHERE auth  = ls_auth-auth
+                 AND field = 'RFC_NAME'
+                 AND ( von <= ls_data-area AND bis >= ls_data-area ).
                 CONCATENATE
                   ls_data-authorizations
                   ls_rfc_name-auth
@@ -1179,7 +1370,7 @@ CLASS lcl_report IMPLEMENTATION.
               LOOP AT ls_user-auth_values INTO ls_rfc_name
                 WHERE auth  = ls_auth-auth
                   AND field = 'RFC_NAME'
-                  and von   = ls_data-funcname.
+                  AND von   = ls_data-funcname.
                 CONCATENATE
                   ls_data-authorizations
                   ls_rfc_name-auth
@@ -1191,10 +1382,10 @@ CLASS lcl_report IMPLEMENTATION.
               " Generic authorization for function name
               " ... tbd...
               " Authorization range
-               LOOP AT ls_user-auth_values INTO ls_rfc_name
-                WHERE auth  = ls_auth-auth
-                  AND field = 'RFC_NAME'
-                  and ( von <= ls_data-funcname and bis >= ls_data-funcname ).
+              LOOP AT ls_user-auth_values INTO ls_rfc_name
+               WHERE auth  = ls_auth-auth
+                 AND field = 'RFC_NAME'
+                 AND ( von <= ls_data-funcname AND bis >= ls_data-funcname ).
                 CONCATENATE
                   ls_data-authorizations
                   ls_rfc_name-auth
@@ -1211,18 +1402,31 @@ CLASS lcl_report IMPLEMENTATION.
           ENDCASE.
 
         ENDLOOP.
+        " Set color if any * authorizations habve been found
+        IF auth_star = 'X'.
+          APPEND VALUE #( fname = 'AUTHORIZATIONS' color-col = col_negative ) TO ls_data-ctab.
+        ENDIF.
 
       ENDIF.
 
       " Set color of function
+      " Variant A (this is currently used):
+      "   blocked -> red
+      "   candidate for blocking -> yellow
+      "   callable -> green
+      " Variant B (maybe we can use it in another recommendation column):
+      "   blocked but called -> red
+      "   callable but not called -> yellow
+      "   callable and called -> green
+      "   blocked and not called -> neutral
       IF ls_data-id IS INITIAL.
         IF ls_data-actual_phase = 'A'.
-          ls_data-ctab = VALUE #( ( fname = 'FUNCNAME' color-col = col_negative ) ). " red: blocked
+          APPEND VALUE #( fname = 'FUNCNAME' color-col = col_negative ) TO ls_data-ctab. " red: blocked
         ELSE.
-          ls_data-ctab = VALUE #( ( fname = 'FUNCNAME' color-col = col_total ) ).    " yellow: candidate for blocking
+          APPEND VALUE #( fname = 'FUNCNAME' color-col = col_total )    TO ls_data-ctab. " yellow: candidate for blocking
         ENDIF.
       ELSE.
-        ls_data-ctab   = VALUE #( ( fname = 'FUNCNAME' color-col = col_positive ) ).   " green: callable
+        APPEND VALUE #( fname = 'FUNCNAME' color-col = col_positive )   TO ls_data-ctab. " green: callable
       ENDIF.
 
       APPEND ls_data TO lt_data.
@@ -1684,16 +1888,31 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_fumo-low.
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_fumo-high.
   lcl_report=>at_selection_screen_f4_fumo(  ).
 
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_mandt-low.
+  lcl_report=>at_selection_screen_f4_mandt( ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_mandt-high.
+  lcl_report=>at_selection_screen_f4_mandt(  ).
+
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_bname-low.
   lcl_report=>at_selection_screen_f4_bname( ).
 
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_bname-high.
   lcl_report=>at_selection_screen_f4_bname(  ).
 
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_class-low.
+  lcl_report=>at_selection_screen_f4_class( ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_class-high.
+  lcl_report=>at_selection_screen_f4_class(  ).
+
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR layout.
   lcl_report=>at_selection_screen_f4_layout(
     CHANGING layout = layout
   ).
+
+AT SELECTION-SCREEN.
+  lcl_report=>at_selection_screen( ).
 
 START-OF-SELECTION.
   lcl_report=>start_of_selection(
