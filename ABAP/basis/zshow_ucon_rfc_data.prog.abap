@@ -16,6 +16,7 @@
 *&            Hide selection for client and user in case of the simple view
 *&            Value help for client and user group
 *&            Show authorizations in red if there are any * authorizations
+*&            Navigation to function, function group or package
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
@@ -162,84 +163,84 @@ SELECTION-SCREEN END OF LINE.
 
 SELECTION-SCREEN COMMENT /1(60) ss_vers.
 
+TYPES:
+  BEGIN OF ts_ucon_phase_tool_fields_ext,                  "* Enhanced list
+    funcname               TYPE tfdir-funcname,            "* CHAR 30  Name of Function Module
+
+    fmode                  TYPE tfdir-fmode,               " additional field
+    func_text              TYPE tftit-stext,               " additional field
+    func_called            TYPE char1,                     " additional field
+    area                   TYPE enlfdir-area,              " additional field
+    area_text              TYPE tlibt-areat,               " additional field
+    area_called            TYPE char1,                     " additional field
+    devclass               TYPE tadir-devclass,            " additional field
+    devclass_text          TYPE tdevct-ctext,              " additional field
+    devclass_called        TYPE char1,                     " additional field
+    dlvunit                TYPE tdevc-dlvunit,             " additional field
+    dlvunit_called         TYPE char1,                     " additional field
+    blpackage              TYPE devclass,                  " additional field, field v_rfcbl_server-blpackage exists as of 7.50
+
+    actual_phase           TYPE  uconrfcphase,             "* CHAR 1   Phase of an RFC Function module in CA fill process
+    phasetext	             TYPE c LENGTH 10,
+
+    "spau_relevant          TYPE  uconspaurelevant,        "  CHAR 1   RFC Service should apear in SPAU
+    "duration_days          TYPE  int4,                    "  INT4 10  4 Byte Signed Integer
+    end_phase              TYPE  as4date,                  "* DATS 8   Last Changed On
+    "secure_by_default      TYPE  sap_bool,                "* CHAR 1   Boolean Variable (X=True, Space=False)
+    "origin_sid             TYPE  sysysid,                 "  CHAR 8   Name of SAP System
+    id                     TYPE  uconservid,               "* CHAR 30  Unified Connectivity Service Assembly  ID
+    "version                TYPE  uconstate,               "  CHAR 1   State of Object
+    "rfcfuncname            TYPE  rs38l_fnam,              "  CHAR 30  Name of Function Module
+    "called_rfm             TYPE  funcname,                "  CHAR 30  Function name
+
+    called_sid             TYPE  sysysid,                  "* CHAR 8   Name of SAP System
+    called_installation_nr TYPE  uconinstnr,               "* CHAR 10  Installation Number
+    called_client          TYPE  symandt,                  "* CLNT 3   Client ID
+    called_user            TYPE  syuname,                  "* CHAR 12  User Name
+
+    ustyp                  TYPE  usr02-ustyp,              " additional field
+    class                  TYPE  usr02-class,              " additional field
+    authorizations         TYPE  string,                   " additional field
+
+    "executive_instance     TYPE  uconexecutiveinstance,   "  CHAR 40  Executive ABAP instance which performs the RFC Call
+    "called_vh              TYPE  uconvirthostname,        "* CHAR 30  Name of virt. hosts
+    "ucon_phase             TYPE  c LENGTH 1,              "  CHAR 1   UCON RFC Phase (L =Logging; E=Evaluation; A=Active)
+    "external_connector     TYPE  ucon_external_connector, "  CHAR 1   External Connector, which calls into an ABAP system
+    rejected_rfc_call      TYPE  uconrfc_reject_call,      "* CHAR 1   Rejected RFC Call ('X' = Rejected; space not Rejected)
+
+    caller_sid             TYPE  sysysid,                  "* CHAR 8   Name of SAP System
+    caller_instance        TYPE  uconpartnerinstance,      "* CHAR 40  Partner Instance
+    caller_client          TYPE  uconclnt,                 "* CHAR 3   Caller Client
+    caller_user            TYPE  uconuserid,               "  CHAR 12  Caller User Name
+    "caller_program         TYPE  progname,                "  CHAR 40  ABAP Program Name
+    caller_destination     TYPE  rfcdest,                  "* CHAR 32  Logical destination (specified in function call)
+
+    "last_root_context_id   TYPE  uconrootcntxid,          "  CHAR 35  Root Context ID
+    "last_connection_id     TYPE  uconconnectionid,        "  CHAR 35  ID of Connection Type
+
+    firstcall_timestamp    TYPE  salv_tstmp, "timestamp,   "* DEC  15  UTC Time Stamp in Short Form (YYYYMMDDhhmmss)
+    previouscall_timestamp TYPE  salv_tstmp, "timestamp,   "* DEC  15  UTC Time Stamp in Short Form (YYYYMMDDhhmmss)
+    lastcall_timestamp     TYPE  salv_tstmp, "timestamp,   "* DEC  15  UTC Time Stamp in Short Form (YYYYMMDDhhmmss)
+
+    counter_same_system    TYPE  i,                        "* INT4 10  Counter for external RFC from same system & different client
+    counter_other_system   TYPE  i,                        "* INT4 10  Counter for external  RFC call from other systems
+    counter                TYPE  i,                        "  INT4 10
+
+    "nosnc                  TYPE  sap_bool,                "  CHAR 1   Boolean Variable (X=True, Space=False)
+    "snc                    TYPE  sap_bool,                "  CHAR 1   Boolean Variable (X=True, Space=False)
+    "counter_same_l         TYPE  i,                       "  INT8 19  Counter for calls from same system but other client
+    "counter_other_l        TYPE  i,                       "  INT8 19  Counter for calls from external system
+
+    ctab                   TYPE lvc_t_scol,                "  Color field for ALV cells
+  END OF ts_ucon_phase_tool_fields_ext,
+  tt_ucon_phase_tool_fields_ext TYPE TABLE OF ts_ucon_phase_tool_fields_ext.
+
 *---------------------------------------------------------------------*
 *      CLASS lcl_report DEFINITION
 *---------------------------------------------------------------------*
 CLASS lcl_report DEFINITION.
 
   PUBLIC SECTION.
-
-    TYPES:
-      BEGIN OF ts_ucon_phase_tool_fields_ext,                  "* Enhanced list
-        funcname               TYPE tfdir-funcname,            "* CHAR 30  Name of Function Module
-
-        fmode                  TYPE tfdir-fmode,               " additional field
-        func_text              TYPE tftit-stext,               " additional field
-        func_called            TYPE char1,                     " additional field
-        area                   TYPE enlfdir-area,              " additional field
-        area_text              TYPE tlibt-areat,               " additional field
-        area_called            TYPE char1,                     " additional field
-        devclass               TYPE tadir-devclass,            " additional field
-        devclass_text          TYPE tdevct-ctext,              " additional field
-        devclass_called        TYPE char1,                     " additional field
-        dlvunit                TYPE tdevc-dlvunit,             " additional field
-        dlvunit_called         TYPE char1,                     " additional field
-        blpackage              TYPE devclass,                  " additional field, field v_rfcbl_server-blpackage exists as of 7.50
-
-        actual_phase           TYPE  uconrfcphase,             "* CHAR 1   Phase of an RFC Function module in CA fill process
-        phasetext	             TYPE c LENGTH 10,
-
-        "spau_relevant          TYPE  uconspaurelevant,        "  CHAR 1   RFC Service should apear in SPAU
-        "duration_days          TYPE  int4,                    "  INT4 10  4 Byte Signed Integer
-        end_phase              TYPE  as4date,                  "* DATS 8   Last Changed On
-        "secure_by_default      TYPE  sap_bool,                "* CHAR 1   Boolean Variable (X=True, Space=False)
-        "origin_sid             TYPE  sysysid,                 "  CHAR 8   Name of SAP System
-        id                     TYPE  uconservid,               "* CHAR 30  Unified Connectivity Service Assembly  ID
-        "version                TYPE  uconstate,               "  CHAR 1   State of Object
-        "rfcfuncname            TYPE  rs38l_fnam,              "  CHAR 30  Name of Function Module
-        "called_rfm             TYPE  funcname,                "  CHAR 30  Function name
-
-        called_sid             TYPE  sysysid,                  "* CHAR 8   Name of SAP System
-        called_installation_nr TYPE  uconinstnr,               "* CHAR 10  Installation Number
-        called_client          TYPE  symandt,                  "* CLNT 3   Client ID
-        called_user            TYPE  syuname,                  "* CHAR 12  User Name
-
-        ustyp                  TYPE  usr02-ustyp,              " additional field
-        class                  TYPE  usr02-class,              " additional field
-        authorizations         TYPE  string,                   " additional field
-
-        "executive_instance     TYPE  uconexecutiveinstance,   "  CHAR 40  Executive ABAP instance which performs the RFC Call
-        "called_vh              TYPE  uconvirthostname,        "* CHAR 30  Name of virt. hosts
-        "ucon_phase             TYPE  c LENGTH 1,              "  CHAR 1   UCON RFC Phase (L =Logging; E=Evaluation; A=Active)
-        "external_connector     TYPE  ucon_external_connector, "  CHAR 1   External Connector, which calls into an ABAP system
-        rejected_rfc_call      TYPE  uconrfc_reject_call,      "* CHAR 1   Rejected RFC Call ('X' = Rejected; space not Rejected)
-
-        caller_sid             TYPE  sysysid,                  "* CHAR 8   Name of SAP System
-        caller_instance        TYPE  uconpartnerinstance,      "* CHAR 40  Partner Instance
-        caller_client          TYPE  uconclnt,                 "* CHAR 3   Caller Client
-        caller_user            TYPE  uconuserid,               "  CHAR 12  Caller User Name
-        "caller_program         TYPE  progname,                "  CHAR 40  ABAP Program Name
-        caller_destination     TYPE  rfcdest,                  "* CHAR 32  Logical destination (specified in function call)
-
-        "last_root_context_id   TYPE  uconrootcntxid,          "  CHAR 35  Root Context ID
-        "last_connection_id     TYPE  uconconnectionid,        "  CHAR 35  ID of Connection Type
-
-        firstcall_timestamp    TYPE  salv_tstmp, "timestamp,   "* DEC  15  UTC Time Stamp in Short Form (YYYYMMDDhhmmss)
-        previouscall_timestamp TYPE  salv_tstmp, "timestamp,   "* DEC  15  UTC Time Stamp in Short Form (YYYYMMDDhhmmss)
-        lastcall_timestamp     TYPE  salv_tstmp, "timestamp,   "* DEC  15  UTC Time Stamp in Short Form (YYYYMMDDhhmmss)
-
-        counter_same_system    TYPE  i,                        "* INT4 10  Counter for external RFC from same system & different client
-        counter_other_system   TYPE  i,                        "* INT4 10  Counter for external  RFC call from other systems
-        counter                TYPE  i,                        "  INT4 10
-
-        "nosnc                  TYPE  sap_bool,                "  CHAR 1   Boolean Variable (X=True, Space=False)
-        "snc                    TYPE  sap_bool,                "  CHAR 1   Boolean Variable (X=True, Space=False)
-        "counter_same_l         TYPE  i,                       "  INT8 19  Counter for calls from same system but other client
-        "counter_other_l        TYPE  i,                       "  INT8 19  Counter for calls from external system
-
-        ctab                   TYPE lvc_t_scol,                "  Color field for ALV cells
-      END OF ts_ucon_phase_tool_fields_ext,
-      tt_ucon_phase_tool_fields_ext TYPE TABLE OF ts_ucon_phase_tool_fields_ext.
 
     TYPES:
       BEGIN OF ts_para,
@@ -369,15 +370,22 @@ CLASS lcl_alv DEFINITION.
         IMPORTING
           ext_list TYPE abap_bool " Enhanced list
         CHANGING
-          et_data  TYPE ANY TABLE. " see lcl_report type tt_ucon_phase_tool_fields_ext
+          et_data  TYPE tt_ucon_phase_tool_fields_ext,
+
+      on_user_command FOR EVENT added_function OF cl_salv_events
+        IMPORTING e_salv_function,
+
+      on_double_click FOR EVENT double_click OF cl_salv_events_table
+        IMPORTING row column.
 
   PRIVATE SECTION.
 
     CLASS-DATA:
+      lt_data       TYPE tt_ucon_phase_tool_fields_ext,
+      r_alv_table   TYPE REF TO cl_salv_table,
+      lr_alv_events TYPE REF TO lcl_alv.
 
-      r_alv_table      TYPE REF TO cl_salv_table.
-
-ENDCLASS.                    "cl_alv DEFINITION
+ENDCLASS.                    "lcl_alv DEFINITION
 
 *----------------------------------------------------------------------*
 *      CLASS lcl_report IMPLEMENTATION
@@ -1444,6 +1452,8 @@ CLASS lcl_alv IMPLEMENTATION.
 
   METHOD show_result.
 
+    lt_data = et_data.
+
     " references to ALV objects
     DATA:
       lr_functions_list   TYPE REF TO cl_salv_functions_list,
@@ -1453,7 +1463,7 @@ CLASS lcl_alv IMPLEMENTATION.
       lr_column           TYPE REF TO cl_salv_column_list, "or cl_salv_column_table,
       lr_sorts            TYPE REF TO cl_salv_sorts,
       lr_aggregations     TYPE REF TO cl_salv_aggregations,
-      "lr_events              TYPE REF TO cl_salv_events_table,
+      lr_events           TYPE REF TO cl_salv_events_table,
       "lr_functional_settings TYPE REF TO cl_salv_functional_settings,
       "lr_hyperlinks          TYPE REF TO cl_salv_hyperlinks,
       "lr_tooltips            TYPE REF TO cl_salv_tooltips,
@@ -1500,6 +1510,14 @@ CLASS lcl_alv IMPLEMENTATION.
     ELSE.
       lr_layout->set_save_restriction( 2 ). "user dependend
     ENDIF.
+
+    " register to the events of cl_salv_table
+    lr_events = r_alv_table->get_event( ).
+    CREATE OBJECT lr_alv_events.
+    " register to the event USER_COMMAND
+    SET HANDLER lr_alv_events->on_user_command FOR lr_events.
+    " register to the event DOUBLE_CLICK
+    SET HANDLER lr_alv_events->on_double_click FOR lr_events.
 
     " Selection mode: single cell
     lr_selections   = r_alv_table->get_selections( ).
@@ -1869,6 +1887,92 @@ CLASS lcl_alv IMPLEMENTATION.
     r_alv_table->display( ).
 
   ENDMETHOD. " show_result
+
+  METHOD on_user_command.
+  ENDMETHOD. " on_user_command
+
+  METHOD on_double_click.
+    " importing row column
+
+    " Get selected item(s)
+    DATA(lr_selections) = r_alv_table->get_selections( ).
+    DATA(ls_cell) = lr_selections->get_current_cell( ).
+    DATA(lt_seleced_rows) = lr_selections->get_selected_rows( ).
+
+    CHECK row > 0.
+
+    READ TABLE lt_data INTO DATA(ls_data) INDEX row.
+    CHECK sy-subrc = 0.
+
+    CASE column.
+
+      WHEN 'FUNCNAME' OR 'FMODE' OR 'FUNC_TEXT' OR 'FUNC_CALLED'.
+        CHECK ls_data-funcname IS NOT INITIAL.
+
+        CALL FUNCTION 'RS_TOOL_ACCESS'
+          EXPORTING
+            operation           = 'SHOW'
+            object_name         = ls_data-funcname
+            object_type         = 'FUNC'
+          EXCEPTIONS
+            not_executed        = 1
+            invalid_object_type = 2
+            OTHERS              = 3.
+        IF sy-subrc <> 0.
+          MESSAGE w215(s_ucon_lm).
+        ENDIF.
+
+      WHEN 'AREA' OR 'AREA_TEXT' OR 'AREA_CALLED'.
+        CHECK ls_data-area IS NOT INITIAL.
+
+        CALL FUNCTION 'RS_TOOL_ACCESS'
+          EXPORTING
+            operation           = 'SHOW'
+            object_name         = ls_data-area
+            object_type         = 'FUGR'
+          EXCEPTIONS
+            not_executed        = 1
+            invalid_object_type = 2
+            OTHERS              = 3.
+        IF sy-subrc <> 0.
+          MESSAGE w215(s_ucon_lm).
+        ENDIF.
+
+      WHEN 'DEVCLASS' OR 'DEVCLASS_TEXT' OR 'DEVCLASS_CALLED'.
+        CHECK ls_data-devclass IS NOT INITIAL.
+
+        CALL FUNCTION 'RS_TOOL_ACCESS'
+          EXPORTING
+            operation           = 'SHOW'
+            object_name         = ls_data-devclass
+            object_type         = 'DEVC'
+          EXCEPTIONS
+            not_executed        = 1
+            invalid_object_type = 2
+            OTHERS              = 3.
+        IF sy-subrc <> 0.
+          MESSAGE w215(s_ucon_lm).
+        ENDIF.
+
+      WHEN 'ID'.
+        CHECK ls_data-id IS NOT INITIAL.
+
+        CALL FUNCTION 'RS_TOOL_ACCESS'
+          EXPORTING
+            operation           = 'SHOW'
+            object_name         = ls_data-id
+            object_type         = 'UCSA'
+          EXCEPTIONS
+            not_executed        = 1
+            invalid_object_type = 2
+            OTHERS              = 3.
+        IF sy-subrc <> 0.
+          MESSAGE w215(s_ucon_lm).
+        ENDIF.
+
+    ENDCASE.
+
+  ENDMETHOD. " on_double_click
 
 ENDCLASS.                    "cl_alv IMPLEMENTATION
 
