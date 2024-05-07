@@ -450,7 +450,7 @@ CLASS lcl_report IMPLEMENTATION.
     DATA: lr_exception TYPE REF TO cx_salv_error,
           lv_message   TYPE bal_s_msg.
 
-*   Toolbar der Listausgabe unterdrücken
+*   Suppress toolbar of list output
     cl_abap_list_layout=>suppress_toolbar( ).
 *   Create an ALV table for grid display
     WRITE space. "trick to get the screen

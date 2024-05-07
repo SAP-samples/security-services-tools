@@ -14,9 +14,9 @@
 *& 02.08.2022 Small correction of ALV because of consistency check using Shift+Double right click
 *& 11.10.2022 Correct coloring in case of snc_mode = OFF
 *&            Show transaction and program always
-*& 09.05.2023 Add another field “Client IP” which shows the original IP address of the client in case of connections based on hopping from one server to another.
-*&            Show host and service in case of connections of type “Plugin HTPPS”
-*&            Don’t show red color in case of connection type “System”
+*& 09.05.2023 Add another field 'Client IP' which shows the original IP address of the client in case of connections based on hopping from one server to another.
+*&            Show host and service in case of connections of type 'Plugin HTPPS'
+*&            Don't show red color in case of connection type 'System'
 *&---------------------------------------------------------------------*
 
 REPORT  zsm04000_snc
