@@ -17,13 +17,26 @@
 *&            Value help for client and user group
 *&            Show authorizations in red if there are any * authorizations
 *&            Navigation to function, function group or package
+*& 08.05.2024 Selection for source of statistical data
+*&            Selection for called/uncalled function groups, packages, software components
+*&            Interactive functions: display/Change, set phase
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '06.05.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '08.05.2024 S41'.
 
 * Selection screen
 TABLES sscrfields.
+SELECTION-SCREEN: FUNCTION KEY 1. "UCON Cockpit
+
+" System
+SELECTION-SCREEN BEGIN OF BLOCK system WITH FRAME TITLE tit_sys.
+  SELECTION-SCREEN BEGIN OF LINE.
+    SELECTION-SCREEN COMMENT (30) t_system FOR FIELD p_system.
+    TYPES tf_system TYPE c LENGTH 15.
+    PARAMETERS p_system TYPE tf_system AS LISTBOX VISIBLE LENGTH 22 USER-COMMAND p_system.
+  SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK system.
 
 " Standard view for functions / Enhanced view incl. destinations and users
 SELECTION-SCREEN BEGIN OF BLOCK cols WITH FRAME TITLE tit_col.
@@ -99,21 +112,43 @@ SELECTION-SCREEN END   OF BLOCK user.
 " Called / uncalled / all
 SELECTION-SCREEN BEGIN OF BLOCK mode WITH FRAME TITLE tit_mde.
   SELECTION-SCREEN BEGIN OF LINE.
-    PARAMETERS: p_mon RADIOBUTTON GROUP stat DEFAULT 'X'.
+    PARAMETERS: p_mon RADIOBUTTON GROUP stat.                 " Called functions
     SELECTION-SCREEN COMMENT (28) t_mon FOR FIELD p_mon.
     SELECTION-SCREEN POSITION 32.
-    PARAMETERS: p_nmon  RADIOBUTTON GROUP stat.
+    PARAMETERS: p_nmon  RADIOBUTTON GROUP stat.               " Not called functions
     SELECTION-SCREEN COMMENT (28) t_nmon FOR FIELD p_nmon.
     SELECTION-SCREEN POSITION 64.
-    PARAMETERS: p_all RADIOBUTTON GROUP stat.
+    PARAMETERS: p_all RADIOBUTTON GROUP stat.                 " All functions
     SELECTION-SCREEN COMMENT (28) t_all FOR FIELD p_all.
+  SELECTION-SCREEN END OF LINE.
+
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_mona RADIOBUTTON GROUP stat.                " Called function groups
+    SELECTION-SCREEN COMMENT (28) t_mona FOR FIELD p_mona.
+    SELECTION-SCREEN POSITION 32.
+    PARAMETERS: p_nmona  RADIOBUTTON GROUP stat.              " Not called function groups
+    SELECTION-SCREEN COMMENT (28) t_nmona FOR FIELD p_nmona.
+  SELECTION-SCREEN END OF LINE.
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_mond RADIOBUTTON GROUP stat.                " Called packages
+    SELECTION-SCREEN COMMENT (28) t_mond FOR FIELD p_mond.
+    SELECTION-SCREEN POSITION 32.
+    PARAMETERS: p_nmond  RADIOBUTTON GROUP stat.              " Not called packages
+    SELECTION-SCREEN COMMENT (28) t_nmond FOR FIELD p_nmond.
+  SELECTION-SCREEN END OF LINE.
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_mons RADIOBUTTON GROUP stat.                " Called software components
+    SELECTION-SCREEN COMMENT (28) t_mons FOR FIELD p_mons.
+    SELECTION-SCREEN POSITION 32.
+    PARAMETERS: p_nmons  RADIOBUTTON GROUP stat.              " Not called software components
+    SELECTION-SCREEN COMMENT (28) t_nmons FOR FIELD p_nmons.
   SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END OF BLOCK mode.
 
 " Assigned / not assigned / all
 SELECTION-SCREEN BEGIN OF BLOCK assig WITH FRAME TITLE tit_asg.
   SELECTION-SCREEN BEGIN OF LINE.
-    PARAMETERS: p_assi RADIOBUTTON GROUP assi DEFAULT 'X'.
+    PARAMETERS: p_assi RADIOBUTTON GROUP assi.
     SELECTION-SCREEN COMMENT (28) t_assi FOR FIELD p_assi.
     SELECTION-SCREEN POSITION 32.
     PARAMETERS: p_unas  RADIOBUTTON GROUP assi.
@@ -133,7 +168,7 @@ SELECTION-SCREEN END OF BLOCK assig.
 " Phase expired logging / evaluation / all
 SELECTION-SCREEN BEGIN OF BLOCK choice WITH FRAME TITLE tit_chc.
   SELECTION-SCREEN BEGIN OF LINE.
-    PARAMETERS: p_log RADIOBUTTON GROUP grob DEFAULT 'X'.
+    PARAMETERS: p_log RADIOBUTTON GROUP grob.
     SELECTION-SCREEN COMMENT (28) t_log FOR FIELD p_log.
     SELECTION-SCREEN POSITION 32.
     PARAMETERS: p_eval  RADIOBUTTON GROUP grob.
@@ -181,7 +216,7 @@ TYPES:
     blpackage              TYPE devclass,                  " additional field, field v_rfcbl_server-blpackage exists as of 7.50
 
     actual_phase           TYPE  uconrfcphase,             "* CHAR 1   Phase of an RFC Function module in CA fill process
-    phasetext	             TYPE c LENGTH 10,
+    phasetext              TYPE string, "c LENGTH 10,
 
     "spau_relevant          TYPE  uconspaurelevant,        "  CHAR 1   RFC Service should apear in SPAU
     "duration_days          TYPE  int4,                    "  INT4 10  4 Byte Signed Integer
@@ -244,25 +279,11 @@ CLASS lcl_report DEFINITION.
 
     TYPES:
       BEGIN OF ts_para,
-        p_simp   TYPE abap_bool,  " Simple list
-        p_comp   TYPE abap_bool,  " Enhanced list
-        p_bl_srv TYPE abap_bool,
-
-        p_mon    TYPE abap_bool,  " Called Function Modules
-        p_nmon   TYPE abap_bool,  " Uncalled Function Modules
-        p_all    TYPE abap_bool,  " All Function Modules
-
-        p_assi   TYPE abap_bool,  " RFMs Assigned to Default CA
-        p_unas   TYPE abap_bool,  " Unassigned RFMs
-        p_both   TYPE abap_bool,  " Assigned and Unassigned RFMs
-        p_assi_s TYPE abap_bool,  " Assigned to SNC CA
-
-        p_log    TYPE abap_bool,  " RFMs in Logging Phase
-        p_eval   TYPE abap_bool, " RFMs in Evaluation Phase
-        p_act    TYPE abap_bool, " RFMs in Final Phase
-        p_log_e  TYPE abap_bool, " Expired RFMs in Logg. Phase
-        p_eval_e TYPE abap_bool, " Expired RFMs in Eval. Phase
-        p_all_p  TYPE abap_bool, " All Phases
+        list                   TYPE char6,
+        block_srv              TYPE char6,
+        call_status            TYPE char6,
+        communication_assembly TYPE char6,
+        phase                  TYPE char6,
       END OF ts_para,
       tt_sel_area     TYPE RANGE OF enlfdir-area,
       tt_sel_devclass TYPE RANGE OF tadir-devclass,
@@ -294,6 +315,8 @@ CLASS lcl_report DEFINITION.
 
       start_of_selection
         IMPORTING
+          p_system         TYPE tf_system " System and installation number
+
           p_simp           TYPE abap_bool " Simple list
           p_comp           TYPE abap_bool " Enhanced list
 
@@ -311,6 +334,12 @@ CLASS lcl_report DEFINITION.
           p_mon            TYPE abap_bool " Called Function Modules
           p_nmon           TYPE abap_bool " Uncalled Function Modules
           p_all            TYPE abap_bool " All Function Modules
+          p_mona           TYPE abap_bool " Called Function Groups
+          p_nmona          TYPE abap_bool " Uncalled Function Groups
+          p_mond           TYPE abap_bool " Called Packages
+          p_nmond          TYPE abap_bool " Uncalled Packages
+          p_mons           TYPE abap_bool " Called Software Components
+          p_nmons          TYPE abap_bool " Uncalled Software Components
 
           p_assi           TYPE abap_bool " RFMs Assigned to Default CA
           p_unas           TYPE abap_bool " Unassigned RFMs
@@ -332,7 +361,11 @@ CLASS lcl_report DEFINITION.
       c_v_rfcbl_server(30) VALUE 'V_RFCBL_SERVER'. "View V_RFCBL_SERVER exists as of 7.50
 
     CLASS-DATA:
-      auth_change            TYPE abap_bool.
+
+      sysid           TYPE sy-sysid,
+      installation_nr TYPE uconinstnr,
+
+      auth_change     TYPE abap_bool.
 
     CLASS-METHODS:
 
@@ -368,9 +401,10 @@ CLASS lcl_alv DEFINITION.
 
       show_result
         IMPORTING
-          ext_list TYPE abap_bool " Enhanced list
+          auth_change TYPE abap_bool
+          ext_list    TYPE abap_bool " Enhanced list
         CHANGING
-          et_data  TYPE tt_ucon_phase_tool_fields_ext,
+          et_data     TYPE tt_ucon_phase_tool_fields_ext,
 
       on_user_command FOR EVENT added_function OF cl_salv_events
         IMPORTING e_salv_function,
@@ -385,6 +419,12 @@ CLASS lcl_alv DEFINITION.
       r_alv_table   TYPE REF TO cl_salv_table,
       lr_alv_events TYPE REF TO lcl_alv.
 
+    CLASS-METHODS:
+      show_function               IMPORTING funcname TYPE tfdir-funcname,
+      show_function_group         IMPORTING area     TYPE enlfdir-area,
+      show_package                IMPORTING devclass TYPE tadir-devclass,
+      show_communication_assembly IMPORTING id       TYPE uconservid.
+
 ENDCLASS.                    "lcl_alv DEFINITION
 
 *----------------------------------------------------------------------*
@@ -397,6 +437,16 @@ CLASS lcl_report IMPLEMENTATION.
     authority_check( ).
 
     sy-title = 'Show extended UCON RFC data'(tit).
+
+    DATA functxt TYPE smp_dyntxt.
+
+    functxt-icon_id   = icon_wd_application.
+    functxt-quickinfo = 'UCON Cockpit'.
+    functxt-icon_text = 'UCON'.
+    sscrfields-functxt_01 = functxt.
+
+    tit_sys  = 'Use Statistics from System'.
+    t_system = 'System'.
 
     tit_col  = 'Displayed Fields'.
     t_simp   = 'Standard view'.
@@ -419,6 +469,12 @@ CLASS lcl_report IMPLEMENTATION.
     t_mon    = 'Called Function Modules'.
     t_nmon   = 'Uncalled Function Modules'.
     t_all    = 'All Function Modules'.
+    t_mona   = 'Called Function Groups'.
+    t_nmona  = 'Uncalled Function Groups'.
+    t_mond   = 'Called Packages'.
+    t_nmond  = 'Uncalled Packages'.
+    t_mons   = 'Called Software Components'.
+    t_nmons  = 'Uncalled Software Components'.
 
     tit_asg  = 'CA Assignment'.
     t_assi   = 'RFMs Assigned to Default CA'.
@@ -439,51 +495,73 @@ CLASS lcl_report IMPLEMENTATION.
     CONCATENATE 'Program version:'(ver) c_program_version INTO ss_vers
        SEPARATED BY space.
 
+
     " Get (hidden) user parameter
     DATA par_value TYPE ts_para.
     GET PARAMETER ID 'ZSHOW_UCON_RFC_DATA' FIELD par_value.
-    p_simp           = par_value-p_simp.   " Simple list
-    IF p_simp IS INITIAL.
-      p_comp           = par_value-p_comp.   " Enhanced list
-    ENDIF.
 
-    p_bl_srv         = par_value-p_bl_srv.
+    CASE par_value-list.
+      WHEN 'SIMP'.   p_simp   = 'X'. " Simple list
+      WHEN 'COMP'.   p_comp   = 'X'. " Enhanced list
+    ENDCASE.
 
-    p_mon            = par_value-p_mon.    " Called Function Modules
-    IF p_mon IS INITIAL.
-      p_nmon           = par_value-p_nmon.   " Uncalled Function Modules
-      IF p_nmon IS INITIAL.
-        p_all            = par_value-p_all.    " All Function Modules
-      ENDIF.
-    ENDIF.
+    p_bl_srv = par_value-block_srv.
 
-    p_assi           = par_value-p_assi.   " RFMs Assigned to Default CA
-    IF p_assi IS INITIAL.
-      p_unas           = par_value-p_unas.   " Unassigned RFMs
-      IF p_unas IS INITIAL.
-        p_both           = par_value-p_both.   " Assigned and Unassigned RFMs
-        IF p_both IS INITIAL.
-          p_assi_s         = par_value-p_assi_s. " Assigned to SNC CA
-        ENDIF.
-      ENDIF.
-    ENDIF.
+    CASE par_value-call_status.
+      WHEN 'MON'.    p_mon    = 'X'. " Called Function Modules
+      WHEN 'NMON'.   p_nmon   = 'X'. " Uncalled Function Modules
+      WHEN 'ALL'.    p_all    = 'X'. " All Function Modules
+      WHEN 'MONA'.   p_mona   = 'X'. " Called Function Groups
+      WHEN 'NMONA'.  p_nmona  = 'X'. " Uncalled Function Groups
+      WHEN 'MOND'.   p_mond   = 'X'. " Called Packages
+      WHEN 'NMOND'.  p_nmond  = 'X'. " Uncalled Packages
+      WHEN 'MONS'.   p_mons   = 'X'. " Called Software Components
+      WHEN 'NMONS'.  p_nmons  = 'X'. " Uncalled Software Components
+    ENDCASE.
 
-    p_log            = par_value-p_log.    " RFMs in Logging Phase
-    IF p_log IS INITIAL.
-      p_eval           = par_value-p_eval.   " RFMs in Evaluation Phase
-      IF p_eval IS INITIAL.
-        p_act            = par_value-p_act.    " RFMs in Final Phase
-        IF p_act IS INITIAL.
-          p_log_e          = par_value-p_log_e.  " Expired RFMs in Logg. Phase
-          IF p_log_e IS INITIAL.
-            p_eval_e         = par_value-p_eval_e. " Expired RFMs in Eval. Phase
-            IF p_eval_e IS INITIAL.
-              p_all_p          = par_value-p_all_p.  " All Phases
-            ENDIF.
-          ENDIF.
-        ENDIF.
-      ENDIF.
-    ENDIF.
+    CASE par_value-communication_assembly.
+      WHEN 'ASSI'.   p_assi   = 'X'. " RFMs Assigned to Default CA
+      WHEN 'UNAS'.   p_unas   = 'X'. " Unassigned RFMs
+      WHEN 'BOTH'.   p_both   = 'X'. " Assigned and Unassigned RFMs
+      WHEN 'ASSI_S'. p_assi_s = 'X'. " Assigned to SNC CA
+    ENDCASE.
+
+    CASE par_value-phase.
+      WHEN 'LOG'.    p_log    = 'X'. " RFMs in Logging Phase
+      WHEN 'EVAL'.   p_eval   = 'X'. " RFMs in Evaluation Phase
+      WHEN 'ACT'.    p_act    = 'X'. " RFMs in Final Phase
+      WHEN 'LOG_E'.  p_log_e  = 'X'. " Expired RFMs in Logg. Phase
+      WHEN 'EVAL_E'. p_eval_e = 'X'. " Expired RFMs in Eval. Phase
+      WHEN 'ALL_P'.  p_all_p  = 'X'. " All Phases
+    ENDCASE.
+
+
+    "Fill drop down box for field SYSTEM
+    DATA:
+      lt_system       TYPE vrm_values,
+      ls_system       TYPE vrm_value,
+      sysid           TYPE sy-sysid,
+      installation_nr TYPE uconinstnr.
+    CLEAR lt_system[].
+    SELECT DISTINCT
+        called_sid
+        called_installation_nr
+      FROM uconrfmcalleratt
+      INTO (sysid, installation_nr).
+      CONCATENATE sysid '-' installation_nr INTO ls_system-key.
+      ls_system-text = ls_system-key.
+      APPEND ls_system TO lt_system.
+    ENDSELECT.
+    CALL FUNCTION 'VRM_SET_VALUES'
+      EXPORTING
+        id     = 'P_SYSTEM'
+        values = lt_system.
+    "set default value for system
+    CALL FUNCTION 'SLIC_GET_LICENCE_NUMBER'
+      IMPORTING
+        license_number = installation_nr.
+    CONCATENATE sy-sysid '-' installation_nr INTO p_system.
+
   ENDMETHOD. " initialization
 
   METHOD authority_check.
@@ -780,37 +858,69 @@ CLASS lcl_report IMPLEMENTATION.
   ENDMETHOD. " at_selection_screen_on_layout
 
   METHOD at_selection_screen.
-    IF sscrfields-ucomm = 'COLS'.
-      " see AT SELECTION SCREEN OUTPUT
-    ENDIF.
+
+    CASE sscrfields-ucomm.
+
+      WHEN 'FC01'.
+        " UCON Cockpit
+        CALL TRANSACTION 'UCONCOCKPIT' WITH AUTHORITY-CHECK.
+
+      WHEN 'COLS'.
+        " see AT SELECTION SCREEN OUTPUT
+
+    ENDCASE.
+
   ENDMETHOD. " at_selection_screen
 
   METHOD start_of_selection.
 
+    CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+      EXPORTING
+        percentage = 0
+        text       = 'Get data'.
+
     " Store (hidden) user parameter
     DATA par_value TYPE ts_para.
-    CONCATENATE
-       p_simp           " Simple list
-       p_comp           " Enhanced list
-       blocklist_server
+    IF p_simp   = 'X'. par_value-list = 'SIMP'. ENDIF. " Simple list
+    IF p_comp   = 'X'. par_value-list = 'COMP'. ENDIF. " Enhanced list
 
-       p_mon            " Called Function Modules
-       p_nmon           " Uncalled Function Modules
-       p_all            " All Function Modules
+    par_value-block_srv  = p_bl_srv.
 
-       p_assi           " RFMs Assigned to Default CA
-       p_unas           " Unassigned RFMs
-       p_both           " Assigned and Unassigned RFMs
-       p_assi_s         " Assigned to SNC CA
+    IF p_mon    = 'X'. par_value-call_status = 'MON'. ENDIF. " Called Function Modules
+    IF p_nmon   = 'X'. par_value-call_status = 'NMON'. ENDIF. " Uncalled Function Modules
+    IF p_all    = 'X'. par_value-call_status = 'ALL'. ENDIF. " All Function Modules
+    IF p_mona   = 'X'. par_value-call_status = 'MONA'. ENDIF. " Called Function Groups
+    IF p_nmona  = 'X'. par_value-call_status = 'NMONA'. ENDIF. " Uncalled Function Groups
+    IF p_mond   = 'X'. par_value-call_status = 'MOND'. ENDIF. " Called Packages
+    IF p_nmond  = 'X'. par_value-call_status = 'NMOND'. ENDIF. " Uncalled Packages
+    IF p_mons   = 'X'. par_value-call_status = 'MONS'. ENDIF. " Called Software Components
+    IF p_nmons  = 'X'. par_value-call_status = 'NMONS'. ENDIF. " Uncalled Software Components
 
-       p_log            " RFMs in Logging Phase
-       p_eval           " RFMs in Evaluation Phase
-       p_act            " RFMs in Final Phase
-       p_log_e          " Expired RFMs in Logg. Phase
-       p_eval_e         " Expired RFMs in Eval. Phase
-       p_all_p          " All Phases
-       INTO par_value RESPECTING BLANKS.
+    IF p_assi   = 'X'. par_value-communication_assembly = 'ASSI'.   ENDIF. " RFMs Assigned to Default CA
+    IF p_unas   = 'X'. par_value-communication_assembly = 'UNAS'.   ENDIF. " Unassigned RFMs
+    IF p_both   = 'X'. par_value-communication_assembly = 'BOTH'.   ENDIF. " Assigned and Unassigned RFMs
+    IF p_assi_s = 'X'. par_value-communication_assembly = 'ASSI_S'. ENDIF. " Assigned to SNC CA
+
+    IF p_log    = 'X'. par_value-phase = 'LOG'.    ENDIF. " RFMs in Logging Phase
+    IF p_eval   = 'X'. par_value-phase = 'EVAL'.   ENDIF. " RFMs in Evaluation Phase
+    IF p_act    = 'X'. par_value-phase = 'ACT'.    ENDIF. " RFMs in Final Phase
+    IF p_log_e  = 'X'. par_value-phase = 'LOG_E'.  ENDIF. " Expired RFMs in Logg. Phase
+    IF p_eval_e = 'X'. par_value-phase = 'EVAL_E'. ENDIF. " Expired RFMs in Eval. Phase
+    IF p_all_p  = 'X'. par_value-phase = 'ALL_P'.  ENDIF. " All Phases
     SET PARAMETER ID 'ZSHOW_UCON_RFC_DATA' FIELD par_value.
+
+    " Own system and installation number
+    sysid = sy-sysid.
+    CALL FUNCTION 'SLIC_GET_LICENCE_NUMBER'
+      IMPORTING
+        license_number = installation_nr.
+
+    " Selected system and installation number
+    sysid = p_system(3).
+    installation_nr = p_system+4.
+    CHECK sysid IS NOT INITIAL AND installation_nr IS NOT INITIAL.
+
+    " Prepare selection parameters
 
     DATA:
       cols               TYPE if_ucon_phase_store_utility=>tt_columns,
@@ -836,14 +946,10 @@ CLASS lcl_report IMPLEMENTATION.
       " 'AC' p_act       RFMs in Final Phase
       " space            all
 
-      sysid              TYPE sysysid,
-      installation_nr    TYPE uconinstnr,
       aggregate_vh       TYPE sap_bool, "OPTIONAL
       snc_only           TYPE sap_bool, "OPTIONAL
       lt_called_rfm_list TYPE ucon_phase_tool_fields_tt,
       result_limit       TYPE abap_bool.
-
-    " Prepare selection parameters
 
     REFRESH cols.
     IF p_comp = abap_false.
@@ -867,16 +973,10 @@ CLASS lcl_report IMPLEMENTATION.
       ENDCASE.
     ENDLOOP.
 
-    " set default value for system
-    sysid = sy-sysid.
-    CALL FUNCTION 'SLIC_GET_LICENCE_NUMBER'
-      IMPORTING
-        license_number = installation_nr.
-
     " Called / uncalled / all
-    IF p_mon = abap_true.
+    IF p_mon = abap_true.       " Called functions
       call_mode = 'C'.
-    ELSEIF p_nmon = abap_true.
+    ELSEIF p_nmon = abap_true.  " Not called functions
       call_mode = 'U'.
     ELSE.
       CLEAR call_mode.
@@ -999,16 +1099,36 @@ CLASS lcl_report IMPLEMENTATION.
     ENDIF.
     FREE lt_called_rfm_list.
 
-    " Add marker if function group respective package has some called functions
+    " Show result
+    lcl_alv=>show_result(
+      EXPORTING
+        auth_change = auth_change
+        ext_list    = p_comp
+      CHANGING
+        et_data     = lt_data
+    ).
+
+  ENDMETHOD. " start_of_selection
+
+  METHOD extend_data.
+
+    CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+      EXPORTING
+        percentage = 50
+        text       = 'Extend data'.
+
+    " Add marker if function group, package or software component has some called functions
     TYPES:
       BEGIN OF ts_fugr,
         area TYPE enlfdir-area,
       END OF ts_fugr,
       tt_fugr TYPE SORTED TABLE OF ts_fugr WITH UNIQUE KEY area,
+
       BEGIN OF ts_devclass,
         devclass TYPE tdevc-devclass,
       END OF ts_devclass,
       tt_devclass TYPE SORTED TABLE OF ts_devclass WITH UNIQUE KEY devclass,
+
       BEGIN OF ts_dlvunit,
         dlvunit TYPE tdevc-dlvunit,
       END OF ts_dlvunit,
@@ -1074,48 +1194,8 @@ CLASS lcl_report IMPLEMENTATION.
         tdevc~dlvunit
       INTO TABLE @lt_dlvunit.
 
-    LOOP AT lt_data ASSIGNING FIELD-SYMBOL(<ls_data>).
-      IF <ls_data>-counter > 0.
-        <ls_data>-func_called = 'X'. "sym_filled_circle. "'called'.
-      ELSE.
-        <ls_data>-func_called = ' '. "sym_circle.
-      ENDIF.
 
-      READ TABLE lt_fugr WITH TABLE KEY area = <ls_data>-area TRANSPORTING NO FIELDS.
-      IF sy-subrc = 0.
-        <ls_data>-area_called = 'X'. "sym_filled_circle. "'called'.
-      ELSE.
-        <ls_data>-area_called = ' '. "sym_circle.
-      ENDIF.
-
-      READ TABLE lt_devclass WITH TABLE KEY devclass = <ls_data>-devclass TRANSPORTING NO FIELDS.
-      IF sy-subrc = 0.
-        <ls_data>-devclass_called = 'X'. "sym_filled_circle. "'called'.
-      ELSE.
-        <ls_data>-devclass_called = ' '. "sym_circle.
-      ENDIF.
-
-      READ TABLE lt_dlvunit WITH TABLE KEY dlvunit = <ls_data>-dlvunit TRANSPORTING NO FIELDS.
-      IF sy-subrc = 0.
-        <ls_data>-dlvunit_called = 'X'. "sym_filled_circle. "'called'.
-      ELSE.
-        <ls_data>-dlvunit_called = ' '. "sym_circle.
-      ENDIF.
-    ENDLOOP.
-
-    " Show result
-    lcl_alv=>show_result(
-      EXPORTING
-        ext_list   = p_comp
-      CHANGING
-        et_data    = lt_data
-    ).
-
-  ENDMETHOD. " start_of_selection
-
-  METHOD extend_data.
-
-    " User data from USR02
+    " Collect user data
     TYPES:
       BEGIN OF ts_user,
         mandt       TYPE usr02-mandt,
@@ -1130,7 +1210,7 @@ CLASS lcl_report IMPLEMENTATION.
       ls_user TYPE ts_user,
       lt_user TYPE tt_user.
 
-    " Function data
+    " Collect function data
     TYPES:
       BEGIN OF ts_function,
         funcname      TYPE tfdir-funcname,
@@ -1149,9 +1229,12 @@ CLASS lcl_report IMPLEMENTATION.
       ls_function TYPE ts_function,
       lt_function TYPE tt_function.
 
+    " ALV Data
     DATA:
       ls_data TYPE ts_ucon_phase_tool_fields_ext.
 
+
+    " Copy data to ALV data
     LOOP AT lt_called_rfm_list INTO DATA(ls_called_rfm_list)
       WHERE called_client IN sel_mandt
         AND called_user   IN sel_bname.
@@ -1159,7 +1242,7 @@ CLASS lcl_report IMPLEMENTATION.
       CLEAR ls_data.
       MOVE-CORRESPONDING ls_called_rfm_list TO ls_data.
 
-      " Get function data
+      " Get additional function data
       CLEAR ls_function.
       READ TABLE lt_function INTO ls_function WITH KEY funcname = ls_data-funcname.
       IF sy-subrc NE 0.
@@ -1225,6 +1308,83 @@ CLASS lcl_report IMPLEMENTATION.
       ls_data-dlvunit       = ls_function-dlvunit.
       ls_data-blpackage     = ls_function-blpackage.
 
+      " Add marker if function is called
+      IF ls_data-counter > 0.
+        ls_data-func_called = 'X'. "sym_filled_circle. "'called'.
+      ELSE.
+        ls_data-func_called = ' '. "sym_circle.
+      ENDIF.
+
+      " Add marker if function group has some called functions
+      READ TABLE lt_fugr WITH TABLE KEY area = ls_data-area TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        ls_data-area_called = 'X'. "sym_filled_circle. "'called'.
+      ELSE.
+        ls_data-area_called = ' '. "sym_circle.
+      ENDIF.
+
+      " Add marker if package has some called functions
+      READ TABLE lt_devclass WITH TABLE KEY devclass = ls_data-devclass TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        ls_data-devclass_called = 'X'. "sym_filled_circle. "'called'.
+      ELSE.
+        ls_data-devclass_called = ' '. "sym_circle.
+      ENDIF.
+
+      " Add marker if software component has some called functions
+      READ TABLE lt_dlvunit WITH TABLE KEY dlvunit = ls_data-dlvunit TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        ls_data-dlvunit_called = 'X'. "sym_filled_circle. "'called'.
+      ELSE.
+        ls_data-dlvunit_called = ' '. "sym_circle.
+      ENDIF.
+
+      IF p_mon = 'X'. " Called functions
+        CHECK ls_data-func_called = 'X'.
+      ENDIF.
+      IF p_nmon = 'X'. " Not called functions
+        CHECK ls_data-func_called = ' '.
+      ENDIF.
+      IF p_mona = 'X'. " Called function groups
+        CHECK ls_data-area_called = 'X'.
+      ENDIF.
+      IF p_nmona = 'X'. " Not called function groups
+        CHECK ls_data-area_called = ' '.
+      ENDIF.
+      IF p_mond = 'X'. " Called packages
+        CHECK ls_data-devclass_called = 'X'.
+      ENDIF.
+      IF p_nmond = 'X'. " Not called packages
+        CHECK ls_data-devclass_called = ' '.
+      ENDIF.
+      IF p_mons = 'X'. " Called software components
+        CHECK ls_data-dlvunit_called = 'X'.
+      ENDIF.
+      IF p_nmons = 'X'. " Not called software components
+        CHECK ls_data-dlvunit_called = ' '.
+      ENDIF.
+
+      " Set color of function
+      " Variant A (this is currently used):
+      "   blocked -> red
+      "   candidate for blocking -> yellow
+      "   callable -> green
+      " Variant B (maybe we can use it in another recommendation column):
+      "   blocked but called -> red
+      "   callable but not called -> yellow
+      "   callable and called -> green
+      "   blocked and not called -> neutral
+      IF ls_data-id IS INITIAL.
+        IF ls_data-actual_phase = 'A'.
+          APPEND VALUE #( fname = 'FUNCNAME' color-col = col_negative ) TO ls_data-ctab. " red: blocked
+        ELSE.
+          APPEND VALUE #( fname = 'FUNCNAME' color-col = col_total )    TO ls_data-ctab. " yellow: candidate for blocking
+        ENDIF.
+      ELSE.
+        APPEND VALUE #( fname = 'FUNCNAME' color-col = col_positive )   TO ls_data-ctab. " green: callable
+      ENDIF.
+
+      " Add text of phase
       CASE ls_data-actual_phase.
         WHEN 'L'.
           ls_data-phasetext = 'Logging'.
@@ -1234,7 +1394,7 @@ CLASS lcl_report IMPLEMENTATION.
           ls_data-phasetext = 'Final'.
       ENDCASE.
 
-      " Get user data: user type, user group, and authorizations for S_RFC
+      " Get additional user data: user type, user group, and authorizations for S_RFC (only possible for the current system)
       IF ls_data-called_sid = sy-sysid AND ls_data-called_client IS NOT INITIAL AND ls_data-called_user IS NOT INITIAL.
         CLEAR ls_user.
         " Do we know this user already?
@@ -1300,7 +1460,7 @@ CLASS lcl_report IMPLEMENTATION.
 
             ENDIF.
 
-            " Storev the user
+            " Store the user
             INSERT ls_user INTO lt_user INDEX tabix.
           ENDIF.
         ENDIF.
@@ -1313,10 +1473,10 @@ CLASS lcl_report IMPLEMENTATION.
         ls_data-ustyp = ls_user-ustyp.
         ls_data-class = ls_user-class.
 
-        " Copy authorization data2
-        " Let's assume that ACTVT=16 does not need to get verified and that RFC_TYPE has one of the values *, FUGR or FUNC
+        " Copy authorization data
+        " Let's assume that ACTVT=16 does not need to get verified and that RFC_TYPE has only one of the values *, FUGR or FUNC
         CLEAR ls_data-authorizations.
-        DATA auth_star TYPE abap_bool.
+        DATA auth_star TYPE abap_bool. " Flag to indicate that this user has * authorizations
         CLEAR auth_star.
         DATA:
           ls_auth     TYPE usvalues,
@@ -1410,36 +1570,20 @@ CLASS lcl_report IMPLEMENTATION.
           ENDCASE.
 
         ENDLOOP.
-        " Set color if any * authorizations habve been found
+
+        " Set color if any * authorizations have been found
         IF auth_star = 'X'.
           APPEND VALUE #( fname = 'AUTHORIZATIONS' color-col = col_negative ) TO ls_data-ctab.
         ENDIF.
 
       ENDIF.
 
-      " Set color of function
-      " Variant A (this is currently used):
-      "   blocked -> red
-      "   candidate for blocking -> yellow
-      "   callable -> green
-      " Variant B (maybe we can use it in another recommendation column):
-      "   blocked but called -> red
-      "   callable but not called -> yellow
-      "   callable and called -> green
-      "   blocked and not called -> neutral
-      IF ls_data-id IS INITIAL.
-        IF ls_data-actual_phase = 'A'.
-          APPEND VALUE #( fname = 'FUNCNAME' color-col = col_negative ) TO ls_data-ctab. " red: blocked
-        ELSE.
-          APPEND VALUE #( fname = 'FUNCNAME' color-col = col_total )    TO ls_data-ctab. " yellow: candidate for blocking
-        ENDIF.
-      ELSE.
-        APPEND VALUE #( fname = 'FUNCNAME' color-col = col_positive )   TO ls_data-ctab. " green: callable
-      ENDIF.
-
+      " Store data
       APPEND ls_data TO lt_data.
 
     ENDLOOP.
+
+
 
   ENDMETHOD. " extend_data.
 
@@ -1452,6 +1596,12 @@ CLASS lcl_alv IMPLEMENTATION.
 
   METHOD show_result.
 
+    CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+      EXPORTING
+        percentage = 100
+        text       = 'Show result'.
+
+    " Keep the data table within the class
     lt_data = et_data.
 
     " references to ALV objects
@@ -1478,10 +1628,12 @@ CLASS lcl_alv IMPLEMENTATION.
 
     TRY.
         cl_salv_table=>factory(
+          EXPORTING
+            r_container  = cl_gui_container=>default_screen "screen0
           IMPORTING
             r_salv_table = r_alv_table
           CHANGING
-            t_table      = et_data ).
+            t_table      = lt_data ).
 
       CATCH cx_salv_msg
             INTO lr_exception.
@@ -1496,7 +1648,99 @@ CLASS lcl_alv IMPLEMENTATION.
     lr_functions_list = r_alv_table->get_functions( ).
     "lr_functions_list->set_detail( abap_true ).
     "lr_functions_list->set_default( abap_true ).
+    "lr_functions_list->set_group_export( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_group_filter( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_group_layout( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_print( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_print_preview( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_group_sort( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_find( if_salv_c_bool_sap=>true ).
+    "lr_functions_list->set_graphics( if_salv_c_bool_sap=>false ).
     lr_functions_list->set_all( abap_true ).
+
+
+
+    " Additional function for ALV toolbar
+    " requires r_container = cl_gui_container=>default_screen
+
+    " Suppress toolbar of list output
+    cl_abap_list_layout=>suppress_toolbar( ).
+    WRITE space. "trick to get the screen
+
+    TRY.
+        DATA l_icon TYPE string.
+
+        l_icon = icon_toggle_display_change.
+        lr_functions_list->add_function(
+          name     = 'DISPCHG'
+          icon     = l_icon
+          text     = ''
+          tooltip  = 'Display/Change'
+          position = if_salv_c_function_position=>left_of_salv_functions ).
+        IF auth_change IS INITIAL.
+          lr_functions_list->enable_function( name = 'DISPCHG' boolean = if_salv_c_bool_sap=>false ).
+        ENDIF.
+
+        l_icon = icon_set_state.
+        lr_functions_list->add_function(
+          name     = 'LOGGING'
+          icon     = l_icon
+          text     = 'Logging'
+          tooltip  = 'Set to Logging Phase'
+          position = if_salv_c_function_position=>right_of_salv_functions ).
+        lr_functions_list->set_function( name = 'LOGGING' boolean = if_salv_c_bool_sap=>false ).
+
+        l_icon = icon_set_state.
+        lr_functions_list->add_function(
+          name     = 'EVALUATION'
+          icon     = l_icon
+          text     = 'Evaluation'
+          tooltip  = 'Set to Evaluation Phase'
+          position = if_salv_c_function_position=>right_of_salv_functions ).
+        lr_functions_list->set_function( name = 'EVALUATION' boolean = if_salv_c_bool_sap=>false ).
+
+        l_icon = icon_set_state.
+        lr_functions_list->add_function(
+          name     = 'FINAL'
+          icon     = l_icon
+          text     = 'Final'
+          tooltip  = 'Set to Final Phase'
+          position = if_salv_c_function_position=>right_of_salv_functions ).
+        lr_functions_list->set_function( name = 'FINAL' boolean = if_salv_c_bool_sap=>false ).
+
+        l_icon = icon_assign.
+        lr_functions_list->add_function(
+          name     = 'ASSIGN'
+          icon     = l_icon
+          text     = 'Assign to Default CA'
+          tooltip  = 'Assign to Default Communicatuion Assembly'
+          position = if_salv_c_function_position=>right_of_salv_functions ).
+        lr_functions_list->set_function( name = 'ASSIGN' boolean = if_salv_c_bool_sap=>false ).
+        lr_functions_list->enable_function( name = 'ASSIGN' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
+
+        l_icon = icon_assign.
+        lr_functions_list->add_function(
+          name     = 'ASSIGN_SNC'
+          icon     = l_icon
+          text     = 'Assign to CA for SNC'
+          tooltip  = 'Assign to Default Communicatuion Assembly for SNC'
+          position = if_salv_c_function_position=>right_of_salv_functions ).
+        lr_functions_list->set_function( name = 'ASSIGN_SNC' boolean = if_salv_c_bool_sap=>false ).
+        lr_functions_list->enable_function( name = 'ASSIGN_SNC' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
+
+        l_icon = icon_unassign.
+        lr_functions_list->add_function(
+          name     = 'REMOVE'
+          icon     = l_icon
+          text     = 'Remove from CA'
+          tooltip  = 'Remove from Communicatuion Assembly'
+          position = if_salv_c_function_position=>right_of_salv_functions ).
+        lr_functions_list->set_function( name = 'REMOVE' boolean = if_salv_c_bool_sap=>false ).
+        lr_functions_list->enable_function( name = 'REMOVE' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
+
+      CATCH cx_salv_not_found cx_salv_existing cx_salv_wrong_call.
+    ENDTRY.
+
 
     " Set the layout
     lr_layout = r_alv_table->get_layout( ).
@@ -1521,7 +1765,7 @@ CLASS lcl_alv IMPLEMENTATION.
 
     " Selection mode: single cell
     lr_selections   = r_alv_table->get_selections( ).
-    lr_selections->set_selection_mode( if_salv_c_selection_mode=>cell ).
+    lr_selections->set_selection_mode( if_salv_c_selection_mode=>cell ). " or if_salv_c_selection_mode=>row_column
 
     " Sort columns (Example)
 *    TRY.
@@ -1858,30 +2102,32 @@ CLASS lcl_alv IMPLEMENTATION.
         ENDTRY.
     ENDTRY.
 
-    " Footer (not visible on gui container)
-    DATA l_line TYPE i.
-    CREATE OBJECT lr_grid_footer.
-    l_line = 1.
-
-    " Program version
-    lr_grid_footer->create_text(
-         row    = l_line
-         column = 1
-         text   = 'Program version:'(ver) ).
-    lr_grid_footer->create_text(
-         row    = l_line
-         column = 2
-         text   = c_program_version ).
-    ADD 1 TO l_line.
-
-    r_alv_table->set_end_of_list( lr_grid_footer ).
+*    " Footer (not visible on gui container)
+*    DATA l_line TYPE i.
+*    CREATE OBJECT lr_grid_footer.
+*    l_line = 1.
+*
+*    " Program version
+*    lr_grid_footer->create_text(
+*         row    = l_line
+*         column = 1
+*         text   = 'Program version:'(ver) ).
+*    lr_grid_footer->create_text(
+*         row    = l_line
+*         column = 2
+*         text   = c_program_version ).
+*    ADD 1 TO l_line.
+*
+*    r_alv_table->set_end_of_list( lr_grid_footer ).
 
     " Set Title
     lr_display_settings = r_alv_table->get_display_settings( ).
-    lr_display_settings->set_list_header( 'Show extended UCON RFC data' ). "sy-title
+    "lr_display_settings->set_list_header( 'Show extended UCON RFC data' ). "sy-title
+    lr_display_settings->set_list_header( |Program version: { c_program_version }| ).
     lr_display_settings->set_list_header_size(
       cl_salv_display_settings=>c_header_size_small ).
     lr_display_settings->set_no_merging( if_salv_c_bool_sap=>true ).
+
 
     " Display the table
     r_alv_table->display( ).
@@ -1889,12 +2135,138 @@ CLASS lcl_alv IMPLEMENTATION.
   ENDMETHOD. " show_result
 
   METHOD on_user_command.
+    " importing e_salv_function
+
+    " Get selected item
+    DATA(lr_selections) = r_alv_table->get_selections( ).
+    DATA(ls_cell) = lr_selections->get_current_cell( ).
+    DATA(lt_seleced_rows) = lr_selections->get_selected_rows( ).
+
+    " see UCON_PHASE_TOOL form PAI.
+    CASE e_salv_function.
+
+
+      WHEN 'DISPCHG'.
+        " Toogle between display and change
+        DATA(lr_functions_list) = r_alv_table->get_functions( ).
+        IF lr_functions_list->is_visible( 'LOGGING' ).
+          DATA(change_mode) = if_salv_c_bool_sap=>false.
+          CALL FUNCTION 'DEQUEUE_E_UCON_PHTL_EDIT'.
+        ELSE.
+          AUTHORITY-CHECK OBJECT 'S_UCON_ADM'
+                   ID 'UCON_TYPE' DUMMY
+                   ID 'UCON_NAME' DUMMY
+                   ID 'ACTVT' FIELD '02'.
+          IF sy-subrc <> 0.
+            MESSAGE e217(s_ucon_lm).
+            RETURN.
+          ENDIF.
+          CALL FUNCTION 'ENQUEUE_E_UCON_PHTL_EDIT'
+            EXPORTING
+              mode_uconrfcstatehead = 'E'
+              _scope                = '2'
+              _wait                 = space
+              _collect              = ' '
+            EXCEPTIONS
+              foreign_lock          = 1
+              system_failure        = 2
+              OTHERS                = 3.
+          IF sy-subrc <> 0.
+            MESSAGE ID sy-msgid TYPE 'E' NUMBER sy-msgno
+                       WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+          ELSE.
+            change_mode = if_salv_c_bool_sap=>true.
+          ENDIF.
+        ENDIF.
+        TRY.
+            lr_functions_list->set_function( name = 'LOGGING'    boolean = change_mode ).
+            lr_functions_list->set_function( name = 'EVALUATION' boolean = change_mode ).
+            lr_functions_list->set_function( name = 'FINAL'      boolean = change_mode ).
+            lr_functions_list->set_function( name = 'ASSIGN'     boolean = change_mode ).
+            lr_functions_list->set_function( name = 'ASSIGN_SNC' boolean = change_mode ).
+            lr_functions_list->set_function( name = 'REMOVE'     boolean = change_mode ).
+            " Refresh Toolbar not needed
+            "r_alv_table->refresh( ).
+          CATCH cx_salv_not_found cx_salv_wrong_call.
+        ENDTRY.
+
+
+      WHEN 'LOGGING' OR 'EVALUATION' OR 'FINAL'.
+        " Set phase
+        DATA:
+          changed_entries type i,
+          new_phase TYPE uconrfcphase.
+        clear changed_entries.
+        CASE e_salv_function.
+          WHEN 'LOGGING'.    new_phase = 'L'.
+          WHEN 'EVALUATION'. new_phase = 'E'.
+          WHEN 'FINAL'.      new_phase = 'A'. "Should we ask for a confirmation?
+        ENDCASE.
+
+        LOOP AT lt_seleced_rows INTO DATA(index).
+          READ TABLE lt_data ASSIGNING FIELD-SYMBOL(<line>) INDEX index.
+          IF sy-subrc = 0.
+            DATA(state_obj) = cl_ucon_state_factory=>get_ucon_state_object(
+                                   iv_function_name = <line>-funcname ).
+            DATA(current_phase) = state_obj->get_current_phase( ).
+            IF current_phase <> new_phase.
+              state_obj->set_phase( iv_phase = new_phase ).
+              state_obj->set_date( iv_start_phase_date = sy-datum ).
+              state_obj->get_date(
+                IMPORTING
+                  "ev_date_start_phase = sy-datum    ##WRITE_OK  " Current Date of Application Server
+                  ev_date_end_phase   = <line>-end_phase
+                  "ev_phase_length     = <line>-duration_days    " Length of phase in days
+              ).
+              <line>-actual_phase = new_phase.
+              CASE new_phase.
+                WHEN 'L'.
+                  <line>-phasetext = 'Logging (changed)'.
+                WHEN 'E'.
+                  <line>-phasetext = 'Evaluation (changed)'.
+                WHEN 'A'.
+                  <line>-phasetext = 'Final (changed)'.
+              ENDCASE.
+              add 1 to changed_entries.
+            ENDIF.
+          ENDIF.
+        ENDLOOP.
+        MESSAGE s159(S_UNIFIED_CON) WITH |UCON Logging Phase: { changed_entries } changed entries|.
+        if changed_entries is not initial.
+        " Save state-object
+        TRY.
+            cl_ucon_state_factory=>save_all(
+              "iv_run_dark =
+              iv_transport_requested = cl_ucon_setup=>is_transport_requested( )
+              "iv_no_commit =
+              "iv_avoid_cd =
+            ).
+          CATCH cx_ucon_api_state cx_ucon_base INTO DATA(cx).
+            MESSAGE cx TYPE 'E'.
+        ENDTRY.
+
+        " Refresh ALV list
+        r_alv_table->refresh( ).
+        endif.
+
+
+      WHEN 'ASSIGN'.
+          " 134(S_UNIFIED_CON)  Add &1 object(s) to Communication Assembly &2
+          " 140	&1 records found
+          " 159	&1 &2 &3 &4
+
+      WHEN 'ASSIGN_SNC'.
+
+      WHEN 'REMOVE'.
+
+    ENDCASE.
+
   ENDMETHOD. " on_user_command
 
   METHOD on_double_click.
     " importing row column
 
-    " Get selected item(s)
+    " Get selected item
     DATA(lr_selections) = r_alv_table->get_selections( ).
     DATA(ls_cell) = lr_selections->get_current_cell( ).
     DATA(lt_seleced_rows) = lr_selections->get_selected_rows( ).
@@ -1907,75 +2279,90 @@ CLASS lcl_alv IMPLEMENTATION.
     CASE column.
 
       WHEN 'FUNCNAME' OR 'FMODE' OR 'FUNC_TEXT' OR 'FUNC_CALLED'.
-        CHECK ls_data-funcname IS NOT INITIAL.
-
-        CALL FUNCTION 'RS_TOOL_ACCESS'
-          EXPORTING
-            operation           = 'SHOW'
-            object_name         = ls_data-funcname
-            object_type         = 'FUNC'
-          EXCEPTIONS
-            not_executed        = 1
-            invalid_object_type = 2
-            OTHERS              = 3.
-        IF sy-subrc <> 0.
-          MESSAGE w215(s_ucon_lm).
-        ENDIF.
+        show_function( ls_data-funcname ).
 
       WHEN 'AREA' OR 'AREA_TEXT' OR 'AREA_CALLED'.
-        CHECK ls_data-area IS NOT INITIAL.
-
-        CALL FUNCTION 'RS_TOOL_ACCESS'
-          EXPORTING
-            operation           = 'SHOW'
-            object_name         = ls_data-area
-            object_type         = 'FUGR'
-          EXCEPTIONS
-            not_executed        = 1
-            invalid_object_type = 2
-            OTHERS              = 3.
-        IF sy-subrc <> 0.
-          MESSAGE w215(s_ucon_lm).
-        ENDIF.
+        show_function_group( ls_data-area ).
 
       WHEN 'DEVCLASS' OR 'DEVCLASS_TEXT' OR 'DEVCLASS_CALLED'.
-        CHECK ls_data-devclass IS NOT INITIAL.
-
-        CALL FUNCTION 'RS_TOOL_ACCESS'
-          EXPORTING
-            operation           = 'SHOW'
-            object_name         = ls_data-devclass
-            object_type         = 'DEVC'
-          EXCEPTIONS
-            not_executed        = 1
-            invalid_object_type = 2
-            OTHERS              = 3.
-        IF sy-subrc <> 0.
-          MESSAGE w215(s_ucon_lm).
-        ENDIF.
+        show_package( ls_data-devclass ).
 
       WHEN 'ID'.
-        CHECK ls_data-id IS NOT INITIAL.
-
-        CALL FUNCTION 'RS_TOOL_ACCESS'
-          EXPORTING
-            operation           = 'SHOW'
-            object_name         = ls_data-id
-            object_type         = 'UCSA'
-          EXCEPTIONS
-            not_executed        = 1
-            invalid_object_type = 2
-            OTHERS              = 3.
-        IF sy-subrc <> 0.
-          MESSAGE w215(s_ucon_lm).
-        ENDIF.
+        show_communication_assembly( ls_data-id ).
 
     ENDCASE.
 
   ENDMETHOD. " on_double_click
 
-ENDCLASS.                    "cl_alv IMPLEMENTATION
+  METHOD show_function.
+    CHECK funcname IS NOT INITIAL.
 
+    CALL FUNCTION 'RS_TOOL_ACCESS'
+      EXPORTING
+        operation           = 'SHOW'
+        object_name         = funcname
+        object_type         = 'FUNC'
+      EXCEPTIONS
+        not_executed        = 1
+        invalid_object_type = 2
+        OTHERS              = 3.
+    IF sy-subrc <> 0.
+      MESSAGE w215(s_ucon_lm).
+    ENDIF.
+  ENDMETHOD. " show_function
+
+  METHOD show_function_group.
+    CHECK area IS NOT INITIAL.
+
+    CALL FUNCTION 'RS_TOOL_ACCESS'
+      EXPORTING
+        operation           = 'SHOW'
+        object_name         = area
+        object_type         = 'FUGR'
+      EXCEPTIONS
+        not_executed        = 1
+        invalid_object_type = 2
+        OTHERS              = 3.
+    IF sy-subrc <> 0.
+      MESSAGE w215(s_ucon_lm).
+    ENDIF.
+  ENDMETHOD. " show_function_group
+
+  METHOD show_package.
+    CHECK devclass IS NOT INITIAL.
+
+    CALL FUNCTION 'RS_TOOL_ACCESS'
+      EXPORTING
+        operation           = 'SHOW'
+        object_name         = devclass
+        object_type         = 'DEVC'
+      EXCEPTIONS
+        not_executed        = 1
+        invalid_object_type = 2
+        OTHERS              = 3.
+    IF sy-subrc <> 0.
+      MESSAGE w215(s_ucon_lm).
+    ENDIF.
+  ENDMETHOD. " show_package
+
+  METHOD show_communication_assembly.
+    CHECK id IS NOT INITIAL.
+
+    CALL FUNCTION 'RS_TOOL_ACCESS'
+      EXPORTING
+        operation           = 'SHOW'
+        object_name         = id
+        object_type         = 'UCSA'
+      EXCEPTIONS
+        not_executed        = 1
+        invalid_object_type = 2
+        OTHERS              = 3.
+    IF sy-subrc <> 0.
+      MESSAGE w215(s_ucon_lm).
+    ENDIF.
+  ENDMETHOD. " show_communication_assembly
+
+ENDCLASS.                    "cl_alv IMPLEMENTATION
 
 *----------------------------------------------------------------------*
 *      REPORT events
@@ -2021,6 +2408,8 @@ AT SELECTION-SCREEN.
 START-OF-SELECTION.
   lcl_report=>start_of_selection(
     EXPORTING
+      p_system     = p_system   " System and installation number
+
       p_simp       = p_simp     " Simple list
       p_comp       = p_comp     " Enhanced list
 
@@ -2038,6 +2427,12 @@ START-OF-SELECTION.
       p_mon        = p_mon      " Called Function Modules
       p_nmon       = p_nmon     " Uncalled Function Modules
       p_all        = p_all      " All Function Modules
+      p_mona       = p_mona     " Called Function Groups
+      p_nmona      = p_nmona    " Uncalled Function Groups
+      p_mond       = p_mond     " Called Packages
+      p_nmond      = p_nmond    " Uncalled Packages
+      p_mons       = p_mons     " Called Software Components
+      p_nmons      = p_nmons    " Uncalled Software Components
 
       p_assi       = p_assi     " RFMs Assigned to Default CA
       p_unas       = p_unas     " Unassigned RFMs
