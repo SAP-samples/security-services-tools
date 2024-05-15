@@ -20,10 +20,11 @@
 *& 08.05.2024 Selection for source of statistical data
 *&            Selection for called/uncalled function groups, packages, software components
 *&            Interactive functions: display/Change, set phase
+*& 15.05.2024 Interactive functions: assign to CA, assign to SNC CA, remove from CA
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '08.05.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '15.05.2024 S41'.
 
 * Selection screen
 TABLES sscrfields.
@@ -284,6 +285,7 @@ CLASS lcl_report DEFINITION.
         call_status            TYPE char6,
         communication_assembly TYPE char6,
         phase                  TYPE char6,
+        layout                 TYPE disvariant-variant,
       END OF ts_para,
       tt_sel_area     TYPE RANGE OF enlfdir-area,
       tt_sel_devclass TYPE RANGE OF tadir-devclass,
@@ -292,6 +294,10 @@ CLASS lcl_report DEFINITION.
       tt_sel_bname    TYPE RANGE OF usr02-bname,
       tt_sel_ustyp    TYPE RANGE OF usr02-ustyp,
       tt_sel_class    TYPE RANGE OF usr02-class.
+
+    CLASS-DATA:
+
+      usr_parid TYPE usr05-parid VALUE 'ZSHOW_UCON_RFC_DATA'.
 
     CLASS-METHODS:
 
@@ -415,11 +421,27 @@ CLASS lcl_alv DEFINITION.
   PRIVATE SECTION.
 
     CLASS-DATA:
+
       lt_data       TYPE tt_ucon_phase_tool_fields_ext,
       r_alv_table   TYPE REF TO cl_salv_table,
       lr_alv_events TYPE REF TO lcl_alv.
 
     CLASS-METHODS:
+
+      set_phase
+        IMPORTING
+          seleced_rows           TYPE salv_t_row
+          salv_function          TYPE salv_de_function
+        RETURNING
+          VALUE(changed_entries) TYPE i,
+
+      set_ca
+        IMPORTING
+          seleced_rows           TYPE salv_t_row
+          salv_function          TYPE salv_de_function
+        RETURNING
+          VALUE(changed_entries) TYPE i,
+
       show_function               IMPORTING funcname TYPE tfdir-funcname,
       show_function_group         IMPORTING area     TYPE enlfdir-area,
       show_package                IMPORTING devclass TYPE tadir-devclass,
@@ -498,7 +520,7 @@ CLASS lcl_report IMPLEMENTATION.
 
     " Get (hidden) user parameter
     DATA par_value TYPE ts_para.
-    GET PARAMETER ID 'ZSHOW_UCON_RFC_DATA' FIELD par_value.
+    GET PARAMETER ID usr_parid FIELD par_value.
 
     CASE par_value-list.
       WHEN 'SIMP'.   p_simp   = 'X'. " Simple list
@@ -534,6 +556,8 @@ CLASS lcl_report IMPLEMENTATION.
       WHEN 'EVAL_E'. p_eval_e = 'X'. " Expired RFMs in Eval. Phase
       WHEN 'ALL_P'.  p_all_p  = 'X'. " All Phases
     ENDCASE.
+
+    layout = par_value-layout. " Let's use the global variable here.
 
 
     "Fill drop down box for field SYSTEM
@@ -577,7 +601,7 @@ CLASS lcl_report IMPLEMENTATION.
         screen-active = 0.
         MODIFY SCREEN.
       ENDLOOP.
-      MESSAGE e219(s_ucon_lm).
+      MESSAGE e219(s_ucon_lm). " Missing authorization to start Unified Connectivity Tools.
       LEAVE TO SCREEN 0.
     ENDIF.
 
@@ -863,7 +887,11 @@ CLASS lcl_report IMPLEMENTATION.
 
       WHEN 'FC01'.
         " UCON Cockpit
-        CALL TRANSACTION 'UCONCOCKPIT' WITH AUTHORITY-CHECK.
+        TRY.
+            CALL TRANSACTION 'UCONCOCKPIT' WITH AUTHORITY-CHECK.
+          CATCH cx_sy_authorization_error.
+            MESSAGE e219(s_ucon_lm). " Missing authorization to start Unified Connectivity Tools.
+        ENDTRY.
 
       WHEN 'COLS'.
         " see AT SELECTION SCREEN OUTPUT
@@ -907,7 +935,31 @@ CLASS lcl_report IMPLEMENTATION.
     IF p_log_e  = 'X'. par_value-phase = 'LOG_E'.  ENDIF. " Expired RFMs in Logg. Phase
     IF p_eval_e = 'X'. par_value-phase = 'EVAL_E'. ENDIF. " Expired RFMs in Eval. Phase
     IF p_all_p  = 'X'. par_value-phase = 'ALL_P'.  ENDIF. " All Phases
-    SET PARAMETER ID 'ZSHOW_UCON_RFC_DATA' FIELD par_value.
+
+    par_value-layout = layout.
+
+    " Set user parameter for current session
+    SET PARAMETER ID usr_parid FIELD par_value.
+    " Set user parameter permamently
+    "MODIFY usr05 FROM @(
+    "  VALUE #(
+    "    bname = sy-uname
+    "    parid = usr_parid
+    "    parva = par_value )
+    "  ).
+    DATA:
+      lt_usr05     TYPE suid_tt_usr05,
+      ls_timestamp TYPE cl_identity=>ty_timestamp.
+    lt_usr05 = VALUE #( (
+      bname = sy-uname
+      parid = usr_parid
+      parva = par_value
+    ) ).
+    GET TIME STAMP FIELD ls_timestamp-timestamp.
+    CALL FUNCTION 'SUID_IDENTITY_SAVE_TO_DB'
+      EXPORTING
+        it_usr05_update = lt_usr05
+        is_timestamp    = ls_timestamp.
 
     " Own system and installation number
     sysid = sy-sysid.
@@ -1676,7 +1728,7 @@ CLASS lcl_alv IMPLEMENTATION.
           icon     = l_icon
           text     = ''
           tooltip  = 'Display/Change'
-          position = if_salv_c_function_position=>left_of_salv_functions ).
+          position = if_salv_c_function_position=>right_of_salv_functions ).
         IF auth_change IS INITIAL.
           lr_functions_list->enable_function( name = 'DISPCHG' boolean = if_salv_c_bool_sap=>false ).
         ENDIF.
@@ -1713,30 +1765,30 @@ CLASS lcl_alv IMPLEMENTATION.
           name     = 'ASSIGN'
           icon     = l_icon
           text     = 'Assign to Default CA'
-          tooltip  = 'Assign to Default Communicatuion Assembly'
+          tooltip  = 'Assign to Default CA'
           position = if_salv_c_function_position=>right_of_salv_functions ).
         lr_functions_list->set_function( name = 'ASSIGN' boolean = if_salv_c_bool_sap=>false ).
-        lr_functions_list->enable_function( name = 'ASSIGN' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
+        "lr_functions_list->enable_function( name = 'ASSIGN' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
 
         l_icon = icon_assign.
         lr_functions_list->add_function(
           name     = 'ASSIGN_SNC'
           icon     = l_icon
           text     = 'Assign to CA for SNC'
-          tooltip  = 'Assign to Default Communicatuion Assembly for SNC'
+          tooltip  = 'Assign to CA for SNC'
           position = if_salv_c_function_position=>right_of_salv_functions ).
         lr_functions_list->set_function( name = 'ASSIGN_SNC' boolean = if_salv_c_bool_sap=>false ).
-        lr_functions_list->enable_function( name = 'ASSIGN_SNC' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
+        "lr_functions_list->enable_function( name = 'ASSIGN_SNC' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
 
         l_icon = icon_unassign.
         lr_functions_list->add_function(
           name     = 'REMOVE'
           icon     = l_icon
           text     = 'Remove from CA'
-          tooltip  = 'Remove from Communicatuion Assembly'
+          tooltip  = 'Remove from CA'
           position = if_salv_c_function_position=>right_of_salv_functions ).
         lr_functions_list->set_function( name = 'REMOVE' boolean = if_salv_c_bool_sap=>false ).
-        lr_functions_list->enable_function( name = 'REMOVE' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
+        "lr_functions_list->enable_function( name = 'REMOVE' boolean = if_salv_c_bool_sap=>false ). " not implemented yet
 
       CATCH cx_salv_not_found cx_salv_existing cx_salv_wrong_call.
     ENDTRY.
@@ -2142,9 +2194,10 @@ CLASS lcl_alv IMPLEMENTATION.
     DATA(ls_cell) = lr_selections->get_current_cell( ).
     DATA(lt_seleced_rows) = lr_selections->get_selected_rows( ).
 
+    DATA lcx_ucon_not_active TYPE REF TO cx_ucon_not_active.
+
     " see UCON_PHASE_TOOL form PAI.
     CASE e_salv_function.
-
 
       WHEN 'DISPCHG'.
         " Toogle between display and change
@@ -2190,74 +2243,29 @@ CLASS lcl_alv IMPLEMENTATION.
           CATCH cx_salv_not_found cx_salv_wrong_call.
         ENDTRY.
 
-
-      WHEN 'LOGGING' OR 'EVALUATION' OR 'FINAL'.
         " Set phase
-        DATA:
-          changed_entries type i,
-          new_phase TYPE uconrfcphase.
-        clear changed_entries.
-        CASE e_salv_function.
-          WHEN 'LOGGING'.    new_phase = 'L'.
-          WHEN 'EVALUATION'. new_phase = 'E'.
-          WHEN 'FINAL'.      new_phase = 'A'. "Should we ask for a confirmation?
-        ENDCASE.
+      WHEN 'LOGGING' OR 'EVALUATION' OR 'FINAL'.
+        DATA(changed_entries) = set_phase(
+          EXPORTING
+            seleced_rows  = lt_seleced_rows
+            salv_function = e_salv_function
+          ).
+        IF changed_entries IS NOT INITIAL.
+          " Refresh ALV list
+          r_alv_table->refresh( ).
+        ENDIF.
 
-        LOOP AT lt_seleced_rows INTO DATA(index).
-          READ TABLE lt_data ASSIGNING FIELD-SYMBOL(<line>) INDEX index.
-          IF sy-subrc = 0.
-            DATA(state_obj) = cl_ucon_state_factory=>get_ucon_state_object(
-                                   iv_function_name = <line>-funcname ).
-            DATA(current_phase) = state_obj->get_current_phase( ).
-            IF current_phase <> new_phase.
-              state_obj->set_phase( iv_phase = new_phase ).
-              state_obj->set_date( iv_start_phase_date = sy-datum ).
-              state_obj->get_date(
-                IMPORTING
-                  "ev_date_start_phase = sy-datum    ##WRITE_OK  " Current Date of Application Server
-                  ev_date_end_phase   = <line>-end_phase
-                  "ev_phase_length     = <line>-duration_days    " Length of phase in days
-              ).
-              <line>-actual_phase = new_phase.
-              CASE new_phase.
-                WHEN 'L'.
-                  <line>-phasetext = 'Logging (changed)'.
-                WHEN 'E'.
-                  <line>-phasetext = 'Evaluation (changed)'.
-                WHEN 'A'.
-                  <line>-phasetext = 'Final (changed)'.
-              ENDCASE.
-              add 1 to changed_entries.
-            ENDIF.
-          ENDIF.
-        ENDLOOP.
-        MESSAGE s159(S_UNIFIED_CON) WITH |UCON Logging Phase: { changed_entries } changed entries|.
-        if changed_entries is not initial.
-        " Save state-object
-        TRY.
-            cl_ucon_state_factory=>save_all(
-              "iv_run_dark =
-              iv_transport_requested = cl_ucon_setup=>is_transport_requested( )
-              "iv_no_commit =
-              "iv_avoid_cd =
-            ).
-          CATCH cx_ucon_api_state cx_ucon_base INTO DATA(cx).
-            MESSAGE cx TYPE 'E'.
-        ENDTRY.
-
-        " Refresh ALV list
-        r_alv_table->refresh( ).
-        endif.
-
-
-      WHEN 'ASSIGN'.
-          " 134(S_UNIFIED_CON)  Add &1 object(s) to Communication Assembly &2
-          " 140	&1 records found
-          " 159	&1 &2 &3 &4
-
-      WHEN 'ASSIGN_SNC'.
-
-      WHEN 'REMOVE'.
+        " Set/unset CA assignment
+      WHEN 'ASSIGN' OR 'ASSIGN_SNC' OR 'REMOVE'.
+        changed_entries = set_ca(
+          EXPORTING
+            seleced_rows  = lt_seleced_rows
+            salv_function = e_salv_function
+          ).
+        IF changed_entries IS NOT INITIAL.
+          " Refresh ALV list
+          r_alv_table->refresh( ).
+        ENDIF.
 
     ENDCASE.
 
@@ -2293,6 +2301,230 @@ CLASS lcl_alv IMPLEMENTATION.
     ENDCASE.
 
   ENDMETHOD. " on_double_click
+
+
+  METHOD set_phase.
+
+    CLEAR changed_entries.
+
+    DATA new_phase TYPE uconrfcphase.
+    CASE salv_function.
+      WHEN 'LOGGING'.    new_phase = 'L'.
+      WHEN 'EVALUATION'. new_phase = 'E'.
+      WHEN 'FINAL'.      new_phase = 'A'. "Should we ask for a confirmation?
+    ENDCASE.
+
+    LOOP AT seleced_rows INTO DATA(index).
+      READ TABLE lt_data ASSIGNING FIELD-SYMBOL(<line>) INDEX index.
+      IF sy-subrc = 0.
+        DATA(state_obj) = cl_ucon_state_factory=>get_ucon_state_object(
+                               iv_function_name = <line>-funcname ).
+        DATA(current_phase) = state_obj->get_current_phase( ).
+        IF current_phase <> new_phase.
+          state_obj->set_phase( iv_phase = new_phase ).
+          state_obj->set_date( iv_start_phase_date = sy-datum ).
+          state_obj->get_date(
+            IMPORTING
+              "ev_date_start_phase = sy-datum    ##WRITE_OK  " Current Date of Application Server
+              ev_date_end_phase   = <line>-end_phase
+              "ev_phase_length     = <line>-duration_days    " Length of phase in days
+          ).
+          <line>-actual_phase = new_phase.
+          CASE new_phase.
+            WHEN 'L'.
+              <line>-phasetext = 'Logging (changed)'.
+            WHEN 'E'.
+              <line>-phasetext = 'Evaluation (changed)'.
+            WHEN 'A'.
+              <line>-phasetext = 'Final (changed)'.
+          ENDCASE.
+          ADD 1 TO changed_entries.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    MESSAGE s159(s_unified_con) WITH |UCON Logging Phase: { changed_entries } changed entries|.
+    IF changed_entries IS NOT INITIAL.
+      " Save state-object
+      TRY.
+          cl_ucon_state_factory=>save_all(
+            "iv_run_dark =
+            iv_transport_requested = cl_ucon_setup=>is_transport_requested( )
+            "iv_no_commit =
+            "iv_avoid_cd =
+          ).
+        CATCH cx_ucon_api_state cx_ucon_base INTO DATA(cx).
+          MESSAGE cx TYPE 'E'.
+      ENDTRY.
+    ENDIF.
+
+  ENDMETHOD. " set_phase
+
+  METHOD set_ca.
+
+    CLEAR changed_entries.
+
+    DATA:
+      lc_default_ca TYPE uconcaid VALUE 'DEFAULT_CA',
+      lc_snc_ca     TYPE uconcaid VALUE 'SNC_CA'.
+    TRY.
+        cl_ucon_setup=>get_default_object_names(
+          EXPORTING
+            client_independent_only = abap_true
+          IMPORTING
+            default_ca_name = lc_default_ca  ).
+        cl_ucon_setup=>get_snc_ca_name(
+         EXPORTING
+           check_for_existence = abap_true
+         IMPORTING
+           snc_ca_name = lc_snc_ca  ).
+      CATCH cx_ucon_not_active INTO DATA(lcx_ucon_not_active).
+        DATA(l_err_text) = lcx_ucon_not_active->get_text( ).
+        MESSAGE e000(s_unified_con) WITH l_err_text.
+    ENDTRY.
+
+    DATA:
+      selected_data TYPE ucon_phase_tool_fields_tt,
+      new_line      TYPE ucon_phase_tool_fields_ext,
+      lt_ca_list    TYPE TABLE OF ucon_ca_list.
+
+    CASE salv_function.
+      WHEN 'ASSIGN' OR 'ASSIGN_SNC'.
+
+        " Copy selected entries
+        LOOP AT seleced_rows INTO DATA(index).
+          READ TABLE lt_data ASSIGNING FIELD-SYMBOL(<line>) INDEX index.
+          IF sy-subrc = 0.
+            new_line-called_rfm = <line>-funcname.
+            new_line-id = <line>-id.
+            MOVE-CORRESPONDING <line> TO new_line.
+            APPEND new_line TO selected_data.
+
+            " Update ALV
+            case salv_function.
+              when 'ASSIGN'.     <line>-id = lc_default_ca.
+              when 'ASSIGN_SNC'. <line>-id = lc_snc_ca.
+            endcase.
+          ENDIF.
+        ENDLOOP.
+
+        CALL METHOD cl_ucon_phase_tool=>filter_blacklist_rfms
+          CHANGING
+            lt_display_data = selected_data.
+
+        CHECK selected_data IS NOT INITIAL.
+
+        CLEAR lt_ca_list.
+
+        CASE salv_function.
+
+          WHEN 'ASSIGN'.
+            IF lc_snc_ca IS NOT INITIAL.
+              CALL METHOD cl_ucon_phase_tool=>remove_rfm_from_ca
+                EXPORTING
+                  remove_ca           = lc_snc_ca
+                CHANGING
+                  chg_ca_list         = lt_ca_list
+                  chg_called_rfm_list = selected_data.
+            ENDIF.
+
+            CALL METHOD cl_ucon_phase_tool=>set_rfm_to_ca
+              EXPORTING
+                i_new_ca            = lc_default_ca
+              CHANGING
+                chg_ca_list         = lt_ca_list
+                chg_called_rfm_list = selected_data.
+
+          WHEN 'ASSIGN_SNC'.
+            CALL METHOD cl_ucon_phase_tool=>move_rfm_to_ca
+              EXPORTING
+                i_new_ca            = lc_snc_ca
+                i_remove_ca         = lc_default_ca
+              CHANGING
+                chg_ca_list         = lt_ca_list
+                chg_called_rfm_list = selected_data.
+            CALL METHOD cl_ucon_phase_tool=>set_rfm_to_ca
+              EXPORTING
+                i_new_ca            = lc_snc_ca
+              CHANGING
+                chg_ca_list         = lt_ca_list
+                chg_called_rfm_list = selected_data.
+
+        ENDCASE.
+        " 134(S_UNIFIED_CON)  Add &1 object(s) to Communication Assembly &2
+
+      WHEN 'REMOVE'.
+        " Copy selected entries
+        LOOP AT seleced_rows INTO index.
+          READ TABLE lt_data ASSIGNING <line> INDEX index.
+          IF sy-subrc = 0.
+            CHECK <line>-id CP '*DEFAULT_CA' OR <line>-id CP '*SNC_CA'. " Touch default CAs only
+
+            new_line-called_rfm = <line>-funcname.
+            new_line-id = <line>-id.
+            MOVE-CORRESPONDING <line> TO new_line.
+            APPEND new_line TO selected_data.
+
+            " Update ALV
+            <line>-id = ''.
+          ENDIF.
+        ENDLOOP.
+
+        CHECK selected_data IS NOT INITIAL.
+
+        CLEAR lt_ca_list.
+        CALL METHOD cl_ucon_phase_tool=>remove_rfm_from_ca
+          EXPORTING
+            remove_ca           = lc_default_ca
+          CHANGING
+            chg_called_rfm_list = selected_data
+            chg_ca_list         = lt_ca_list.
+        IF lc_snc_ca IS NOT INITIAL.
+          CALL METHOD cl_ucon_phase_tool=>remove_rfm_from_ca
+            EXPORTING
+              remove_ca           = lc_snc_ca
+            CHANGING
+              chg_called_rfm_list = selected_data
+              chg_ca_list         = lt_ca_list.
+        ENDIF.
+
+    ENDCASE.
+
+    DESCRIBE TABLE lt_ca_list LINES changed_entries.
+    IF changed_entries IS NOT INITIAL.
+      DATA lcx_error TYPE REF TO cx_root.
+      TRY.
+          "cl_ucon_setup=>init( ). "init setup again and reread data from DB.
+          " Save data. If no CAs have been touched only state objects are updated
+          "CALL METHOD cl_ucon_phase_tool=>save
+          "  EXPORTING
+          "    i_com_assembly_t = lt_ca_list.
+          LOOP AT lt_ca_list INTO DATA(wa_com_assembly).
+            TRY.
+                wa_com_assembly-ca_object->activate( ).
+                wa_com_assembly-ca_object->save( ).
+
+                " For unknown reasons we have to dequeue the CA after saving.
+                CALL FUNCTION 'DEQUEUE_E_UCON_SA'
+                  EXPORTING
+                    mode_uconservashead = 'X'  "   "Art der Kurzzeitsperre: 'X' (exclusiv) oder 'E' (kumulativ)
+                    id                  = wa_com_assembly-ca_id
+                    "X_OBJTYPE           = ' '
+                    "X_OBJNAME           = ' '
+                    "_SCOPE              = '3'
+                    "_SYNCHRON           = ' '
+                    "_COLLECT            = ' '
+                  .
+              CATCH cx_ucon_api_com_assembly INTO DATA(cx).
+                MESSAGE cx TYPE 'E'.
+            ENDTRY.
+          ENDLOOP.
+
+        CATCH cx_root INTO lcx_error.
+          MESSAGE lcx_error TYPE 'W'.
+      ENDTRY.
+    ENDIF.
+
+  ENDMETHOD. " set_ca
 
   METHOD show_function.
     CHECK funcname IS NOT INITIAL.
