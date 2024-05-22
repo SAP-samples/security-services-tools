@@ -120,6 +120,7 @@ Show ABAP release, Kernel patch level and version of the CommonCryptoLib using t
 - Report [`ZCCDB_GET_STORES`](/ABAP/frun/zccdb_get_stores.prog.abap)  
 Show configuration stores and content  
 New 27.01.2023  
+Updated 21.05.2024 Enhance robustness if case of no data  
 
 - Report [`ZSHOW_TARGET_SYSTEM`](/ABAP/frun/zshow_target_system.prog.abap)  
 Show CSA target systems (policies)  

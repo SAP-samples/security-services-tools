@@ -19,10 +19,11 @@
 *& instead of using the internal viewer.
 *&
 *& 27.01.2023 Initial version
+*& 21.05.2024 Enhance robustness if case of no data
 *&---------------------------------------------------------------------*
 REPORT zccdb_get_stores.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '27.01.2023 FQ4'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '21.05.2024 FQ4'.
 
 SELECTION-SCREEN BEGIN OF BLOCK sel WITH FRAME TITLE text001.
 
@@ -106,7 +107,7 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR extsid-low.
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR extsid-high.
   PERFORM f4_extsid USING 'EXTSID-HIGH'.
 
-FORM f4_EXTSID USING l_dynprofield  TYPE help_info-dynprofld.
+FORM f4_extsid USING l_dynprofield  TYPE help_info-dynprofld.
 
   TYPES:
     BEGIN OF ts_value_tab,
@@ -161,7 +162,7 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR systype-low.
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR systype-high.
   PERFORM f4_systype USING 'SYSTYPE-HIGH'.
 
-FORM f4_SYSTYPE USING l_dynprofield  TYPE help_info-dynprofld.
+FORM f4_systype USING l_dynprofield  TYPE help_info-dynprofld.
 
   TYPES:
     BEGIN OF ts_value_tab,
@@ -212,7 +213,7 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR sci_id-low.
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR sci_id-high.
   PERFORM f4_sci_id USING 'SCI_ID-HIGH'.
 
-FORM f4_SCI_ID USING l_dynprofield  TYPE help_info-dynprofld.
+FORM f4_sci_id USING l_dynprofield  TYPE help_info-dynprofld.
 
   TYPES:
     BEGIN OF ts_value_tab,
@@ -264,7 +265,7 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR storenam-low.
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR storenam-high.
   PERFORM f4_storenam USING 'STORENAM-HIGH'.
 
-FORM f4_STORENAM USING l_dynprofield  TYPE help_info-dynprofld.
+FORM f4_storenam USING l_dynprofield  TYPE help_info-dynprofld.
 
   TYPES:
     BEGIN OF ts_value_tab,
@@ -945,7 +946,9 @@ CLASS main IMPLEMENTATION.
         ASSIGN lr_table_ext->* TO <table_ext>.
 
       ENDIF. " end of 1st entry
+      first_entry = abap_false.
 
+      check <table> IS ASSIGNED.
       LOOP AT <table> ASSIGNING <table_struc>.
 
         " Filter values
@@ -990,11 +993,13 @@ CLASS main IMPLEMENTATION.
         MOVE-CORRESPONDING <table_struc> TO <table_struc_ext>.
         APPEND <table_struc_ext> TO <table_ext>.
       ENDLOOP.
-
-      first_entry = abap_false.
     ENDLOOP.
 
     IF <table_ext> IS NOT ASSIGNED.
+      MESSAGE 'No data' TYPE 'I'.
+      RETURN.
+    ENDIF.
+    IF <table_ext> IS INITIAL.
       MESSAGE 'No data' TYPE 'I'.
       RETURN.
     ENDIF.
