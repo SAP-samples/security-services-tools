@@ -19,12 +19,15 @@
 *&            Navigation to function, function group or package
 *& 08.05.2024 Selection for source of statistical data
 *&            Selection for called/uncalled function groups, packages, software components
-*&            Interactive functions: display/Change, set phase
+*&            Interactive functions: display/change, set phase
 *& 15.05.2024 Interactive functions: assign to CA, assign to SNC CA, remove from CA
+*& 27.05.2024 Interactive functions: show called user in current client
+*&                                   show popup about authorizations
+*& 28.05.2024 Optimization for showing authorizationn data
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '15.05.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '28.05.2024 S41'.
 
 * Selection screen
 TABLES sscrfields.
@@ -295,10 +298,6 @@ CLASS lcl_report DEFINITION.
       tt_sel_ustyp    TYPE RANGE OF usr02-ustyp,
       tt_sel_class    TYPE RANGE OF usr02-class.
 
-    CLASS-DATA:
-
-      usr_parid TYPE usr05-parid VALUE 'ZSHOW_UCON_RFC_DATA'.
-
     CLASS-METHODS:
 
       initialization,
@@ -360,9 +359,28 @@ CLASS lcl_report DEFINITION.
           p_all_p          TYPE abap_bool " All Phases
         .
 
+  PROTECTED SECTION. " used by class lcl_alv, too
+
+    " Collect user data
+    TYPES:
+      BEGIN OF ts_user,
+        mandt       TYPE usr02-mandt,
+        bname       TYPE usr02-bname,
+        ustyp       TYPE usr02-ustyp,
+        class       TYPE usr02-class,
+        auth_values TYPE STANDARD TABLE OF usvalues WITH DEFAULT KEY,
+      END OF ts_user,
+      tt_user TYPE SORTED TABLE OF ts_user WITH UNIQUE KEY mandt bname.
+
+    CLASS-DATA:
+      lt_data TYPE tt_ucon_phase_tool_fields_ext,
+      lt_user TYPE tt_user.
+
   PRIVATE SECTION.
 
     CONSTANTS:
+
+      usr_parid            TYPE usr05-parid VALUE 'ZSHOW_UCON_RFC_DATA',
 
       c_v_rfcbl_server(30) VALUE 'V_RFCBL_SERVER'. "View V_RFCBL_SERVER exists as of 7.50
 
@@ -389,8 +407,6 @@ CLASS lcl_report DEFINITION.
           sel_bname          TYPE tt_sel_bname  OPTIONAL
           sel_ustyp          TYPE tt_sel_ustyp  OPTIONAL
           sel_class          TYPE tt_sel_class  OPTIONAL
-        EXPORTING
-          lt_data            TYPE tt_ucon_phase_tool_fields_ext
         .
 
 
@@ -399,7 +415,7 @@ ENDCLASS.                    "lcl_report DEFINITION
 *---------------------------------------------------------------------*
 *      CLASS lcl_alv DEFINITION
 *---------------------------------------------------------------------*
-CLASS lcl_alv DEFINITION.
+CLASS lcl_alv DEFINITION INHERITING FROM lcl_report.
 
   PUBLIC SECTION.
 
@@ -408,9 +424,7 @@ CLASS lcl_alv DEFINITION.
       show_result
         IMPORTING
           auth_change TYPE abap_bool
-          ext_list    TYPE abap_bool " Enhanced list
-        CHANGING
-          et_data     TYPE tt_ucon_phase_tool_fields_ext,
+          ext_list    TYPE abap_bool, " Enhanced list
 
       on_user_command FOR EVENT added_function OF cl_salv_events
         IMPORTING e_salv_function,
@@ -422,7 +436,6 @@ CLASS lcl_alv DEFINITION.
 
     CLASS-DATA:
 
-      lt_data       TYPE tt_ucon_phase_tool_fields_ext,
       r_alv_table   TYPE REF TO cl_salv_table,
       lr_alv_events TYPE REF TO lcl_alv.
 
@@ -445,7 +458,15 @@ CLASS lcl_alv DEFINITION.
       show_function               IMPORTING funcname TYPE tfdir-funcname,
       show_function_group         IMPORTING area     TYPE enlfdir-area,
       show_package                IMPORTING devclass TYPE tadir-devclass,
-      show_communication_assembly IMPORTING id       TYPE uconservid.
+      show_communication_assembly IMPORTING id       TYPE uconservid,
+
+      show_user                   IMPORTING user     TYPE usr02-bname, " Only in current client
+
+      show_authorizations
+        IMPORTING
+          client         TYPE usr02-mandt
+          user           TYPE usr02-bname
+          authorizations TYPE string.
 
 ENDCLASS.                    "lcl_alv DEFINITION
 
@@ -1130,8 +1151,6 @@ CLASS lcl_report IMPLEMENTATION.
           "sel_bname    = sel_bname
           "sel_ustyp    = sel_ustyp
           "sel_class    = sel_class
-        IMPORTING
-          lt_data = DATA(lt_data)
         ).
     ELSE.
       extend_data(
@@ -1145,8 +1164,6 @@ CLASS lcl_report IMPLEMENTATION.
           sel_bname    = sel_bname
           sel_ustyp    = sel_ustyp
           sel_class    = sel_class
-        IMPORTING
-          lt_data = lt_data
         ).
     ENDIF.
     FREE lt_called_rfm_list.
@@ -1156,8 +1173,6 @@ CLASS lcl_report IMPLEMENTATION.
       EXPORTING
         auth_change = auth_change
         ext_list    = p_comp
-      CHANGING
-        et_data     = lt_data
     ).
 
   ENDMETHOD. " start_of_selection
@@ -1246,21 +1261,6 @@ CLASS lcl_report IMPLEMENTATION.
         tdevc~dlvunit
       INTO TABLE @lt_dlvunit.
 
-
-    " Collect user data
-    TYPES:
-      BEGIN OF ts_user,
-        mandt       TYPE usr02-mandt,
-        bname       TYPE usr02-bname,
-        ustyp       TYPE usr02-ustyp,
-        class       TYPE usr02-class,
-        auth_values TYPE STANDARD TABLE OF usvalues WITH DEFAULT KEY,
-      END OF ts_user,
-      tt_user TYPE SORTED TABLE OF ts_user WITH UNIQUE KEY mandt bname.
-
-    DATA:
-      ls_user TYPE ts_user,
-      lt_user TYPE tt_user.
 
     " Collect function data
     TYPES:
@@ -1448,6 +1448,7 @@ CLASS lcl_report IMPLEMENTATION.
 
       " Get additional user data: user type, user group, and authorizations for S_RFC (only possible for the current system)
       IF ls_data-called_sid = sy-sysid AND ls_data-called_client IS NOT INITIAL AND ls_data-called_user IS NOT INITIAL.
+        DATA ls_user TYPE ts_user.
         CLEAR ls_user.
         " Do we know this user already?
         READ TABLE lt_user INTO ls_user
@@ -1636,7 +1637,6 @@ CLASS lcl_report IMPLEMENTATION.
     ENDLOOP.
 
 
-
   ENDMETHOD. " extend_data.
 
 ENDCLASS.                    "lcl_report IMPLEMENTATION
@@ -1652,9 +1652,6 @@ CLASS lcl_alv IMPLEMENTATION.
       EXPORTING
         percentage = 100
         text       = 'Show result'.
-
-    " Keep the data table within the class
-    lt_data = et_data.
 
     " references to ALV objects
     DATA:
@@ -2298,6 +2295,16 @@ CLASS lcl_alv IMPLEMENTATION.
       WHEN 'ID'.
         show_communication_assembly( ls_data-id ).
 
+      WHEN 'CALLED_USER'.
+        CHECK ls_data-called_client = sy-mandt.
+        show_user( ls_data-called_user ).
+
+      WHEN 'AUTHORIZATIONS'.
+        show_authorizations(
+          client         = ls_data-called_client
+          user           = ls_data-called_user
+          authorizations = ls_data-authorizations ).
+
     ENDCASE.
 
   ENDMETHOD. " on_double_click
@@ -2400,10 +2407,10 @@ CLASS lcl_alv IMPLEMENTATION.
             APPEND new_line TO selected_data.
 
             " Update ALV
-            case salv_function.
-              when 'ASSIGN'.     <line>-id = lc_default_ca.
-              when 'ASSIGN_SNC'. <line>-id = lc_snc_ca.
-            endcase.
+            CASE salv_function.
+              WHEN 'ASSIGN'.     <line>-id = lc_default_ca.
+              WHEN 'ASSIGN_SNC'. <line>-id = lc_snc_ca.
+            ENDCASE.
           ENDIF.
         ENDLOOP.
 
@@ -2593,6 +2600,153 @@ CLASS lcl_alv IMPLEMENTATION.
       MESSAGE w215(s_ucon_lm).
     ENDIF.
   ENDMETHOD. " show_communication_assembly
+
+  METHOD show_user.
+    " Does not work as it reuses the current screen
+    "CALL FUNCTION 'SUID_IDENTITY_MAINT'
+    "  EXPORTING
+    "    I_USERNAME           = user
+    "    "I_TCODE_MODE         = 1 " 1: Single maintenance SU01, 6: Display mode SU01D
+    "    I_SU01_DISPLAY       = abap_true
+    .
+    " same as above
+    "CALL FUNCTION 'SUSR_USER_MAINT_WITH_DIALOG'
+    "  EXPORTING
+    "    "MAINT_FOR_OWN_USER_ONLY       =
+    "    DISPLAY_ONLY                  = 'X'
+    "    USER_TO_DISPLAY               = user
+    "     "DO_NOT_USE                    = ' '
+    "   EXCEPTIONS
+    "     ERROR_WRITING_TO_DB           = 1
+    "     OTHERS                        = 2
+    "           .
+
+    DATA bdcdata TYPE TABLE OF bdcdata WITH EMPTY KEY.
+    bdcdata = VALUE #(
+      " Show user
+      "( program = 'SAPLSUU5'     dynpro = '0050'  dynbegin = 'X' )         " old screen
+      ( program = 'SAPLSUID_MAINTENANCE'  dynpro = '1050'  dynbegin = 'X' ) " current screen
+      "( fnam    = 'USR02-BNAME'  fval   = user    )
+      ( fnam    = 'SUID_ST_BNAME-BNAME'  fval   = user    )
+      ( fnam    = 'BDC_OKCODE'   fval   = '=SHOW' ) " SHOW, CHAN
+
+      " End transaction after going back
+      "( program = 'SAPLSUU5'     dynpro = '0050'  dynbegin = 'X' )         " old screen
+      ( program = 'SAPLSUID_MAINTENANCE'  dynpro = '1050'  dynbegin = 'X' ) " current screen
+      ( fnam    = 'BDC_OKCODE'   fval   = '=BACK' )
+    ).
+
+    DATA(opt) = VALUE ctu_params( dismode = 'E'    " Display of screens only if an error occurs
+                                  defsize = 'X' ). " Standard size of screens
+
+    SET PARAMETER ID 'XUS' FIELD user.
+
+    TRY.
+        CALL TRANSACTION 'SU01' WITH AUTHORITY-CHECK
+            USING bdcdata
+            OPTIONS FROM opt.
+      CATCH cx_sy_authorization_error.
+    ENDTRY.
+
+  ENDMETHOD. " show_user
+
+  METHOD show_authorizations.
+
+    READ TABLE lt_user INTO DATA(ls_user)
+      WITH TABLE KEY
+        mandt = client
+        bname = user.
+    CHECK sy-subrc IS INITIAL.
+
+    CALL FUNCTION 'FUNCTION_EXISTS'
+      EXPORTING
+        funcname           = 'CRM_SURVEY_EDITOR_LONGTEXT'
+*     IMPORTING
+*       GROUP              =
+*       INCLUDE            =
+*       NAMESPACE          =
+*       STR_AREA           =
+      EXCEPTIONS
+        function_not_exist = 1
+        OTHERS             = 2.
+    IF sy-subrc = 0.
+      " Show multiple long lines in a textedit control
+      DATA longtext TYPE string.
+      longtext = |Authorizations for user { ls_user-mandt } { ls_user-bname } (Type { ls_user-ustyp }, group { ls_user-class })|.
+
+      "LOOP AT ls_user-auth_values INTO DATA(auth_value).
+      "  CONCATENATE
+      "    auth_value-objct
+      "    auth_value-auth
+      "    auth_value-field
+      "    auth_value-von
+      "    auth_value-bis
+      "    INTO DATA(s) SEPARATED BY space.
+      "  CONCATENATE
+      "    longtext
+      "    s
+      "    INTO longtext
+      "    SEPARATED BY cl_abap_char_utilities=>newline.
+      "ENDLOOP.
+
+        CONCATENATE
+          longtext
+          authorizations
+          INTO longtext
+          SEPARATED BY cl_abap_char_utilities=>newline.
+
+      CALL FUNCTION 'CRM_SURVEY_EDITOR_LONGTEXT'
+        EXPORTING
+*         MAX_LENGTH     = 0
+          read_only      = 'X'
+        CHANGING
+          longtext       = longtext
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+      IF sy-subrc <> 0.
+*  Implement suitable error handling here
+      ENDIF.
+
+    ELSE.
+
+      " Show multiple long lines on a list popup
+      DATA:
+        titlebar(80),
+        line_size    TYPE i,
+        list_tab     TYPE TABLE OF trtab,
+        line         TYPE          trtab.
+
+      CONCATENATE
+        'Authorizations for user'
+        user
+        INTO titlebar
+        SEPARATED BY space.
+      line_size = 60.
+
+      SPLIT authorizations AT ' ,' INTO TABLE list_tab.
+
+      CALL FUNCTION 'LAW_SHOW_POPUP_WITH_TEXT'
+        EXPORTING
+          titelbar         = titlebar
+*         HEADER_LINES     =
+*         SHOW_CANCEL_BUTTON           = ' '
+          line_size        = line_size
+*         SHOW_BUTTON_YES_TO_ALL       = ' '
+*       IMPORTING
+*         YES_TO_ALL       =
+        TABLES
+          list_tab         = list_tab
+        EXCEPTIONS
+          action_cancelled = 1
+          OTHERS           = 2.
+      IF sy-subrc <> 0.
+*   Implement suitable error handling here
+      ENDIF.
+
+    ENDIF.
+
+  ENDMETHOD. " show_authorizations
 
 ENDCLASS.                    "cl_alv IMPLEMENTATION
 
