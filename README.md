@@ -57,6 +57,11 @@ Set/unset the SNC GUIFLAG of users which permits/disallows password based logon 
 New 14.09.2023  
 Updated 15.09.2023 Refactored for using an interactive ALV  
 
+- Report [`ZBNAME_RESTRICT`](/ABAP/basis/zbname_restrict.prog.abap)  
+Check user names concerning parameter `BNAME_RESTRICT` in table `PRGN_CUST`  
+see [`Note 1731549`](https://me.sap.com/notes/1731549)  
+or [`Online Help`](https://help.sap.com/docs/ABAP_PLATFORM_NEW/c6e6d078ab99452db94ed7b3b7bbcccf/8a922c9d7bca45c9b29bff3c59b344df.html)  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
