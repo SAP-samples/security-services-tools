@@ -1229,7 +1229,7 @@ form translate_tasktype
     WHEN 'Y'.    gs_result-tasktype = 'Buffer Sync.'(409).
     WHEN 'A'.    gs_result-tasktype = 'Auto ABAP'(410).
     WHEN '7'.    gs_result-tasktype = 'Auto RFC'(416).
-    WHEN 'ง'.    gs_result-tasktype = 'lrrfc'. "(417) paragraph sign
+    WHEN 'ยง'.    gs_result-tasktype = 'lrrfc'. "(417) paragraph sign
     WHEN '2'.    gs_result-tasktype = 'Update (V2)'(404).
     WHEN 'C'.    gs_result-tasktype = 'CPI-C'(411).
     WHEN 'R'.    gs_result-tasktype = 'RFC'(412).

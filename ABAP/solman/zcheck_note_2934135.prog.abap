@@ -339,8 +339,8 @@ FORM show_data_supplier_status
           REPLACE ALL OCCURRENCES OF '&#x3d;' IN lv_string WITH '='.
           REPLACE ALL OCCURRENCES OF '&#x5b;' IN lv_string WITH '['.
           REPLACE ALL OCCURRENCES OF '&#x5d;' IN lv_string WITH ']'.
-          REPLACE ALL OCCURRENCES OF '&#xc4;' IN lv_string WITH 'Ä'.
-          REPLACE ALL OCCURRENCES OF '&#xe4;' IN lv_string WITH 'ä'.
+          REPLACE ALL OCCURRENCES OF '&#xc4;' IN lv_string WITH 'Ã„'.
+          REPLACE ALL OCCURRENCES OF '&#xe4;' IN lv_string WITH 'Ã¤'.
 
           DATA: part1 TYPE string,
                 part2 TYPE string.
