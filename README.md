@@ -62,6 +62,18 @@ Check user names concerning parameter `BNAME_RESTRICT` in table `PRGN_CUST`
 see [`Note 1731549`](https://me.sap.com/notes/1731549)  
 or [`Online Help`](https://help.sap.com/docs/ABAP_PLATFORM_NEW/c6e6d078ab99452db94ed7b3b7bbcccf/8a922c9d7bca45c9b29bff3c59b344df.html)  
 
+- Report [`ZSHOW_UCON_RFC_DATA`](/ABAP/basis/zshow_ucon_rfc_data.prog.prog.abap)  
+Maintain UCON settings for RFC functions similar like transaction `UCONCOCKPIT`.  
+The report shows additional selections and information about:  
+Function groups  
+Packages  
+Software components  
+Switched components  
+Blocklist for S/4HANA   
+Authorizations of the called user  
+New 26.04.2024  
+Updated 16.06.2024  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service

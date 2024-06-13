@@ -24,10 +24,15 @@
 *& 27.05.2024 Interactive functions: show called user in current client
 *&                                   show popup about authorizations
 *& 28.05.2024 Optimization for showing authorizationn data
+*& 16.06.2024 Optimization for progress indicator
+*&            Show error if function is not RFC enabled anymore if function does not exist anymore
+*&            Use report RS_UCON_CLEAN_RFC_STATE to repair these entries
+*&            Show status of switched packages
+*&            Performance optimization concerning view V_RFCBL_SERVER as of 7.50
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '28.05.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '16.06.2024 S41'.
 
 * Selection screen
 TABLES sscrfields.
@@ -215,6 +220,9 @@ TYPES:
     devclass               TYPE tadir-devclass,            " additional field
     devclass_text          TYPE tdevct-ctext,              " additional field
     devclass_called        TYPE char1,                     " additional field
+    switch_id              TYPE sfw_package-switch_id,     " additional field
+    switch_name            TYPE sfw_switcht-name32,        " additional field
+    switch_state           TYPE string, "sfw_switchpos,    " additional field
     dlvunit                TYPE tdevc-dlvunit,             " additional field
     dlvunit_called         TYPE char1,                     " additional field
     blpackage              TYPE devclass,                  " additional field, field v_rfcbl_server-blpackage exists as of 7.50
@@ -399,6 +407,7 @@ CLASS lcl_report DEFINITION.
       extend_data
         IMPORTING
           lt_called_rfm_list TYPE ucon_phase_tool_fields_tt
+          sel_function       TYPE ucon_func_list_range
           sel_area           TYPE tt_sel_area
           sel_devclass       TYPE tt_sel_devclass
           sel_dlvunit        TYPE tt_sel_dlvunit
@@ -407,8 +416,15 @@ CLASS lcl_report DEFINITION.
           sel_bname          TYPE tt_sel_bname  OPTIONAL
           sel_ustyp          TYPE tt_sel_ustyp  OPTIONAL
           sel_class          TYPE tt_sel_class  OPTIONAL
-        .
+        ,
 
+      " Show progress indicator
+      sapgui_progress_indicator
+        IMPORTING
+          tabix TYPE i
+          total TYPE i
+          text  TYPE string
+        .
 
 ENDCLASS.                    "lcl_report DEFINITION
 
@@ -1143,6 +1159,7 @@ CLASS lcl_report IMPLEMENTATION.
       extend_data(
         EXPORTING
           lt_called_rfm_list = lt_called_rfm_list
+          sel_function = sel_function
           sel_area     = sel_area
           sel_devclass = sel_devclass
           sel_dlvunit  = sel_dlvunit
@@ -1156,6 +1173,7 @@ CLASS lcl_report IMPLEMENTATION.
       extend_data(
         EXPORTING
           lt_called_rfm_list = lt_called_rfm_list
+          sel_function = sel_function
           sel_area     = sel_area
           sel_devclass = sel_devclass
           sel_dlvunit  = sel_dlvunit
@@ -1181,8 +1199,8 @@ CLASS lcl_report IMPLEMENTATION.
 
     CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
       EXPORTING
-        percentage = 50
-        text       = 'Extend data'.
+        percentage = 20
+        text       = 'Load additional data'.
 
     " Add marker if function group, package or software component has some called functions
     TYPES:
@@ -1262,6 +1280,28 @@ CLASS lcl_report IMPLEMENTATION.
       INTO TABLE @lt_dlvunit.
 
 
+    " Get active switches
+    cl_abap_switch=>get_enabled_switches( IMPORTING p_enabled_switches = DATA(enabled_switches) ).
+
+
+    " Add Blacklist for blocked Function Modules
+    TYPES:
+      BEGIN OF ts_rfcbl_server,
+        rfm_name  TYPE funcname,
+        blpackage TYPE devclass,
+      END OF ts_rfcbl_server.
+    DATA lt_rfcbl_server TYPE SORTED TABLE OF ts_rfcbl_server WITH UNIQUE KEY rfm_name.
+    IF sy-saprl >= 750.
+      SELECT
+          rfm_name,
+          blpackage
+        FROM (c_v_rfcbl_server)      " Blacklist for blocked Function Modules
+        WHERE rfm_name IN @sel_function
+          AND version = 'A'
+        INTO TABLE @lt_rfcbl_server.
+    ENDIF.
+
+
     " Collect function data
     TYPES:
       BEGIN OF ts_function,
@@ -1272,6 +1312,9 @@ CLASS lcl_report IMPLEMENTATION.
         area_text     TYPE tlibt-areat,
         devclass      TYPE tadir-devclass,
         devclass_text TYPE tdevct-ctext,
+        switch_id     TYPE sfw_package-switch_id,
+        switch_name   TYPE sfw_switcht-name32,
+        switch_state  TYPE sfw_switchpos,
         dlvunit       TYPE tdevc-dlvunit,
         blpackage     TYPE devclass, " Field v_rfcbl_server-blpackage exists as of 7.50
       END OF ts_function,
@@ -1285,11 +1328,17 @@ CLASS lcl_report IMPLEMENTATION.
     DATA:
       ls_data TYPE ts_ucon_phase_tool_fields_ext.
 
-
     " Copy data to ALV data
     LOOP AT lt_called_rfm_list INTO DATA(ls_called_rfm_list)
       WHERE called_client IN sel_mandt
         AND called_user   IN sel_bname.
+
+      sapgui_progress_indicator(
+       EXPORTING
+         tabix = sy-tabix
+         total = lines( lt_called_rfm_list )
+         text  = 'Extend data'
+      ).
 
       CLEAR ls_data.
       MOVE-CORRESPONDING ls_called_rfm_list TO ls_data.
@@ -1298,16 +1347,20 @@ CLASS lcl_report IMPLEMENTATION.
       CLEAR ls_function.
       READ TABLE lt_function INTO ls_function WITH KEY funcname = ls_data-funcname.
       IF sy-subrc NE 0.
+        DATA(function_tabix) = sy-tabix.
         SELECT SINGLE
-            tfdir~funcname, " Function
-            tfdir~fmode,    " RFC mode
-            tftit~stext,    " Function text
-            enlfdir~area,   " Function group
-            tlibt~areat,    " Function group text
-            tadir~devclass, " Package
-            tdevct~ctext,   " Package text
-            tdevc~dlvunit",   " Delivery unit
-"            v_rfcbl_server~blpackage    " Blocklist view V_RFC_BL_SERVER exists as of SAP_BASIS 7.50
+            tfdir~funcname,        " Function
+            tfdir~fmode,           " RFC mode
+            tftit~stext,           " Function text
+            enlfdir~area,          " Function group
+            tlibt~areat,           " Function group text
+            tadir~devclass,        " Package
+            tdevct~ctext,          " Package text
+            sfw_package~switch_id, " Switch framework ID
+            sfw_switcht~name32,    " Switch framework name
+            ' ',                   " Switch state (no select possible)
+            tdevc~dlvunit,         " Delivery unit
+            ' ' " v_rfcbl_server~blpackage    " Blocklist view V_RFC_BL_SERVER exists as of SAP_BASIS 7.50
           FROM tfdir                       " Function
           LEFT OUTER JOIN tftit            " Function text
             ON    tftit~funcname = tfdir~funcname
@@ -1324,6 +1377,12 @@ CLASS lcl_report IMPLEMENTATION.
           LEFT OUTER JOIN tdevct           " Package text
             ON    tdevct~devclass = tadir~devclass
               AND tdevct~spras = @sy-langu
+          LEFT OUTER JOIN sfw_package      " Switch framework ID
+            ON    sfw_package~devclass = tadir~devclass
+              AND sfw_package~version  = 'A'
+          LEFT OUTER JOIN sfw_switcht      " Switch framework name
+            ON    sfw_switcht~switch_id = sfw_package~switch_id
+              AND sfw_switcht~spras = @sy-langu
           JOIN tdevc                       " Delivery unit
             ON    tdevc~devclass = tadir~devclass
 "          LEFT OUTER JOIN v_rfcbl_server   " Blocklist view V_RFC_BL_SERVER
@@ -1332,14 +1391,69 @@ CLASS lcl_report IMPLEMENTATION.
           WHERE tfdir~funcname = @ls_data-funcname
           INTO @ls_function.
         IF sy-subrc = 0.
-          IF sy-saprl >= 750.
-            SELECT SINGLE blpackage
-              FROM (c_v_rfcbl_server)
-              WHERE rfm_name = @ls_data-funcname
-                AND version = 'A'
-              INTO @ls_function-blpackage.
+
+          " Add switch id. The simple approach as part of the select statement is not sufficent for a hierarchy of packages
+          IF ls_function-switch_id IS INITIAL AND ls_function-devclass IS NOT INITIAL.
+            " Simple
+            ls_function-switch_id = cl_switch=>sw_devclass( ls_function-devclass ).
+            " Additional data about business functions etc.
+*            CALL METHOD cl_sfw_helper=>get_switch_by_package
+*              EXPORTING
+*                package_name              =
+*              IMPORTING
+*                switch_id                 =
+*                business_functions        =
+*                ea_functions              =
+*                business_function_sets    =
+*                package_hierarchy         =
+*              EXCEPTIONS
+*                package_does_not_exist    = 1
+*                package_is_not_switchable = 2
+*                internal_error            = 3
+*                others                    = 4
+*                    .
+*            IF sy-subrc <> 0.
+*             Implement suitable error handling here
+*            ENDIF.
+
+            IF ls_function-switch_id IS NOT INITIAL.
+              " Get switch text
+              SELECT SINGLE name32
+                FROM sfw_switcht      " Switch framework name
+                WHERE switch_id = @ls_function-switch_id
+                  AND spras     = @sy-langu
+                INTO @ls_function-switch_name.
+            ENDIF.
           ENDIF.
-          INSERT ls_function INTO lt_function INDEX sy-tabix.
+
+          IF ls_function-switch_id IS NOT INITIAL.
+            " Get switch state
+            READ TABLE enabled_switches INTO DATA(enabled_switch)
+              WITH KEY switch_id = ls_function-switch_id.
+            IF sy-subrc = 0.
+              ls_function-switch_state = enabled_switch-state. " T on, S stand-by, F off
+            ELSE.
+              ls_function-switch_state = '-'.
+            ENDIF.
+          ENDIF.
+
+          " Add Blacklist for blocked Function Modules
+          IF sy-saprl >= 750.
+            " slow
+            "SELECT SINGLE blpackage
+            "  FROM (c_v_rfcbl_server)      " Blacklist for blocked Function Modules
+            "  WHERE rfm_name = @ls_data-funcname
+            "    AND version = 'A'
+            "  INTO @ls_function-blpackage.
+            " fast
+            READ TABLE lt_rfcbl_server INTO DATA(ls_rfcbl_server)
+              WITH TABLE KEY rfm_name = ls_data-funcname.
+            IF sy-subrc = 0.
+              ls_function-blpackage = ls_rfcbl_server-blpackage.
+            ENDIF.
+          ENDIF.
+
+          INSERT ls_function INTO lt_function INDEX function_tabix.
         ENDIF.
       ENDIF.
 
@@ -1353,11 +1467,28 @@ CLASS lcl_report IMPLEMENTATION.
 
       ls_data-fmode         = ls_function-fmode.
       ls_data-func_text     = ls_function-func_text.
+
       ls_data-area          = ls_function-area.
       ls_data-area_text     = ls_function-area_text.
+
       ls_data-devclass      = ls_function-devclass.
       ls_data-devclass_text = ls_function-devclass_text.
+
+      ls_data-switch_id     = ls_function-switch_id.
+      ls_data-switch_name   = ls_function-switch_name.
+      CASE ls_function-switch_state.
+        WHEN 'T'.    ls_data-switch_state = 'active'.
+        WHEN 'S'.    ls_data-switch_state = 'stand-by'.
+          APPEND VALUE #( fname = 'SWITCH_STATE' color-col = col_total )    TO ls_data-ctab.
+        WHEN 'F'.    ls_data-switch_state = 'off'.
+          APPEND VALUE #( fname = 'SWITCH_STATE' color-col = col_negative ) TO ls_data-ctab.
+        WHEN '-'.    ls_data-switch_state = 'Off'.
+          APPEND VALUE #( fname = 'SWITCH_STATE' color-col = col_negative ) TO ls_data-ctab.
+        WHEN OTHERS. ls_function-switch_state = ls_function-switch_state.
+      ENDCASE.
+
       ls_data-dlvunit       = ls_function-dlvunit.
+
       ls_data-blpackage     = ls_function-blpackage.
 
       " Add marker if function is called
@@ -1434,6 +1565,18 @@ CLASS lcl_report IMPLEMENTATION.
         ENDIF.
       ELSE.
         APPEND VALUE #( fname = 'FUNCNAME' color-col = col_positive )   TO ls_data-ctab. " green: callable
+      ENDIF.
+
+      " Show error if function is not RFC enabled anymore
+      " Use report RS_UCON_CLEAN_RFC_STATE to repair these entries
+      IF NOT ( ls_data-fmode = 'R' OR ls_data-fmode = 'X' OR ls_data-fmode = 'K').
+        APPEND VALUE #( fname = 'FMODE'     color-col = col_negative ) TO ls_data-ctab.
+      ENDIF.
+      " Show error if function does not exist anymore
+      " Use report RS_UCON_CLEAN_RFC_STATE to repair these entries
+      IF ls_data-area IS INITIAL.
+        APPEND VALUE #( fname = 'AREA'      color-col = col_negative ) TO ls_data-ctab.
+        APPEND VALUE #( fname = 'AREA_TEXT' color-col = col_negative ) TO ls_data-ctab.
       ENDIF.
 
       " Add text of phase
@@ -1629,7 +1772,7 @@ CLASS lcl_report IMPLEMENTATION.
           APPEND VALUE #( fname = 'AUTHORIZATIONS' color-col = col_negative ) TO ls_data-ctab.
         ENDIF.
 
-      ENDIF.
+      ENDIF. " Get additional user data
 
       " Store data
       APPEND ls_data TO lt_data.
@@ -1638,6 +1781,21 @@ CLASS lcl_report IMPLEMENTATION.
 
 
   ENDMETHOD. " extend_data.
+
+
+  METHOD sapgui_progress_indicator.
+    DATA    percentage          TYPE i.
+    STATICS prevoius_percentage TYPE i.
+
+    percentage = tabix * 80 / total + 20.
+    IF percentage > prevoius_percentage.
+      CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+        EXPORTING
+          percentage = percentage
+          text       = text.
+      prevoius_percentage = percentage.
+    ENDIF.
+  ENDMETHOD.
 
 ENDCLASS.                    "lcl_report IMPLEMENTATION
 
@@ -1958,6 +2116,22 @@ CLASS lcl_alv IMPLEMENTATION.
         "lr_column->set_symbol( if_salv_c_bool_sap=>true ).
         lr_column->set_cell_type( if_salv_c_cell_type=>checkbox ).
 
+
+        lr_column ?= lr_columns->get_column( 'SWITCH_ID' ).
+        "lr_column->set_symbol( if_salv_c_bool_sap=>true ).
+
+        lr_column ?= lr_columns->get_column( 'SWITCH_NAME' ).
+        lr_column->set_long_text( 'Switch name' ).
+        lr_column->set_medium_text( 'Switch name' ).
+        lr_column->set_short_text( 'SwitchName' ).
+        lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+        lr_column ?= lr_columns->get_column( 'SWITCH_STATE' ).
+        lr_column->set_long_text( 'Switch state' ).
+        lr_column->set_medium_text( 'Switch state' ).
+        lr_column->set_short_text( 'SwitchStat' ).
+
+
         lr_column ?= lr_columns->get_column( 'DLVUNIT' ).
         "lr_column->set_key( if_salv_c_bool_sap=>true ).
 
@@ -2105,6 +2279,8 @@ CLASS lcl_alv IMPLEMENTATION.
           lr_column ?= lr_columns->get_column( 'USTYP' ).
           lr_column->set_technical( if_salv_c_bool_sap=>true ).
           lr_column ?= lr_columns->get_column( 'CLASS' ).
+          lr_column->set_technical( if_salv_c_bool_sap=>true ).
+          lr_column ?= lr_columns->get_column( 'AUTHORIZATIONS' ).
           lr_column->set_technical( if_salv_c_bool_sap=>true ).
 
           lr_column ?= lr_columns->get_column( 'REJECTED_RFC_CALL' ).
@@ -2689,11 +2865,11 @@ CLASS lcl_alv IMPLEMENTATION.
       "    SEPARATED BY cl_abap_char_utilities=>newline.
       "ENDLOOP.
 
-        CONCATENATE
-          longtext
-          authorizations
-          INTO longtext
-          SEPARATED BY cl_abap_char_utilities=>newline.
+      CONCATENATE
+        longtext
+        authorizations
+        INTO longtext
+        SEPARATED BY cl_abap_char_utilities=>newline.
 
       CALL FUNCTION 'CRM_SURVEY_EDITOR_LONGTEXT'
         EXPORTING
