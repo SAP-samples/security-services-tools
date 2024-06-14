@@ -72,7 +72,7 @@ Switched components
 Blocklist for S/4HANA   
 Authorizations of the called user  
 New 26.04.2024  
-Updated 16.06.2024  
+Updated 14.06.2024  
 
 ## SAP Solution Manager (SolMan)
 

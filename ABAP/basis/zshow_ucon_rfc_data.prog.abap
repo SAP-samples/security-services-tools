@@ -24,15 +24,16 @@
 *& 27.05.2024 Interactive functions: show called user in current client
 *&                                   show popup about authorizations
 *& 28.05.2024 Optimization for showing authorizationn data
-*& 16.06.2024 Optimization for progress indicator
+*& 13.06.2024 Optimization for progress indicator
 *&            Show error if function is not RFC enabled anymore if function does not exist anymore
 *&            Use report RS_UCON_CLEAN_RFC_STATE to repair these entries
 *&            Show status of switched packages
 *&            Performance optimization concerning view V_RFCBL_SERVER as of 7.50
+*& 14.06.2024 Performance optimization for reading function data
 *&---------------------------------------------------------------------*
 REPORT zshow_ucon_rfc_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '16.06.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '14.06.2024 S41'.
 
 * Selection screen
 TABLES sscrfields.
@@ -83,6 +84,10 @@ SELECTION-SCREEN BEGIN OF BLOCK fumo WITH FRAME TITLE tit_fum.
     SELECTION-SCREEN COMMENT 1(28) t_unit FOR FIELD so_unit.
     DATA dlvunit TYPE tdevc-dlvunit.
     SELECT-OPTIONS so_unit FOR dlvunit.
+  SELECTION-SCREEN END OF LINE.
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_switch AS CHECKBOX MODIF ID swt.
+    SELECTION-SCREEN COMMENT (60) t_switch FOR FIELD p_switch MODIF ID swt.
   SELECTION-SCREEN END OF LINE.
   SELECTION-SCREEN BEGIN OF LINE.
     PARAMETERS: p_bl_srv AS CHECKBOX MODIF ID blk.
@@ -297,6 +302,7 @@ CLASS lcl_report DEFINITION.
         communication_assembly TYPE char6,
         phase                  TYPE char6,
         layout                 TYPE disvariant-variant,
+        switch                 TYPE char6,
       END OF ts_para,
       tt_sel_area     TYPE RANGE OF enlfdir-area,
       tt_sel_devclass TYPE RANGE OF tadir-devclass,
@@ -337,6 +343,7 @@ CLASS lcl_report DEFINITION.
           sel_area         TYPE tt_sel_area
           sel_devclass     TYPE tt_sel_devclass
           sel_dlvunit      TYPE tt_sel_dlvunit
+          switch           TYPE abap_bool
           blocklist_server TYPE abap_bool
 
           sel_mandt        TYPE tt_sel_mandt
@@ -411,6 +418,7 @@ CLASS lcl_report DEFINITION.
           sel_area           TYPE tt_sel_area
           sel_devclass       TYPE tt_sel_devclass
           sel_dlvunit        TYPE tt_sel_dlvunit
+          switch             TYPE abap_bool
           blocklist_server   TYPE abap_bool
           sel_mandt          TYPE tt_sel_mandt  OPTIONAL
           sel_bname          TYPE tt_sel_bname  OPTIONAL
@@ -516,6 +524,7 @@ CLASS lcl_report IMPLEMENTATION.
     t_area   = 'Function group'.
     t_devc   = 'Package'.
     t_unit   = 'Software component'.
+    t_switch = 'Only functions of switched components'.
     t_bl_srv = 'Only functions of blocklist V_RFC_BL_SERVER'.
 
     tit_usr  = 'Called Users'.
@@ -564,6 +573,7 @@ CLASS lcl_report IMPLEMENTATION.
       WHEN 'COMP'.   p_comp   = 'X'. " Enhanced list
     ENDCASE.
 
+    p_switch = par_value-switch.
     p_bl_srv = par_value-block_srv.
 
     CASE par_value-call_status.
@@ -949,6 +959,7 @@ CLASS lcl_report IMPLEMENTATION.
     IF p_simp   = 'X'. par_value-list = 'SIMP'. ENDIF. " Simple list
     IF p_comp   = 'X'. par_value-list = 'COMP'. ENDIF. " Enhanced list
 
+    par_value-switch     = p_switch.
     par_value-block_srv  = p_bl_srv.
 
     IF p_mon    = 'X'. par_value-call_status = 'MON'. ENDIF. " Called Function Modules
@@ -1163,6 +1174,7 @@ CLASS lcl_report IMPLEMENTATION.
           sel_area     = sel_area
           sel_devclass = sel_devclass
           sel_dlvunit  = sel_dlvunit
+          switch       = switch
           blocklist_server = blocklist_server
           "sel_mandt    = sel_mandt
           "sel_bname    = sel_bname
@@ -1177,6 +1189,7 @@ CLASS lcl_report IMPLEMENTATION.
           sel_area     = sel_area
           sel_devclass = sel_devclass
           sel_dlvunit  = sel_dlvunit
+          switch       = switch
           blocklist_server = blocklist_server
           sel_mandt    = sel_mandt
           sel_bname    = sel_bname
@@ -1290,9 +1303,9 @@ CLASS lcl_report IMPLEMENTATION.
         rfm_name  TYPE funcname,
         blpackage TYPE devclass,
       END OF ts_rfcbl_server.
-    DATA lt_rfcbl_server TYPE SORTED TABLE OF ts_rfcbl_server WITH UNIQUE KEY rfm_name.
+    DATA lt_rfcbl_server TYPE SORTED TABLE OF ts_rfcbl_server WITH UNIQUE KEY rfm_name blpackage.
     IF sy-saprl >= 750.
-      SELECT
+      SELECT DISTINCT
           rfm_name,
           blpackage
         FROM (c_v_rfcbl_server)      " Blacklist for blocked Function Modules
@@ -1301,6 +1314,11 @@ CLASS lcl_report IMPLEMENTATION.
         INTO TABLE @lt_rfcbl_server.
     ENDIF.
 
+
+    CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+      EXPORTING
+        percentage = 30
+        text       = 'Load additional data'.
 
     " Collect function data
     TYPES:
@@ -1324,6 +1342,116 @@ CLASS lcl_report IMPLEMENTATION.
       ls_function TYPE ts_function,
       lt_function TYPE tt_function.
 
+    SELECT
+        tfdir~funcname,        " Function
+        tfdir~fmode,           " RFC mode
+        tftit~stext,           " Function text
+        enlfdir~area,          " Function group
+        tlibt~areat,           " Function group text
+        tadir~devclass,        " Package
+        tdevct~ctext,          " Package text
+        sfw_package~switch_id, " Switch framework ID
+        sfw_switcht~name32,    " Switch framework name
+        ' ',                   " Switch state (no select possible)
+        tdevc~dlvunit,         " Delivery unit
+        ' ' " v_rfcbl_server~blpackage    " Blocklist view V_RFC_BL_SERVER exists as of SAP_BASIS 7.50
+      FROM tfdir                       " Function
+      LEFT OUTER JOIN tftit            " Function text
+        ON    tftit~funcname = tfdir~funcname
+          AND spras = @sy-langu
+      JOIN enlfdir                     " Function group
+        ON    enlfdir~funcname = tfdir~funcname
+      LEFT OUTER JOIN tlibt            " Function group text
+        ON    tlibt~area = enlfdir~area
+          AND tlibt~spras = @sy-langu
+      JOIN tadir                       " Package
+        ON    pgmid    = 'R3TR'
+          AND object   = 'FUGR'
+          AND obj_name = enlfdir~area
+      LEFT OUTER JOIN tdevct           " Package text
+        ON    tdevct~devclass = tadir~devclass
+          AND tdevct~spras = @sy-langu
+      LEFT OUTER JOIN sfw_package      " Switch framework ID
+        ON    sfw_package~devclass = tadir~devclass
+          AND sfw_package~version  = 'A'
+      LEFT OUTER JOIN sfw_switcht      " Switch framework name
+        ON    sfw_switcht~switch_id = sfw_package~switch_id
+          AND sfw_switcht~spras = @sy-langu
+      JOIN tdevc                       " Delivery unit
+        ON    tdevc~devclass = tadir~devclass
+"          LEFT OUTER JOIN v_rfcbl_server   " Blocklist view V_RFC_BL_SERVER
+"            ON    v_rfcbl_server~rfm_name = tfdir~funcname
+"              AND v_rfcbl_server~blpackage = 'A'
+      WHERE tfdir~funcname IN @sel_function
+        AND enlfdir~area   IN @sel_area
+        AND tadir~devclass IN @sel_devclass
+        AND tdevc~dlvunit  IN @sel_dlvunit
+      INTO TABLE @lt_function.
+
+    LOOP AT lt_function ASSIGNING FIELD-SYMBOL(<ls_function>).
+      " Add switch id. The simple approach as part of the select statement is not sufficent for a hierarchy of packages
+      IF <ls_function>-switch_id IS INITIAL AND <ls_function>-devclass IS NOT INITIAL.
+        " Simple
+        <ls_function>-switch_id = cl_switch=>sw_devclass( <ls_function>-devclass ).
+        " Additional data about business functions etc.
+*            CALL METHOD cl_sfw_helper=>get_switch_by_package
+*              EXPORTING
+*                package_name              =
+*              IMPORTING
+*                switch_id                 =
+*                business_functions        =
+*                ea_functions              =
+*                business_function_sets    =
+*                package_hierarchy         =
+*              EXCEPTIONS
+*                package_does_not_exist    = 1
+*                package_is_not_switchable = 2
+*                internal_error            = 3
+*                others                    = 4
+*                    .
+*            IF sy-subrc <> 0.
+*             Implement suitable error handling here
+*            ENDIF.
+
+        IF <ls_function>-switch_id IS NOT INITIAL.
+          " Get switch text
+          SELECT SINGLE name32
+            FROM sfw_switcht      " Switch framework name
+            WHERE switch_id = @<ls_function>-switch_id
+              AND spras     = @sy-langu
+            INTO @<ls_function>-switch_name.
+        ENDIF.
+      ENDIF.
+
+      IF <ls_function>-switch_id IS NOT INITIAL.
+        " Get switch state
+        READ TABLE enabled_switches INTO DATA(enabled_switch)
+          WITH KEY switch_id = <ls_function>-switch_id.
+        IF sy-subrc = 0.
+          <ls_function>-switch_state = enabled_switch-state. " T on, S stand-by, F off
+        ELSE.
+          <ls_function>-switch_state = '-'.
+        ENDIF.
+      ENDIF.
+
+      " Add Blacklist for blocked Function Modules
+      IF sy-saprl >= 750.
+        " slow
+        "SELECT SINGLE blpackage
+        "  FROM (c_v_rfcbl_server)      " Blacklist for blocked Function Modules
+        "  WHERE rfm_name = @<ls_function>-funcname
+        "    AND version = 'A'
+        "  INTO @ls_function-blpackage.
+        " fast
+        READ TABLE lt_rfcbl_server INTO DATA(ls_rfcbl_server)
+          WITH KEY rfm_name = <ls_function>-funcname.
+        IF sy-subrc = 0.
+          <ls_function>-blpackage = ls_rfcbl_server-blpackage.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+
     " ALV Data
     DATA:
       ls_data TYPE ts_ucon_phase_tool_fields_ext.
@@ -1346,121 +1474,124 @@ CLASS lcl_report IMPLEMENTATION.
       " Get additional function data
       CLEAR ls_function.
       READ TABLE lt_function INTO ls_function WITH KEY funcname = ls_data-funcname.
-      IF sy-subrc NE 0.
-        DATA(function_tabix) = sy-tabix.
-        SELECT SINGLE
-            tfdir~funcname,        " Function
-            tfdir~fmode,           " RFC mode
-            tftit~stext,           " Function text
-            enlfdir~area,          " Function group
-            tlibt~areat,           " Function group text
-            tadir~devclass,        " Package
-            tdevct~ctext,          " Package text
-            sfw_package~switch_id, " Switch framework ID
-            sfw_switcht~name32,    " Switch framework name
-            ' ',                   " Switch state (no select possible)
-            tdevc~dlvunit,         " Delivery unit
-            ' ' " v_rfcbl_server~blpackage    " Blocklist view V_RFC_BL_SERVER exists as of SAP_BASIS 7.50
-          FROM tfdir                       " Function
-          LEFT OUTER JOIN tftit            " Function text
-            ON    tftit~funcname = tfdir~funcname
-              AND spras = @sy-langu
-          JOIN enlfdir                     " Function group
-            ON    enlfdir~funcname = tfdir~funcname
-          LEFT OUTER JOIN tlibt            " Function group text
-            ON    tlibt~area = enlfdir~area
-              AND tlibt~spras = @sy-langu
-          JOIN tadir                       " Package
-            ON    pgmid    = 'R3TR'
-              AND object   = 'FUGR'
-              AND obj_name = enlfdir~area
-          LEFT OUTER JOIN tdevct           " Package text
-            ON    tdevct~devclass = tadir~devclass
-              AND tdevct~spras = @sy-langu
-          LEFT OUTER JOIN sfw_package      " Switch framework ID
-            ON    sfw_package~devclass = tadir~devclass
-              AND sfw_package~version  = 'A'
-          LEFT OUTER JOIN sfw_switcht      " Switch framework name
-            ON    sfw_switcht~switch_id = sfw_package~switch_id
-              AND sfw_switcht~spras = @sy-langu
-          JOIN tdevc                       " Delivery unit
-            ON    tdevc~devclass = tadir~devclass
-"          LEFT OUTER JOIN v_rfcbl_server   " Blocklist view V_RFC_BL_SERVER
-"            ON    v_rfcbl_server~rfm_name = tfdir~funcname
-"              AND v_rfcbl_server~blpackage = 'A'
-          WHERE tfdir~funcname = @ls_data-funcname
-          INTO @ls_function.
-        IF sy-subrc = 0.
-
-          " Add switch id. The simple approach as part of the select statement is not sufficent for a hierarchy of packages
-          IF ls_function-switch_id IS INITIAL AND ls_function-devclass IS NOT INITIAL.
-            " Simple
-            ls_function-switch_id = cl_switch=>sw_devclass( ls_function-devclass ).
-            " Additional data about business functions etc.
-*            CALL METHOD cl_sfw_helper=>get_switch_by_package
-*              EXPORTING
-*                package_name              =
-*              IMPORTING
-*                switch_id                 =
-*                business_functions        =
-*                ea_functions              =
-*                business_function_sets    =
-*                package_hierarchy         =
-*              EXCEPTIONS
-*                package_does_not_exist    = 1
-*                package_is_not_switchable = 2
-*                internal_error            = 3
-*                others                    = 4
-*                    .
-*            IF sy-subrc <> 0.
-*             Implement suitable error handling here
+*      IF sy-subrc NE 0.
+*        DATA(function_tabix) = sy-tabix.
+*        SELECT SINGLE
+*            tfdir~funcname,        " Function
+*            tfdir~fmode,           " RFC mode
+*            tftit~stext,           " Function text
+*            enlfdir~area,          " Function group
+*            tlibt~areat,           " Function group text
+*            tadir~devclass,        " Package
+*            tdevct~ctext,          " Package text
+*            sfw_package~switch_id, " Switch framework ID
+*            sfw_switcht~name32,    " Switch framework name
+*            ' ',                   " Switch state (no select possible)
+*            tdevc~dlvunit,         " Delivery unit
+*            ' ' " v_rfcbl_server~blpackage    " Blocklist view V_RFC_BL_SERVER exists as of SAP_BASIS 7.50
+*          FROM tfdir                       " Function
+*          LEFT OUTER JOIN tftit            " Function text
+*            ON    tftit~funcname = tfdir~funcname
+*              AND spras = @sy-langu
+*          JOIN enlfdir                     " Function group
+*            ON    enlfdir~funcname = tfdir~funcname
+*          LEFT OUTER JOIN tlibt            " Function group text
+*            ON    tlibt~area = enlfdir~area
+*              AND tlibt~spras = @sy-langu
+*          JOIN tadir                       " Package
+*            ON    pgmid    = 'R3TR'
+*              AND object   = 'FUGR'
+*              AND obj_name = enlfdir~area
+*          LEFT OUTER JOIN tdevct           " Package text
+*            ON    tdevct~devclass = tadir~devclass
+*              AND tdevct~spras = @sy-langu
+*          LEFT OUTER JOIN sfw_package      " Switch framework ID
+*            ON    sfw_package~devclass = tadir~devclass
+*              AND sfw_package~version  = 'A'
+*          LEFT OUTER JOIN sfw_switcht      " Switch framework name
+*            ON    sfw_switcht~switch_id = sfw_package~switch_id
+*              AND sfw_switcht~spras = @sy-langu
+*          JOIN tdevc                       " Delivery unit
+*            ON    tdevc~devclass = tadir~devclass
+*"          LEFT OUTER JOIN v_rfcbl_server   " Blocklist view V_RFC_BL_SERVER
+*"            ON    v_rfcbl_server~rfm_name = tfdir~funcname
+*"              AND v_rfcbl_server~blpackage = 'A'
+*          WHERE tfdir~funcname = @ls_data-funcname
+*          INTO @ls_function.
+*        IF sy-subrc = 0.
+*
+*          " Add switch id. The simple approach as part of the select statement is not sufficent for a hierarchy of packages
+*          IF ls_function-switch_id IS INITIAL AND ls_function-devclass IS NOT INITIAL.
+*            " Simple
+*            ls_function-switch_id = cl_switch=>sw_devclass( ls_function-devclass ).
+*            " Additional data about business functions etc.
+**            CALL METHOD cl_sfw_helper=>get_switch_by_package
+**              EXPORTING
+**                package_name              =
+**              IMPORTING
+**                switch_id                 =
+**                business_functions        =
+**                ea_functions              =
+**                business_function_sets    =
+**                package_hierarchy         =
+**              EXCEPTIONS
+**                package_does_not_exist    = 1
+**                package_is_not_switchable = 2
+**                internal_error            = 3
+**                others                    = 4
+**                    .
+**            IF sy-subrc <> 0.
+**             Implement suitable error handling here
+**            ENDIF.
+*
+*            IF ls_function-switch_id IS NOT INITIAL.
+*              " Get switch text
+*              SELECT SINGLE name32
+*                FROM sfw_switcht      " Switch framework name
+*                WHERE switch_id = @ls_function-switch_id
+*                  AND spras     = @sy-langu
+*                INTO @ls_function-switch_name.
 *            ENDIF.
-
-            IF ls_function-switch_id IS NOT INITIAL.
-              " Get switch text
-              SELECT SINGLE name32
-                FROM sfw_switcht      " Switch framework name
-                WHERE switch_id = @ls_function-switch_id
-                  AND spras     = @sy-langu
-                INTO @ls_function-switch_name.
-            ENDIF.
-          ENDIF.
-
-          IF ls_function-switch_id IS NOT INITIAL.
-            " Get switch state
-            READ TABLE enabled_switches INTO DATA(enabled_switch)
-              WITH KEY switch_id = ls_function-switch_id.
-            IF sy-subrc = 0.
-              ls_function-switch_state = enabled_switch-state. " T on, S stand-by, F off
-            ELSE.
-              ls_function-switch_state = '-'.
-            ENDIF.
-          ENDIF.
-
-          " Add Blacklist for blocked Function Modules
-          IF sy-saprl >= 750.
-            " slow
-            "SELECT SINGLE blpackage
-            "  FROM (c_v_rfcbl_server)      " Blacklist for blocked Function Modules
-            "  WHERE rfm_name = @ls_data-funcname
-            "    AND version = 'A'
-            "  INTO @ls_function-blpackage.
-            " fast
-            READ TABLE lt_rfcbl_server INTO DATA(ls_rfcbl_server)
-              WITH TABLE KEY rfm_name = ls_data-funcname.
-            IF sy-subrc = 0.
-              ls_function-blpackage = ls_rfcbl_server-blpackage.
-            ENDIF.
-          ENDIF.
-
-          INSERT ls_function INTO lt_function INDEX function_tabix.
-        ENDIF.
-      ENDIF.
+*          ENDIF.
+*
+*          IF ls_function-switch_id IS NOT INITIAL.
+*            " Get switch state
+*            READ TABLE enabled_switches INTO DATA(enabled_switch)
+*              WITH KEY switch_id = ls_function-switch_id.
+*            IF sy-subrc = 0.
+*              ls_function-switch_state = enabled_switch-state. " T on, S stand-by, F off
+*            ELSE.
+*              ls_function-switch_state = '-'.
+*            ENDIF.
+*          ENDIF.
+*
+*          " Add Blacklist for blocked Function Modules
+*          IF sy-saprl >= 750.
+*            " slow
+*            "SELECT SINGLE blpackage
+*            "  FROM (c_v_rfcbl_server)      " Blacklist for blocked Function Modules
+*            "  WHERE rfm_name = @ls_data-funcname
+*            "    AND version = 'A'
+*            "  INTO @ls_function-blpackage.
+*            " fast
+*            READ TABLE lt_rfcbl_server INTO DATA(ls_rfcbl_server)
+*              WITH TABLE KEY rfm_name = ls_data-funcname.
+*            IF sy-subrc = 0.
+*              ls_function-blpackage = ls_rfcbl_server-blpackage.
+*            ENDIF.
+*          ENDIF.
+*
+*          INSERT ls_function INTO lt_function INDEX function_tabix.
+*        ENDIF.
+*      ENDIF.
 
       " Check select options for function group, package and software component
       CHECK ls_function-area     IN sel_area.
       CHECK ls_function-devclass IN sel_devclass.
       CHECK ls_function-dlvunit  IN sel_dlvunit.
+
+      " Select functions of switched components only
+      CHECK switch IS INITIAL OR ls_function-switch_id IS NOT INITIAL.
 
       " Select functions of the blocklist view V_RFC_BL_SERVER only
       CHECK blocklist_server IS INITIAL OR ls_function-blpackage IS NOT INITIAL.
@@ -1478,11 +1609,14 @@ CLASS lcl_report IMPLEMENTATION.
       ls_data-switch_name   = ls_function-switch_name.
       CASE ls_function-switch_state.
         WHEN 'T'.    ls_data-switch_state = 'active'.
-        WHEN 'S'.    ls_data-switch_state = 'stand-by'.
+        WHEN 'S'.
+          ls_data-switch_state = 'stand-by'.
           APPEND VALUE #( fname = 'SWITCH_STATE' color-col = col_total )    TO ls_data-ctab.
-        WHEN 'F'.    ls_data-switch_state = 'off'.
+        WHEN 'F'.
+          ls_data-switch_state = 'off'.
           APPEND VALUE #( fname = 'SWITCH_STATE' color-col = col_negative ) TO ls_data-ctab.
-        WHEN '-'.    ls_data-switch_state = 'Off'.
+        WHEN '-'.
+          ls_data-switch_state = 'Off'.
           APPEND VALUE #( fname = 'SWITCH_STATE' color-col = col_negative ) TO ls_data-ctab.
         WHEN OTHERS. ls_function-switch_state = ls_function-switch_state.
       ENDCASE.
@@ -1586,7 +1720,11 @@ CLASS lcl_report IMPLEMENTATION.
         WHEN 'E'.
           ls_data-phasetext = 'Evaluation'.
         WHEN 'A'.
-          ls_data-phasetext = 'Final'.
+          IF ls_data-id IS INITIAL.
+            ls_data-phasetext = 'Final blocked'.
+          else.
+            ls_data-phasetext = 'Final allowed'.
+          endif.
       ENDCASE.
 
       " Get additional user data: user type, user group, and authorizations for S_RFC (only possible for the current system)
@@ -1787,7 +1925,7 @@ CLASS lcl_report IMPLEMENTATION.
     DATA    percentage          TYPE i.
     STATICS prevoius_percentage TYPE i.
 
-    percentage = tabix * 80 / total + 20.
+    percentage = tabix * 60 / total + 40.
     IF percentage > prevoius_percentage.
       CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
         EXPORTING
@@ -2979,6 +3117,7 @@ START-OF-SELECTION.
       sel_area     = so_area[]  " Function groups
       sel_devclass = so_devc[]  " Packages
       sel_dlvunit  = so_unit[]  " Software component
+      switch       = p_switch   " Switched components
       blocklist_server = p_bl_srv
 
       sel_mandt    = so_mandt[] " Clients
