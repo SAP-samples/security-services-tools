@@ -38,6 +38,10 @@ See blog [Show overview about security policies (SECPOL)](https://community.sap.
 Updated 19.10.2022 Selection mode: single cell  
 Updated 05.02.2024 Extension to 40 columns  
 
+- Report [`ZSECPOL_API`](/ABAP/basis/zsecpol_api.prog.abap)  
+Example for using the API to manage security policies (SECPOL)  
+Created 01.07.2024 New  
+
 - Report [`ZSPFRECOMMENDED`](/ABAP/basis/zspfrecommended.prog.abap)  
 Show recommended profile parameter values according to the secure-by-default project of S/4HANA  
 See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974695.html)  
