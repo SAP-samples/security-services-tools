@@ -5,7 +5,10 @@
 *& Author: Frank Buchholz, SAP CoE Security Services
 *& Published on: https://github.com/SAP-samples/security-services-tools
 *&
+*& The report requires SAP_BASIS 7.50 as well as note 3054326 - API for remote reading of audit logs as of 7.50
+*&
 *& 12.03.2024 Initial version
+*& 08.07.2024 Improved robustness for older releases or support packages
 *&---------------------------------------------------------------------*
 
 * Fields of the result table:
@@ -51,7 +54,7 @@
 
 REPORT zrsau_api_get_log_data.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '12.03.2024 S41'.
+CONSTANTS c_program_version(30) TYPE c VALUE '08.07.2024 S44'.
 
 * Selection screen
 
@@ -159,7 +162,7 @@ CLASS lcl_report DEFINITION.
 
     CLASS-DATA:
       et_log     TYPE rsau_t_result,
-      et_log_utc TYPE rsau_t_result_utc,
+      "et_log_utc TYPE rsau_t_result_utc,
       et_fstat   TYPE rsau_t_file_info,
       et_return  TYPE bapiret2_t.
 
@@ -270,7 +273,7 @@ CLASS lcl_report IMPLEMENTATION.
         it_r_instance         = it_r_instance  " Selection option: Application instance
       IMPORTING
         et_log                = et_log         " Log data (system time stamp)
-        et_log_utc            = et_log_utc     " Log data (UTC time stamp), NOT USED YET
+        "et_log_utc            = et_log_utc     " Log data (UTC time stamp), NOT USED YET
         et_fstat              = et_fstat       " Statistics information for data sources
         et_return             = et_return      " Application messages
       EXCEPTIONS
@@ -459,25 +462,25 @@ CLASS lcl_alv IMPLEMENTATION.
         lr_column->set_medium_text( 'Other variables' ).
         lr_column->set_long_text( 'Other variables' ).
 
-        lr_column ?= lr_columns->get_column( 'MFD_FLAG' ).
-        lr_column->set_short_text( 'Deletion' ).
-        lr_column->set_medium_text( 'Marked for deletion' ).
-        lr_column->set_long_text( 'Marked for deletion' ).
+        "lr_column ?= lr_columns->get_column( 'MFD_FLAG' ).
+        "lr_column->set_short_text( 'Deletion' ).
+        "lr_column->set_medium_text( 'Marked for deletion' ).
+        "lr_column->set_long_text( 'Marked for deletion' ).
 
-        lr_column ?= lr_columns->get_column( 'ALERT_FLAG' ).
-        lr_column->set_short_text( 'Alert flag' ).
-        lr_column->set_medium_text( 'Alert flag' ).
-        lr_column->set_long_text( 'Alert flag' ).
+        "lr_column ?= lr_columns->get_column( 'ALERT_FLAG' ).
+        "lr_column->set_short_text( 'Alert flag' ).
+        "lr_column->set_medium_text( 'Alert flag' ).
+        "lr_column->set_long_text( 'Alert flag' ).
 
-        lr_column ?= lr_columns->get_column( 'SLGDATTIM' ).
-        lr_column->set_short_text( 'Time stamp' ).
-        lr_column->set_medium_text( 'Time stamp' ).
-        lr_column->set_long_text( 'Time stamp' ).
+        "lr_column ?= lr_columns->get_column( 'SLGDATTIM' ).
+        "lr_column->set_short_text( 'Time stamp' ).
+        "lr_column->set_medium_text( 'Time stamp' ).
+        "lr_column->set_long_text( 'Time stamp' ).
 
-        lr_column ?= lr_columns->get_column( 'LOG_TSTMP' ).
-        lr_column->set_short_text( 'Time UTC' ).
-        lr_column->set_medium_text( 'Time stamp UTC' ).
-        lr_column->set_long_text( 'Time stamp UTC' ).
+        "lr_column ?= lr_columns->get_column( 'LOG_TSTMP' ).
+        "lr_column->set_short_text( 'Time UTC' ).
+        "lr_column->set_medium_text( 'Time stamp UTC' ).
+        "lr_column->set_long_text( 'Time stamp UTC' ).
 
         " Hide some fields if the user likes to see a short list
         IF short = 'X' AND layout IS INITIAL. " Let's use the global variable here.
@@ -509,10 +512,61 @@ CLASS lcl_alv IMPLEMENTATION.
           lr_column ?= lr_columns->get_column( 'X_STRING' ).
           lr_column->set_visible( if_salv_c_bool_sap=>false ).
 
-          lr_column ?= lr_columns->get_column( 'EPP' ).
-          lr_column->set_visible( if_salv_c_bool_sap=>false ).
+          "lr_column ?= lr_columns->get_column( 'EPP' ).
+          "lr_column->set_visible( if_salv_c_bool_sap=>false ).
 
           lr_column ?= lr_columns->get_column( 'SRC' ).
+          lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+          "lr_column ?= lr_columns->get_column( 'MFD_FLAG' ).
+          "lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+          "lr_column ?= lr_columns->get_column( 'ALERT_FLAG' ).
+          "lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+          "lr_column ?= lr_columns->get_column( 'SLGDATTIM' ).
+          "lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+          "lr_column ?= lr_columns->get_column( 'LOG_TSTMP' ).
+          "lr_column->set_visible( if_salv_c_bool_sap=>false ).
+
+        ENDIF.
+
+      CATCH cx_salv_not_found
+        INTO lr_exception.
+        lv_message = lr_exception->get_message( ).
+        MESSAGE ID lv_message-msgid TYPE lv_message-msgty
+                NUMBER lv_message-msgno
+                WITH lv_message-msgv1 lv_message-msgv2
+                     lv_message-msgv3 lv_message-msgv4.
+    ENDTRY.
+
+    " Additional fields depending on the release
+    TRY.
+        lr_column ?= lr_columns->get_column( 'MFD_FLAG' ).
+        lr_column->set_short_text( 'Deletion' ).
+        lr_column->set_medium_text( 'Marked for deletion' ).
+        lr_column->set_long_text( 'Marked for deletion' ).
+
+        lr_column ?= lr_columns->get_column( 'ALERT_FLAG' ).
+        lr_column->set_short_text( 'Alert flag' ).
+        lr_column->set_medium_text( 'Alert flag' ).
+        lr_column->set_long_text( 'Alert flag' ).
+
+        lr_column ?= lr_columns->get_column( 'SLGDATTIM' ).
+        lr_column->set_short_text( 'Time stamp' ).
+        lr_column->set_medium_text( 'Time stamp' ).
+        lr_column->set_long_text( 'Time stamp' ).
+
+        lr_column ?= lr_columns->get_column( 'LOG_TSTMP' ).
+        lr_column->set_short_text( 'Time UTC' ).
+        lr_column->set_medium_text( 'Time stamp UTC' ).
+        lr_column->set_long_text( 'Time stamp UTC' ).
+
+        " Hide some fields if the user likes to see a short list
+        IF short = 'X' AND layout IS INITIAL. " Let's use the global variable here.
+
+          lr_column ?= lr_columns->get_column( 'EPP' ).
           lr_column->set_visible( if_salv_c_bool_sap=>false ).
 
           lr_column ?= lr_columns->get_column( 'MFD_FLAG' ).
@@ -526,16 +580,11 @@ CLASS lcl_alv IMPLEMENTATION.
 
           lr_column ?= lr_columns->get_column( 'LOG_TSTMP' ).
           lr_column->set_visible( if_salv_c_bool_sap=>false ).
-
         ENDIF.
 
       CATCH cx_salv_not_found
         INTO lr_exception.
-        lv_message = lr_exception->get_message( ).
-        MESSAGE ID lv_message-msgid TYPE lv_message-msgty
-                NUMBER lv_message-msgno
-                WITH lv_message-msgv1 lv_message-msgv2
-                     lv_message-msgv3 lv_message-msgv4.
+        " ok
     ENDTRY.
 
     " Set the color of cells

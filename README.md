@@ -61,6 +61,12 @@ Set/unset the SNC GUIFLAG of users which permits/disallows password based logon 
 New 14.09.2023  
 Updated 15.09.2023 Refactored for using an interactive ALV  
 
+- Report [`ZRSAU_API_GET_LOG_DATA`](/ABAP/basis/zrsau_api_get_log_data.prog.prog.abap)  
+Show usage of RFC function RSAU_API_GET_LOG_DATA to get event from the Security Audit Log  
+The report requires SAP_BASIS 7.50 as well as note [3054326](https://me.sap.com/notes/3054326) - API for remote reading of audit logs as of 7.50  
+12.03.2024 Initial version  
+08.07.2024 Improved robustness for older releases or support packages  
+
 - Report [`ZBNAME_RESTRICT`](/ABAP/basis/zbname_restrict.prog.abap)  
 Check user names concerning parameter `BNAME_RESTRICT` in table `PRGN_CUST`  
 see [`Note 1731549`](https://me.sap.com/notes/1731549)  
