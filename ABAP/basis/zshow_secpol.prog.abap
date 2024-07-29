@@ -7,10 +7,11 @@
 *& 07.10.2022 Initial version
 *& 19.10.2022 Selection mode: single cell
 *& 05.02.2024 Extension to 40 columns
+*& 29.07.2024 Replace CALL 'C_SAPGPARAM' with CL_SPFL_PROFILE_PARAMETER (note 3334028)
 *&---------------------------------------------------------------------*
 REPORT zshow_secpol.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '05.02.2024 S41'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '29.07.2024 S44'.
 
 " see class CL_SECURITY_POLICY with methods like GET_ATTRIBUTE_VALUE_LIST
 
@@ -91,8 +92,8 @@ DATA:
 *------------------------------------------------------------------------*
 
 SELECTION-SCREEN BEGIN OF LINE.
-  SELECTION-SCREEN COMMENT  1(25) s_secpol FOR FIELD secpol.
-  SELECT-OPTIONS secpol FOR sec_policy_cust-name.
+SELECTION-SCREEN COMMENT  1(25) s_secpol FOR FIELD secpol.
+SELECT-OPTIONS secpol FOR sec_policy_cust-name.
 SELECTION-SCREEN END OF LINE.
 
 SELECTION-SCREEN COMMENT 1(60) ss_vers.
@@ -209,23 +210,52 @@ FORM load_data.
 
     " Get parameter
     IF ls_result-redeemed_profile_parameter IS NOT INITIAL.
-      " Curront profile parameter value
-      CALL 'C_SAPGPARAM'
-        ID 'NAME'    FIELD ls_result-redeemed_profile_parameter
-        ID 'VALUE'   FIELD ls_result-profile_parameter_value
-        .
+      " Use offical API for reading profile parameter values according to note 3334028
+      DATA:
+        name TYPE spfl_parameter_name,
+        val  TYPE spfl_parameter_value.
+
+      " Current profile parameter value
+      "CALL 'C_SAPGPARAM'
+      "  ID 'NAME'    FIELD ls_result-redeemed_profile_parameter
+      "  ID 'VALUE'   FIELD ls_result-profile_parameter_value
+      "  .
+
+      name = ls_result-redeemed_profile_parameter.
+      CLEAR val.
+      CALL METHOD cl_spfl_profile_parameter=>get_value
+        EXPORTING
+          "server_name =
+          name  = name
+        IMPORTING
+          value = val
+        RECEIVING
+          rc    = DATA(rc).
+      "CONCATENATE ls_result-profile_parameter_value val into ls_result-profile_parameter_value SEPARATED BY '|'.
+      ls_result-profile_parameter_value = val.
 
       " Kernel default value
-      CALL 'C_SAPGPARAM'
-         ID 'NAME'    FIELD ls_result-redeemed_profile_parameter
-         ID 'VALUE11' FIELD  ls_result-kernel_default_value "static initialization
-         "ID 'VALUE21' FIELD PAR_VALUE21 "<11> and DEFAULT.PFL
-         "ID 'VALUE31' FIELD PAR_VALUE31 "<21> and pf=..-file
-         "ID 'VALUE32' FIELD PAR_VALUE32 "<31> and argv, env
-         "ID 'VALUE33' FIELD PAR_VALUE33 "<32> and $$ and $(..) substitution
-         "ID 'VALUE34' FIELD PAR_VALUE34 "<33> and filename generation
-         "ID 'VALUE44' FIELD PAR_VALUE44 "<44> shared memory
-         .
+      "CALL 'C_SAPGPARAM'
+      "   ID 'NAME'    FIELD ls_result-redeemed_profile_parameter
+      "   ID 'VALUE11' FIELD ls_result-kernel_default_value "static initialization
+      "   "ID 'VALUE21' FIELD PAR_VALUE21 "<11> and DEFAULT.PFL
+      "   "ID 'VALUE31' FIELD PAR_VALUE31 "<21> and pf=..-file
+      "   "ID 'VALUE32' FIELD PAR_VALUE32 "<31> and argv, env
+      "   "ID 'VALUE33' FIELD PAR_VALUE33 "<32> and $$ and $(..) substitution
+      "   "ID 'VALUE34' FIELD PAR_VALUE34 "<33> and filename generation
+      "   "ID 'VALUE44' FIELD PAR_VALUE44 "<44> shared memory
+      "   .
+
+      CLEAR val.
+      CALL METHOD cl_spfl_profile_parameter=>get_default_value
+        EXPORTING
+          name  = name
+        IMPORTING
+          value = val
+        RECEIVING
+          rc    = rc.
+      "CONCATENATE ls_result-kernel_default_value val into ls_result-kernel_default_value SEPARATED BY '|'.
+      ls_result-kernel_default_value = val.
     ENDIF.
 
     CLEAR: ls_color, lt_color.
@@ -794,7 +824,13 @@ FORM call_rz11
 
   CHECK profile_parameter IS NOT INITIAL.
 
-  AUTHORITY-CHECK OBJECT 'S_TCODE' ID 'TCD' FIELD 'RZ11'.
+  CALL FUNCTION 'AUTHORITY_CHECK_TCODE'
+    EXPORTING
+      tcode  = 'RZ11'
+    EXCEPTIONS
+      ok     = 0
+      not_ok = 2
+      OTHERS = 3.
   IF sy-subrc <> 0.
     MESSAGE e172(00) WITH 'RZ11'.
   ENDIF.
@@ -812,9 +848,10 @@ FORM call_rz11
 
   SET PARAMETER ID 'SBMTRP' FIELD abap_true.
 
-  CALL TRANSACTION 'RZ11' USING bdcdata_tab
-        MODE 'E'
-        UPDATE 'S'.
+  CALL TRANSACTION 'RZ11' WITH AUTHORITY-CHECK
+    USING bdcdata_tab
+    MODE 'E'
+    UPDATE 'S'.
 
   SET PARAMETER ID 'SBMTRP' FIELD abap_false.
 

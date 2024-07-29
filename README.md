@@ -37,6 +37,7 @@ Show security policy attributes (SECPOL) and compare them with the default value
 See blog [Show overview about security policies (SECPOL)](https://community.sap.com/t5/application-development-blog-posts/show-overview-about-security-policies-secpol/ba-p/13535999)  
 Updated 19.10.2022 Selection mode: single cell  
 Updated 05.02.2024 Extension to 40 columns  
+Updated 29.07.2024 Replace CALL 'C_SAPGPARAM' with CL_SPFL_PROFILE_PARAMETER (note [3334028](https://me.sap.com/notes/3334028))  
 
 - Report [`ZSECPOL_API`](/ABAP/basis/zsecpol_api.prog.abap)  
 Example for using the API to manage security policies (SECPOL)  
