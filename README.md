@@ -62,7 +62,7 @@ Set/unset the SNC GUIFLAG of users which permits/disallows password based logon 
 New 14.09.2023  
 Updated 15.09.2023 Refactored for using an interactive ALV  
 
-- Report [`ZRSAU_API_GET_LOG_DATA`](/ABAP/basis/zrsau_api_get_log_data.prog.prog.abap)  
+- Report [`ZRSAU_API_GET_LOG_DATA`](/ABAP/basis/zrsau_api_get_log_data.prog.abap)  
 Show usage of RFC function RSAU_API_GET_LOG_DATA to get event from the Security Audit Log  
 The report requires SAP_BASIS 7.50 as well as note [3054326](https://me.sap.com/notes/3054326) - API for remote reading of audit logs as of 7.50  
 12.03.2024 Initial version  
@@ -84,6 +84,11 @@ Blocklist for S/4HANA
 Authorizations of the called user  
 New 26.04.2024  
 Updated 14.06.2024  
+
+- Report [`ZSICFCHK`](/ABAP/basis/zsicfchk.prog.abap)  
+Show public ICF services and services with logon data  
+This is an extended version of standard report RSICFCHK  
+23.09.2021 Initial version  
 
 ## SAP Solution Manager (SolMan)
 
