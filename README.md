@@ -164,7 +164,8 @@ Show CSA Composite policies
 New 27.04.2023  
 
 - Report [`ZCHECK_NOTE_3089413_FRUN`](/ABAP/frun/zcheck_note_3089413_frun.prog.abap)  
-Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems  
+Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems.  
+You find a corresponding FRUN policy on page [3089413_ext](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974404.html).  
 See Security Notes Webinar [2023-02](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974335.html)  
 Updated 13.03.2023 Updated note 3287611, new note 3304520  
 Updated 10.07.2023 Updated Kernel prerequisites as described in note 3224161  
