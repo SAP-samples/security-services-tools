@@ -48,6 +48,7 @@ Show recommended profile parameter values according to the secure-by-default pro
 See corresponding chapter at [SAP Secure By Default for S/4HANA on-premise 2022](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974695.html)  
 Updated 19.04.2023 Show long lines in a textedit control; Change recommendation for rdisp/gui_auto_logout from 1H to 3600  
 Updated 15.11.2023 Parameter added for S/4HANA 2023  
+Updated 17.01.2025 Parameter added for new entries in ECS note [3250501](https://me.sap.com/notes/3250501) version 27 from 17.01.2025  
 
 - Report [`ZSHOW_GWMON_LOG`](/ABAP/basis/zshow_gwmon_log.prog.abap)  
 Show settings, and log and trace files of the RFC gateway  
