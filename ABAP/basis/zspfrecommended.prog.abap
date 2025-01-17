@@ -48,6 +48,20 @@ TYPES: BEGIN OF ts_outtab,
 
 DATA: gt_outtab   TYPE tt_outtab.
 
+SELECTION-SCREEN BEGIN OF LINE.
+  SELECTION-SCREEN COMMENT 1(25) ss_para FOR FIELD para.
+  SELECT-OPTIONS para FOR ('spfl_parameter_name').
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN COMMENT 1(60) ss_vers.
+
+INITIALIZATION.
+
+  ss_para = 'Parameter'.
+
+  CONCATENATE 'Program version from'(100) c_program_version INTO ss_vers
+    SEPARATED BY space.
+
 START-OF-SELECTION.
 
   AUTHORITY-CHECK OBJECT 'S_RZL_ADM'
@@ -56,7 +70,7 @@ START-OF-SELECTION.
     MESSAGE e002. "You have no display authorization for CCMS tools
   ENDIF.
 
-  sy-title = 'Show recommended profile parameter values'(TIT).
+  sy-title = 'Show recommended profile parameter values'(tit).
   PERFORM execute.
 
 *---------------------------------------------------------------------
@@ -94,7 +108,7 @@ FORM execute.
 ENDFORM.                     "EXECUTE
 
 DEFINE set_fieldcat.
-  clear: ls_fieldcat.
+  CLEAR: ls_fieldcat.
   ls_fieldcat-fieldname    = &1.
   ls_fieldcat-rollname     = &2.
   ls_fieldcat-reptext_ddic =
@@ -106,7 +120,7 @@ DEFINE set_fieldcat.
   ls_fieldcat-key_sel      = &4.
   ls_fieldcat-no_out       = &5.
 " ls_fieldcat-outputlen    = &5.
-  append ls_fieldcat to it_fieldcat.
+  APPEND ls_fieldcat TO it_fieldcat.
 
 END-OF-DEFINITION.
 
@@ -148,6 +162,7 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
 
   CLEAR: it_outtab.
   LOOP AT lt_all_recommended_values INTO ls_recommended_value ##INTO_OK.
+    CHECK ls_recommended_value-name IN para.
     CLEAR: ls_outtab.
     ls_outtab-name        = ls_recommended_value-name.
     ls_outtab-recommended = ls_recommended_value-value.
@@ -438,7 +453,7 @@ FORM call_rz11 USING parameter_name TYPE spfl_parameter_name.
 
   DATA: BEGIN OF bdcdata OCCURS 0.
           INCLUDE STRUCTURE bdcdata.
-        DATA: END OF bdcdata.
+  DATA: END OF bdcdata.
 
   CHECK parameter_name IS NOT INITIAL.
 
@@ -511,9 +526,9 @@ FORM html_top_of_page USING top TYPE REF TO cl_dd_document.
   CALL METHOD top->add_text EXPORTING text = 'Parameter does not match recommended or default value, read parameter documentation for details'(013).
 
   CALL METHOD top->new_line( ).
-  CALL METHOD top->add_text EXPORTING text = 'Long values are continued in an additional line'(VAL).
+  CALL METHOD top->add_text EXPORTING text = 'Long values are continued in an additional line'(val).
   CALL METHOD top->new_line( ).
-  CALL METHOD top->add_text EXPORTING text = 'Program version'(VER) && `: ` && c_program_version.
+  CALL METHOD top->add_text EXPORTING text = 'Program version'(ver) && `: ` && c_program_version.
 
   CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
     IMPORTING
@@ -531,28 +546,28 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
   DATA ls_recommended_value TYPE spfl_recommended_value.
 
   DEFINE add_value. " version name value note
-    ls_recommended_value-VERSION = &1.
-    ls_recommended_value-NAME    = &2.
-    ls_recommended_value-VALUE   = &3.
-    ls_recommended_value-NOTE    = &4.
+    ls_recommended_value-version = &1.
+    ls_recommended_value-name    = &2.
+    ls_recommended_value-value   = &3.
+    ls_recommended_value-note    = &4.
 
-    read table lt_all_recommended_values with key name = ls_recommended_value-NAME TRANSPORTING NO FIELDS.
-    if sy-subrc is initial.
+    READ TABLE lt_all_recommended_values WITH KEY name = ls_recommended_value-name TRANSPORTING NO FIELDS.
+    IF sy-subrc IS INITIAL.
       "check if the recommended value match
-    else.
+    ELSE.
       " add recommended value
-      append ls_recommended_value to lt_all_recommended_values.
-    endif.
+      APPEND ls_recommended_value TO lt_all_recommended_values.
+    ENDIF.
   END-OF-DEFINITION.
 
   DEFINE add_table. " version name value note
-    ls_recommended_value-VERSION = &1.
-    ls_recommended_value-TABLE   = &2.
-    ls_recommended_value-FIELD   = &3.
-    ls_recommended_value-VALUE   = &4.
-    ls_recommended_value-NOTE    = &5.
+    ls_recommended_value-version = &1.
+    ls_recommended_value-table   = &2.
+    ls_recommended_value-field   = &3.
+    ls_recommended_value-value   = &4.
+    ls_recommended_value-note    = &5.
 
-    append ls_recommended_value to lt_all_recommended_values.
+    APPEND ls_recommended_value TO lt_all_recommended_values.
   END-OF-DEFINITION.
 
   DATA:
