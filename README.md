@@ -91,6 +91,16 @@ Show public ICF services and services with logon data
 This is an extended version of standard report RSICFCHK  
 23.09.2021 Initial version  
 
+- Report [`ZUSER_ADDR_CD`](/ABAP/basis/zuser_addr_cd.prog.abap)  
+Show change documents for address data of users  
+These change documents are not yet integrated into transaction SUIM report RSUSR100N.  
+Change documents with empty old and new value are omitted.  
+Limitations:  
+The change documents for the corresponding business partner are slightly different.  
+Change documents of deleted users are not shown.  
+Instead of reading table USR21, the report may should get the change documents for address assignments.  
+20.01.2025 Initial version  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
