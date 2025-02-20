@@ -13,7 +13,10 @@
 *& 15.11.2023 S/4HANA 2023
 *& 23.11.2023 Add a VERSION column
 *& 17.01.2025 Update according to ECS note 3250501 version 27 from 17.01.2025
-*& 20.02.2025 Use different colors; Exception for rdisp/TRACE_HIDE_SEC_DATA
+*& 20.02.2025 Use different colors
+*&            Exception for rdisp/TRACE_HIDE_SEC_DATA
+*&            Additional output fields, is dynamic, restriction values, application component
+*&            Option use use and store ALV layouts
 *&---------------------------------------------------------------------*
 
 REPORT rspfrecommended NO STANDARD PAGE HEADING MESSAGE-ID pf.
@@ -35,23 +38,32 @@ TYPES:
   spfl_recommended_value_t TYPE TABLE OF spfl_recommended_value.
 
 TYPES: BEGIN OF ts_outtab,
-         name        TYPE spfl_parameter_name,
-         actual      TYPE spfl_parameter_value,
-         recommended TYPE spfl_parameter_value,
-         result      TYPE char4,
-         default     TYPE spfl_parameter_value,
-         note        TYPE string, "spfl_note_number,
-         version     TYPE instswprod-version,
-         color       TYPE slis_t_specialcol_alv,
-         profile     TYPE pfl_profilename,
+         name               TYPE spfl_parameter_name,
+         actual             TYPE spfl_parameter_value,
+         recommended        TYPE spfl_parameter_value,
+         result             TYPE char4,
+         default            TYPE spfl_parameter_value,
+         is_dynamic         TYPE string,
+         restriction_values TYPE spfl_restriction_values,
+         component          TYPE spfl_parameter_csn_component,
+         note               TYPE string, "spfl_note_number,
+         version            TYPE instswprod-version,
+         color              TYPE slis_t_specialcol_alv,
+         profile            TYPE pfl_profilename,
        END OF ts_outtab,
        tt_outtab TYPE STANDARD TABLE OF ts_outtab.
 
 DATA: gt_outtab   TYPE tt_outtab.
 
 SELECTION-SCREEN BEGIN OF LINE.
-  SELECTION-SCREEN COMMENT 1(25) ss_para FOR FIELD para.
-  SELECT-OPTIONS para FOR ('spfl_parameter_name').
+SELECTION-SCREEN COMMENT 1(30) ss_para FOR FIELD para.
+SELECT-OPTIONS para FOR ('spfl_parameter_name').
+SELECTION-SCREEN END OF LINE.
+
+* Layout of ALV output
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(33) t_layout FOR FIELD layout.
+PARAMETERS       layout TYPE disvariant-variant.
 SELECTION-SCREEN END OF LINE.
 
 SELECTION-SCREEN COMMENT 1(60) ss_vers.
@@ -60,8 +72,14 @@ INITIALIZATION.
 
   ss_para = 'Parameter'.
 
+  t_layout = 'Layout'.
+
   CONCATENATE 'Program version from'(100) c_program_version INTO ss_vers
     SEPARATED BY space.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR layout.
+  PERFORM at_selection_screen_f4_layout
+    CHANGING layout.
 
 START-OF-SELECTION.
 
@@ -87,17 +105,22 @@ FORM execute.
   ls_layout-no_input          = 'X'.
   ls_layout-zebra             = 'X'.
   ls_layout-colwidth_optimize = 'X'.
-  ls_layout-coltab_fieldname = 'color'.
+  ls_layout-coltab_fieldname = 'COLOR'.
   lt_sort = VALUE #( ( fieldname = 'NAME' ) ).
 
   PERFORM create_table TABLES lt_fieldcat gt_outtab.
 
+  DATA ls_variant	TYPE disvariant.
+  "ls_variant-report      = sy-repid.   " ABAP Program Name
+  ls_variant-variant    = layout.     " Layout
   CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
     EXPORTING
       i_callback_program          = sy-repid
       i_callback_user_command     = 'CALLBACK_USER_COMMAND'
       it_fieldcat                 = lt_fieldcat
       is_layout                   = ls_layout
+      i_save                      = 'A'
+      is_variant                  = ls_variant
       i_callback_html_top_of_page = 'HTML_TOP_OF_PAGE'
       it_sort                     = lt_sort
     TABLES
@@ -264,17 +287,46 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
     xcolor-color-int = '0'.
     xcolor-color-inv = '0'.
     IF ls_actual_value_no_space-actual = ls_recommended_value_no_space-value
-      or ( ls_recommended_value-name = 'rdisp/TRACE_HIDE_SEC_DATA' and ls_actual_value_no_space-actual = 'on' ). " Exception
-      xcolor-color-col = COL_POSITIVE. "'5'.
+      OR ( ls_recommended_value-name = 'rdisp/TRACE_HIDE_SEC_DATA' AND ls_actual_value_no_space-actual = 'on' ). " Exception
+      xcolor-color-col = col_positive. "'5'.
       ls_outtab-result = icon_checked.
     ELSEIF ls_actual_value_no_space-actual = ls_default_value_no_space-actual.
-      xcolor-color-col = COL_NORMAL.
+      xcolor-color-col = col_normal.
       ls_outtab-result = icon_action_success.
     ELSE.
-      xcolor-color-col = COL_TOTAL.
+      xcolor-color-col = col_total.
       ls_outtab-result = icon_compare.
     ENDIF.
     APPEND xcolor TO ls_outtab-color.
+
+    " Add metadata for profile parameter (is_dynamic, has_subparameters, restriction_values, ...)
+    DATA metadata   TYPE spfl_parameter_metadata.
+    DATA(rc) = cl_spfl_profile_parameter=>get_metadata(
+     EXPORTING
+       name = ls_recommended_value-name
+     IMPORTING
+       metadata = metadata
+    ).
+    IF rc <> 0.
+      CLEAR metadata.
+    ENDIF.
+    ls_outtab-is_dynamic = COND #(
+      WHEN metadata-is_dynamic = 1
+      THEN 'Yes'(yes)
+      ELSE 'No'(nop)
+    ).
+
+    ls_outtab-component = metadata-csn_component.
+
+    CONSTANTS: gc_integer_int TYPE i VALUE 202.
+    CONSTANTS: gc_double_int TYPE i VALUE 203.
+    IF metadata-type = gc_integer_int OR metadata-type = gc_double_int.
+      SPLIT metadata-restriction_values AT ' ' INTO DATA(lv_lower_limit) DATA(lv_upper_limit).
+      CONCATENATE 'Interval'(int) ' [' lv_lower_limit ',' lv_upper_limit ']' INTO ls_outtab-restriction_values.
+      CONDENSE ls_outtab-restriction_values.
+    ELSE.
+      ls_outtab-restriction_values = metadata-restriction_values.
+    ENDIF.
 
     APPEND ls_outtab TO it_outtab.
 
@@ -309,6 +361,9 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
                 'ACTUAL'      'SPFL_PARAMETER_VALUE' 'Actual Value'(002)      abap_false '', " 20,
                 'RECOMMENDED' 'SPFL_PARAMETER_VALUE' 'Recommended Value'(003) abap_false '', " 20,
                 'DEFAULT'     'SPFL_PARAMETER_VALUE' 'Default Value'(005)     abap_false 'X', " 20,
+                'IS_DYNAMIC'  'SPFL_PARAMETER_VALUE' 'Dynamic'(dyn)           abap_false 'X', " 3,
+                'COMPONENT'  'SPFL_PARAMETER_VALUE' 'Application component'(cmp)     abap_false 'X', " 20,
+                'RESTRICTION_VALUES' 'SPFL_PARAMETER_VALUE' 'Restiction values'(res) abap_false 'X', " 20,
                 'PROFILE'     'PFL_PROFILENAME'      'Profile'(007)           abap_false '', " 20,
                 'NOTE'        'SPFL_NOTE_NUMBER'     'Related Note'(004)      abap_false '', " 20,
                 'VERSION'     'SC_VERSION'           'Version'(008)           abap_false ''. " 20
@@ -329,7 +384,8 @@ FORM callback_user_command USING r_ucomm     LIKE sy-ucomm
   CHECK sy-subrc = 0.
 
   IF     r_ucomm               = '&IC1' "pick
-    AND  rs_selfield-fieldname = 'NAME'.
+    AND (   rs_selfield-fieldname = 'NAME'
+         OR rs_selfield-fieldname = 'IS_DYNAMIC' ).
 
     PERFORM call_rz11 USING ls_outtab-name.
 
@@ -455,7 +511,7 @@ FORM call_rz11 USING parameter_name TYPE spfl_parameter_name.
 
   DATA: BEGIN OF bdcdata OCCURS 0.
           INCLUDE STRUCTURE bdcdata.
-  DATA: END OF bdcdata.
+        DATA: END OF bdcdata.
 
   CHECK parameter_name IS NOT INITIAL.
 
@@ -657,5 +713,34 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
   add_value 'ECS 2025' 'rdisp/TRACE_HIDE_SEC_DATA'               'ON'    '2012562'.
   add_value 'ECS 2025' 'sapgui/user_scripting'                   'FALSE' '2715519'.
   add_value 'ECS 2025' 'snc/permit_insecure_start'               '0'     ''.
+
+ENDFORM.
+
+FORM at_selection_screen_f4_layout
+  CHANGING
+    layout TYPE disvariant-variant.
+
+  DATA: ls_alv_lout_variant TYPE disvariant.
+
+  ls_alv_lout_variant-report = sy-repid.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant         = ls_alv_lout_variant
+      i_save             = 'A'
+      i_display_via_grid = 'X'
+    IMPORTING
+      es_variant         = ls_alv_lout_variant
+    EXCEPTIONS
+      not_found          = 1
+      program_error      = 2
+      OTHERS             = 3.
+
+  IF sy-subrc = 0.
+    layout = ls_alv_lout_variant-variant.
+  ELSE.
+    MESSAGE s073(0k).
+*   Keine Anzeigevariante(n) vorhanden
+  ENDIF.
 
 ENDFORM.
