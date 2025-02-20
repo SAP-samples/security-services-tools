@@ -13,11 +13,12 @@
 *& 15.11.2023 S/4HANA 2023
 *& 23.11.2023 Add a VERSION column
 *& 17.01.2025 Update according to ECS note 3250501 version 27 from 17.01.2025
+*& 20.02.2025 Use different colors; Exception for rdisp/TRACE_HIDE_SEC_DATA
 *&---------------------------------------------------------------------*
 
 REPORT rspfrecommended NO STANDARD PAGE HEADING MESSAGE-ID pf.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '17.01.2025 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '20.02.2025 FBT'.
 
 TYPE-POOLS: slis.
 
@@ -262,14 +263,15 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
     "icons and colours definitions
     xcolor-color-int = '0'.
     xcolor-color-inv = '0'.
-    IF ls_actual_value_no_space-actual = ls_recommended_value_no_space-value.
-      xcolor-color-col = '5'.
+    IF ls_actual_value_no_space-actual = ls_recommended_value_no_space-value
+      or ( ls_recommended_value-name = 'rdisp/TRACE_HIDE_SEC_DATA' and ls_actual_value_no_space-actual = 'on' ). " Exception
+      xcolor-color-col = COL_POSITIVE. "'5'.
       ls_outtab-result = icon_checked.
     ELSEIF ls_actual_value_no_space-actual = ls_default_value_no_space-actual.
-      xcolor-color-col = ''.
+      xcolor-color-col = COL_NORMAL.
       ls_outtab-result = icon_action_success.
     ELSE.
-      xcolor-color-col = ''.
+      xcolor-color-col = COL_TOTAL.
       ls_outtab-result = icon_compare.
     ENDIF.
     APPEND xcolor TO ls_outtab-color.
