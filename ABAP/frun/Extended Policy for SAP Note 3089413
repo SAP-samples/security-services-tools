@@ -1,0 +1,618 @@
+<?xml version="1.0" encoding="utf-8"?>
+<targetsystem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" desc="Extended Policy for SAP Note 3089413" id="3089413_ext" multisql="Yes" version="0000" xsi:schemaLocation="csa_policy.xsd">
+  <!-- [p1-CVSS 9.0]  BC-MID-RFC 0003089413 - [CVE-2023-0014] Capture-replay vulnerability in SAP NetWeaver AS for ABAP and ABAP Platform (Version 0011) -->
+  <!-- Syntax rules: https://support.sap.com/en/alm/sap-focused-run/expert-portal/configuration-and-security-analytics/syntax-rules-and-policy-check-examples.html --> 
+
+  <configstore SYSTEM_TYPE="ABAP" name="SAP_KERNEL">
+
+    <checkitem desc="Note 3089413: Validate Kernel information" id="3089413a_Kernel" not_found="negative">
+      <compliant>   NAME = 'KERN_REL' and     ( lpad(VALUE,3,'0') &gt; '000' and lpad(VALUE,3,'0') &lt;= '999' )</compliant>
+      <noncompliant>NAME = 'KERN_REL' and not ( lpad(VALUE,3,'0') &gt; '000' and lpad(VALUE,3,'0') &lt;= '999' )</noncompliant>
+      <noncomplianttext>No Kernel information is available</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_PATCHLEVEL' and     ( lpad(VALUE,4,'0') &gt; '0000' and lpad(VALUE,4,'0') &lt;= '9999' )</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_PATCHLEVEL' and not ( lpad(VALUE,4,'0') &gt; '0000' and lpad(VALUE,4,'0') &lt;= '9999' )</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 700-721" id="3089413a_Kernel_721" not_found="ignore">
+      <compliant/>
+      <noncompliant>NAME = 'KERN_REL' and ( lpad(VALUE,3,'0') &gt;= '700' and lpad(VALUE,3,'0') &lt;= '721' )</noncompliant>
+      <noncomplianttext>No patch available for Kernel 700-721, use downwards-compatible Kernel 722 instead</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 722" id="3089413a_Kernel_722">
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '1300'</compliant> <!-- original check for patch 1214 -->
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '1300'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '722%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '722%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 740-752" id="3089413a_Kernel_752" not_found="ignore">
+      <compliant/>
+      <noncompliant>NAME = 'KERN_REL' and ( lpad(VALUE,3,'0') &gt;= '740' and lpad(VALUE,3,'0') &lt;= '752' )</noncompliant>
+      <noncomplianttext>No patch is available for Kernel 740-752, use downwards-compatible Kernel 753 or 754 instead</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 753" id="3089413a_Kernel_753"> <!-- original check for patch 1036 -->
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '1213'</compliant> 
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '1213'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '753%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '753%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 754" id="3089413a_Kernel_754"> <!-- original check: 0018 -->
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0120'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0120'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '754%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '754%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 777" id="3089413a_Kernel_777"> <!-- original check for patch 0516 -->
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0556'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0556'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '777%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '777%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 781" id="3089413a_Kernel_781" not_found="ignore"> <!-- original check for patch 0300 -->
+      <compliant/>
+      <noncompliant>NAME = 'KERN_REL' and VALUE like '781%'</noncompliant>
+      <noncomplianttext>No patch is available for Kernel 781, use downwards-compatible Kernel 785 or 789 instead</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 785" id="3089413a_Kernel_785"> <!-- original check for patch 0214 -->
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0251'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0251'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '785%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '785%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 788" id="3089413a_Kernel_788" not_found="ignore"> <!-- original check for patch 0021 -->
+      <compliant/>
+      <noncompliant>NAME = 'KERN_REL' and ( lpad(VALUE,3,'0') &gt;= '786' and lpad(VALUE,3,'0') &lt;= '788' )</noncompliant>
+      <noncomplianttext>No patch is available for Kernel 786-788, use downwards-compatible Kernel 785 or 789 instead</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 789" id="3089413a_Kernel_789"> <!-- original check for patch 0010 -->
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0123'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0123'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '789%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '789%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 790" id="3089413a_Kernel_790">
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0034'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0034'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '790%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '790%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 791" id="3089413a_Kernel_791">
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0027'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0027'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '791%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '791%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Kernel version 792" id="3089413a_Kernel_792">
+      <compliant>   NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &gt;= '0010'</compliant>
+      <noncompliant>NAME = 'KERN_PATCHLEVEL' and lpad(VALUE,4,'0') &lt;  '0010'</noncompliant>
+      <noncomplianttext>Kernel patch is required</noncomplianttext>
+      <joinstore name="SAP_KERNEL" no_data_found="Yes">
+        <joincompliant>   NAME = 'KERN_REL' and VALUE like '792%'</joincompliant>
+        <joinnoncompliant>NAME = 'KERN_REL' and VALUE like '792%'</joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+  </configstore>
+
+  <configstore SYSTEM_TYPE="ABAP" name="COMP_LEVEL">
+
+    <checkitem desc="Note 3089413: Verify the SAP_BASIS release to implement the solution" id="3089413b_min_release" not_found="ignore">
+      <compliant>
+        ( COMPONENT = 'SAP_BASIS' and 
+          ( VERSION = '700' or
+            VERSION = '701' or
+            VERSION = '702' or
+            VERSION = '731' or
+            VERSION = '740' or
+            VERSION = '750' or
+            VERSION = '751' or
+            VERSION = '752' or
+            VERSION = '753' or
+            VERSION = '754' or
+            VERSION = '755' or
+            VERSION = '756' or
+            VERSION = '757' or 
+            VERSION &gt; '757' ) 
+        )
+      </compliant>
+      <complianttext>The release of SAP_BASIS supports the solution</complianttext>
+      <noncompliant>
+        ( COMPONENT = 'SAP_BASIS' and not 
+          ( VERSION = '700' or
+            VERSION = '701' or
+            VERSION = '702' or
+            VERSION = '731' or
+            VERSION = '740' or
+            VERSION = '750' or
+            VERSION = '751' or
+            VERSION = '752' or
+            VERSION = '753' or
+            VERSION = '754' or
+            VERSION = '755' or
+            VERSION = '756' or
+            VERSION = '757' or 
+            VERSION &gt; '757' ) 
+        )
+      </noncompliant>
+      <noncomplianttext>The release of SAP_BASIS does not support the solution</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Verify the SAP_BASIS support package to implement the note" id="3089413c_min_SP" not_found="ignore" operator="check_note:0003089413">
+      <compliant/>
+      <complianttext>The Support Package supports to implement note 3089413</complianttext>
+      <noncompliant>
+      (
+        ( COMPONENT = 'SAP_BASIS' and VERSION &lt; '700' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '700' and lpad(SP,4,'0') &lt; '0035' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '701' and lpad(SP,4,'0') &lt; '0020' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '702' and lpad(SP,4,'0') &lt; '0020' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') &lt; '0019' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') &lt; '0016' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '750' and lpad(SP,4,'0') &lt; '0012' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '751' and lpad(SP,4,'0') &lt; '0007' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '752' and lpad(SP,4,'0') &lt; '0001' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '753' and lpad(SP,4,'0') &lt; '0000' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '754' and lpad(SP,4,'0') &lt; '0000' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '755' and lpad(SP,4,'0') &lt; '0000' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '756' and lpad(SP,4,'0') &lt; '0000' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '757' and lpad(SP,4,'0') &lt; '0000' ) 
+      )
+      </noncompliant>
+      <noncomplianttext>Support Package update for SAP_BASIS is required</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+
+
+  <configstore name="ABAP_NOTES">
+
+
+
+    <checkitem desc="Note 3089413: Note 3089413 is implemented" id="3089413d_N3089413a" operator="check_note">
+      <compliant>   NOTE = '0003089413' and PRSTATUS in ( 'E', 'O' )</compliant>
+      <complianttext>Note 3089413 is implemented</complianttext>
+      <noncompliant>NOTE = '0003089413' and not PRSTATUS in ( 'E', 'O' )</noncompliant>
+      <noncomplianttext>Note 3089413 is not implemented completely</noncomplianttext>
+    </checkitem>
+
+
+
+  </configstore>
+
+
+
+  <configstore SYSTEM_TYPE="ABAP" name="COMP_LEVEL">
+
+    <checkitem desc="Note 3089413: Note is missing and applicable using Correction Instruction" id="3089413d_N3089413c" not_found="ignore" operator="check_note:0003089413">
+      <compliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '700' and lpad(SP,4,'0') &gt; '0040' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '701' and lpad(SP,4,'0') &gt; '0025' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '702' and lpad(SP,4,'0') &gt; '0025' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') &gt; '0032' ) or <!-- original check for SP 32 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') &gt; '0029' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '750' and lpad(SP,4,'0') &gt; '0025' ) or <!-- original check for SP 25 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '751' and lpad(SP,4,'0') &gt; '0015' ) or <!-- original check for SP 15 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '752' and lpad(SP,4,'0') &gt; '0011' ) or <!-- original check for SP 11 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '753' and lpad(SP,4,'0') &gt; '0009' ) or <!-- original check for SP 9 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '754' and lpad(SP,4,'0') &gt; '0007' ) or <!-- original check for SP 7 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '755' and lpad(SP,4,'0') &gt; '0005' ) or <!-- original check for SP 5 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '756' and lpad(SP,4,'0') &gt; '0003' ) or <!-- original check for SP 3 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '757' and lpad(SP,4,'0') &gt; '0001' ) or <!-- original check for SP 1 -->          
+        ( COMPONENT = 'SAP_BASIS' and VERSION &gt; '757' )           
+      </compliant>
+      <complianttext>Implementation of note 3089413 is not required</complianttext>
+      <noncompliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '700' and lpad(SP,4,'0') between '0035' and '0040' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '701' and lpad(SP,4,'0') between '0020' and '0025' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '702' and lpad(SP,4,'0') between '0020' and '0025' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') between '0019' and '0032' ) or <!-- original check for SP 32 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') between '0016' and '0029' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '750' and lpad(SP,4,'0') between '0012' and '0025' ) or <!-- original check for SP 25 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '751' and lpad(SP,4,'0') between '0007' and '0015' ) or <!-- original check for SP 15 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '752' and lpad(SP,4,'0') between '0001' and '0011' ) or <!-- original check for SP 11 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '753' and lpad(SP,4,'0') between '0000' and '0009' ) or <!-- original check for SP 9 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '754' and lpad(SP,4,'0') between '0000' and '0007' ) or <!-- original check for SP 7 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '755' and lpad(SP,4,'0') between '0000' and '0005' ) or <!-- original check for SP 5 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '756' and lpad(SP,4,'0') between '0000' and '0003' ) or <!-- original check for SP 3 -->
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '757' and lpad(SP,4,'0') between '0000' and '0001' )    <!-- original check for SP 1 -->
+      </noncompliant>
+      <noncomplianttext>Note 3089413 missing and applicable using Correction Instruction</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="ABAP_NOTES">
+
+    <checkitem desc="Note 3089413: Note 3287611 is implemented" id="3089413e_N3287611a" operator="check_note">
+      <compliant>   NOTE = '0003287611' and PRSTATUS in ( 'E', 'O' )</compliant>
+      <complianttext>Note 3287611 is implemented</complianttext>
+      <noncompliant>NOTE = '0003287611' and not PRSTATUS in ( 'E', 'O' )</noncompliant>
+      <noncomplianttext>Note 3287611 is not implemented completely</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="COMP_LEVEL">
+
+    <checkitem desc="Note 3089413: Note 3287611 missing and solution with SP available" id="3089413e_N3287611b" operator="check_note:0003287611">
+      <compliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '700' and lpad(SP,4,'0') &gt;= '0041' ) or    
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '701' and lpad(SP,4,'0') &gt;= '0026' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '702' and lpad(SP,4,'0') &gt;= '0026' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') &gt;= '0034' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') &gt;= '0030' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '750' and lpad(SP,4,'0') &gt;= '0028' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '751' and lpad(SP,4,'0') &gt;= '0017' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '752' and lpad(SP,4,'0') &gt;= '0013' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '753' and lpad(SP,4,'0') &gt;= '0011' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '754' and lpad(SP,4,'0') &gt;= '0009' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '755' and lpad(SP,4,'0') &gt;= '0007' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '756' and lpad(SP,4,'0') &gt;= '0005' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '757' and lpad(SP,4,'0') &gt;= '0003' )
+      </compliant>
+      <complianttext>Implementation of note 3287611 is not required</complianttext>
+      <noncompliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '700' and lpad(SP,4,'0') &lt;  '0041' ) or    
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '701' and lpad(SP,4,'0') &lt;  '0026' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '702' and lpad(SP,4,'0') &lt;  '0026' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') &lt;  '0034' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') &lt;  '0030' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '750' and lpad(SP,4,'0') &lt;  '0028' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '751' and lpad(SP,4,'0') &lt;  '0017' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '752' and lpad(SP,4,'0') &lt;  '0013' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '753' and lpad(SP,4,'0') &lt;  '0011' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '754' and lpad(SP,4,'0') &lt;  '0009' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '755' and lpad(SP,4,'0') &lt;  '0007' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '756' and lpad(SP,4,'0') &lt;  '0005' ) or        
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '757' and lpad(SP,4,'0') &lt;  '0003' )
+       </noncompliant>
+       <noncomplianttext>Note 3287611 missing and solution with SP available</noncomplianttext>
+    </checkitem>
+    <checkitem desc="Note 3089413: Note 3287611 missing and applicable using Correction Instruction" id="3089413e_N3287611c" operator="check_note:0003287611">
+      <compliant/>
+      <noncompliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '700' and lpad(SP,4,'0') between '0035' and '0040' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '701' and lpad(SP,4,'0') between '0020' and '0025' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '702' and lpad(SP,4,'0') between '0020' and '0025' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') between '0019' and '0033' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') between '0016' and '0029' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '750' and lpad(SP,4,'0') between '0012' and '0027' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '751' and lpad(SP,4,'0') between '0007' and '0016' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '752' and lpad(SP,4,'0') between '0001' and '0012' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '753' and lpad(SP,4,'0') between '0000' and '0010' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '754' and lpad(SP,4,'0') between '0000' and '0008' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '755' and lpad(SP,4,'0') between '0000' and '0006' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '756' and lpad(SP,4,'0') between '0000' and '0004' ) or         
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '757' and lpad(SP,4,'0') between '0000' and '0002' )
+       </noncompliant>
+       <noncomplianttext>Note 3287611 missing and applicable using Correction Instruction</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="ABAP_NOTES">
+
+    <checkitem desc="Note 3089413: Note 3304520 is implemented" id="3089413e_N3304520a" operator="check_note">
+      <compliant>   NOTE = '0003304520' and PRSTATUS in ( 'E', 'O' )</compliant>
+      <complianttext>Note 3304520 is implemented</complianttext>
+      <noncompliant>NOTE = '0003304520' and not PRSTATUS in ( 'E', 'O' )</noncompliant>
+      <noncomplianttext>Note 3304520 is not implemented completely</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="COMP_LEVEL">
+
+    <checkitem desc="Note 3089413: Note 3304520 missing and solution with SP available" id="3089413e_N3304520b" operator="check_note:0003304520">
+      <compliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') &gt;= '0033' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') &gt;= '0030' )
+      </compliant>
+      <complianttext>Note 3304520 is not required</complianttext>
+      <noncompliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') &lt;  '0033' ) or
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') &lt;  '0030' )
+       </noncompliant>
+       <noncomplianttext>Note 3304520 missing and solution with SP available</noncomplianttext>
+    </checkitem>
+    <checkitem desc="Note 3089413: Note 3304520 missing and applicable using Correction Instruction" id="3089413e_N3304520c" operator="check_note:0003304520">
+      <compliant/>
+      <noncompliant>
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '731' and lpad(SP,4,'0') between '0019' and '0032' ) or 
+        ( COMPONENT = 'SAP_BASIS' and VERSION = '740' and lpad(SP,4,'0') between '0016' and '0029' )
+       </noncompliant>
+       <noncomplianttext>Note 3304520 missing and applicable using Correction Instruction</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="RFCSYSACL">
+
+    <checkitem desc="Note 3089413: Migrated Trust Relations" id="3089413f_TRUST" not_found="ignore">
+      <compliant>
+                  RFCSYSID like '%' and 
+                  TLICENSE_NR like '%' and
+                  RFCTRUSTSY like '%' and
+                  RFCDEST like '%' and
+                  RFCTCDCHK like '%' and 
+                  RFCSNC like '%' and
+                  RFCSLOPT like '3%'
+      </compliant>
+      <noncompliant>
+                  RFCSYSID like '%' and 
+                  TLICENSE_NR like '%' and
+                  RFCTRUSTSY like '%' and
+                  RFCDEST like '%' and
+                  RFCTCDCHK like '%' and 
+                  RFCSNC like '%' and
+                  RFCSLOPT not like '3%'
+      </noncompliant>
+      <noncomplianttext>Trust Relations are not migrated</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="RFCDES">
+
+    <checkitem desc="Note 3089413: System ID in trusted Destinations" id="3089413g_SID" not_found="ignore">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE in ('3','H','W') and
+                  RFCOPTIONS like_regexpr ',Q=Y,' and
+                  RFCOPTIONS like_regexpr ',\[=[^,]{3},'
+      </compliant>
+      <noncompliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE in ('3','H','W') and
+                  RFCOPTIONS like_regexpr ',Q=Y,' and
+                  not RFCOPTIONS like_regexpr ',\[=[^,]{3},'
+      </noncompliant>
+      <noncomplianttext>System ID is missing in trusted Destination</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Installation Number in trusted Destinations" id="3089413h_InstNo" not_found="ignore">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE in ('3','H','W') and
+                  RFCOPTIONS like_regexpr ',Q=Y,' and 
+                  RFCOPTIONS like_regexpr ',\^=[^,]{1,10},'
+      </compliant>
+      <noncompliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE in ('3','H','W') and
+                  RFCOPTIONS like_regexpr ',Q=Y,' and 
+                  not RFCOPTIONS like_regexpr ',\^=[^,]{1,10},'
+      </noncompliant>
+      <noncomplianttext>Installation Number is missing in trusted Destination</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Destinations not using any trust relation" id="3089413i_noTRUST" not_found="ignore">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE in ('3','H','W') and
+                  not RFCOPTIONS like_regexpr ',Q=Y,'
+      </compliant>
+      <complianttext>Normal Destination (not trusted)</complianttext>
+      <noncompliant/>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="RFCDES_TYPE_3" sci_id="S00036">
+
+    <checkitem desc="Note 3089413: SNC encrypted RFC Destinations (Type 3)" id="3089413j_SNC_all">
+      <compliant>   RFCDEST like '%' and
+                    RFCTYPE like '%' and
+                    SNC_ACTIVE = 'X'
+      </compliant>
+      <noncompliant>
+                    RFCDEST like '%' and
+                    RFCTYPE like '%' and
+                    not SNC_ACTIVE = 'X'
+      </noncompliant>
+      <noncomplianttext>No SNC encryption for RFC connection</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="RFCDES_TYPE_3" sci_id="S00036">
+
+    <checkitem desc="Note 3089413: SNC encrypted trusted RFC Destinations (Type 3)" id="3089413j_SNC_trusted" not_found="negative">
+      <compliant>   
+                    RFCDEST like '%' and
+                    RFCTYPE like '%' and
+                    SNC_ACTIVE = 'X'
+      </compliant>
+      <noncompliant>
+                    RFCDEST like '%' and
+                    RFCTYPE like '%' and
+                    not SNC_ACTIVE = 'X'
+      </noncompliant>
+      <noncomplianttext>No SNC encryption for trusted RFC connection</noncomplianttext>
+      <joinstore name="RFCDES" no_data_found="Yes" not_in_output="Yes">
+        <joincompliant>   
+                    RFCDEST = s0.rfcdest and 
+                    RFCTYPE = s0.rfctype and
+                    RFCOPTIONS like_regexpr ',Q=Y,'
+        </joincompliant>
+        <joinnoncompliant>
+                    RFCDEST = s0.rfcdest and 
+                    RFCTYPE = s0.rfctype and
+                    RFCOPTIONS like_regexpr ',Q=Y,'
+        </joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+  </configstore>
+
+  <!--
+  <configstore name="RFCDES_TYPE_3" sci_id="S00037">
+
+    <checkitem desc="Note 3089413: SNC encrypted RFC Destinations (Type 3)" id="3089413j_SNC_S00037" not_found="ignore">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  SNC_ACTIVE = 'X'
+      </compliant>
+      <noncompliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  not SNC_ACTIVE = 'X'
+      </noncompliant>
+    </checkitem>
+
+  </configstore>
+-->
+
+  <configstore name="RFCDES_TYPE_H" sci_id="S00043">
+
+    <checkitem desc="Note 3089413: TLS encrypted http Destinations (Type H)" id="3089413k_TLS_all" not_found="ignore">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  SSL_ACTIVE = 'X' and
+                  SSL_APPLICATION like '%' and
+                  SERVER_NAME like '%' and
+                  SERVICE_NUMBER like '%'
+      </compliant>
+      <noncompliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  not SSL_ACTIVE = 'X' and
+                  SSL_APPLICATION like '%' and
+                  SERVER_NAME like '%' and
+                  SERVICE_NUMBER like '%'
+      </noncompliant>
+      <noncomplianttext>No TLS encryption for http connection</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+  <configstore name="RFCDES_TYPE_H" sci_id="S00043">
+
+    <checkitem desc="Note 3089413: TLS encrypted trusted http Destinations (Type H)" id="3089413k_TLS_trusted" not_found="negative">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  SSL_ACTIVE = 'X' and
+                  SSL_APPLICATION like '%' and
+                  SERVER_NAME like '%' and
+                  SERVICE_NUMBER like '%'
+      </compliant>
+      <noncompliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  not SSL_ACTIVE = 'X' and
+                  SSL_APPLICATION like '%' and
+                  SERVER_NAME like '%' and
+                  SERVICE_NUMBER like '%'
+      </noncompliant>
+      <noncomplianttext>No TLS encryption for trusted http connection</noncomplianttext>
+      <joinstore name="RFCDES" no_data_found="Yes" not_in_output="Yes">
+        <joincompliant>   
+                    RFCDEST = s0.rfcdest and 
+                    RFCTYPE = s0.rfctype and
+                    RFCOPTIONS like_regexpr ',Q=Y,'
+        </joincompliant>
+        <joinnoncompliant>
+                    RFCDEST = s0.rfcdest and 
+                    RFCTYPE = s0.rfctype and
+                    RFCOPTIONS like_regexpr ',Q=Y,'
+        </joinnoncompliant>
+      </joinstore>
+    </checkitem>
+
+  </configstore>
+
+  <!--
+  <configstore name="RFCDES_TYPE_H" sci_id="S00044">
+
+    <checkitem desc="Note 3089413: TLS encrypted http Destinations (Type H)" id="3089413k_TLS_S00044" not_found="ignore">
+      <compliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  SSL_ACTIVE = 'X' and
+                  SSL_APPLICATION like '%' and
+                  SERVER_NAME like '%' and
+                  SERVICE_NUMBER like '%'
+      </compliant>
+      <noncompliant>
+                  RFCDEST like '%' and 
+                  RFCTYPE like '%' and
+                  not SSL_ACTIVE = 'X' and
+                  SSL_APPLICATION like '%' and
+                  SERVER_NAME like '%' and
+                  SERVICE_NUMBER like '%'
+      </noncompliant>
+    </checkitem>
+
+  </configstore>
+  -->
+
+  <configstore SYSTEM_TYPE="ABAP" name="ABAP_INSTANCE_PAHI">
+
+    <checkitem desc="Note 3089413: Parameter rfc/allowoldticket4tt blocks old method as server" id="3089413l_blockOldSrv" not_found="negative">
+      <compliant>
+                  NAME = 'rfc/allowoldticket4tt' and 
+                  VALUE in ('no','client')
+      </compliant>
+      <noncompliant>
+                  NAME = 'rfc/allowoldticket4tt' and 
+                  not VALUE in ('no','client')
+      </noncompliant>
+      <noncomplianttext>Incoming connections using old trust method are still possibleUpdated tetx</noncomplianttext>
+    </checkitem>
+
+    <checkitem desc="Note 3089413: Parameter rfc/allowoldticket4tt blocks old method" id="3089413m_blockOldAll" not_found="negative">
+      <compliant>
+                  NAME = 'rfc/allowoldticket4tt' and 
+                  VALUE = 'no'
+      </compliant>
+      <noncompliant>
+                  NAME = 'rfc/allowoldticket4tt' and 
+                  not VALUE = 'no'
+      </noncompliant>
+      <noncomplianttext>Connections using old trust method are still possible</noncomplianttext>
+    </checkitem>
+
+  </configstore>
+
+</targetsystem>
