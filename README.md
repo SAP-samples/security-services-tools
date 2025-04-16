@@ -102,6 +102,10 @@ Change documents of deleted users are not shown.
 Instead of reading table USR21, the report may should get the change documents for address assignments.  
 20.01.2025 Initial version  
 
+- Report [`ZTOUCH_PROJVIEW_DEP_PROGS`](/ABAP/basis/ztouch_projview_dep_progs.prog.abap)  
+This is an extended version of the report provided by notes 3565944, 3577258 about a Memory Corruption vulnerability  
+16.04.2025 Initial version  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
