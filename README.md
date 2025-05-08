@@ -181,11 +181,15 @@ New 27.04.2023
 
 - Report [`ZCHECK_NOTE_3089413_FRUN`](/ABAP/frun/zcheck_note_3089413_frun.prog.abap)  
 Check the implementation status of note [3089413](https://me.sap.com/notes/3089413) for connected ABAP systems.  
-You find a corresponding FRUN policy on page [3089413_ext](/ABAP/frun/Extended%20Policy%20for%20SAP%20Note%203089413).  
+You find a corresponding FRUN policy on page [3089413.xml](/FRUN_Policies/Note_3089413.xml).  
 See Security Notes Webinar [2023-02](https://help.sap.com/docs/SUPPORT_CONTENT/security/3362974335.html)  
 Updated 13.03.2023 Updated note 3287611, new note 3304520  
 Updated 10.07.2023 Updated Kernel prerequisites as described in note 3224161  
 Updated 10.07.2023 Updated Note prerequisites for note 3287611 v9   
+
+- FRUN Policies for specific Security Notes  
+Note [3089413](https://me.sap.com/notes/3089413) - [CVE-2023-0014] Capture-replay vulnerability in SAP NetWeaver AS for ABAP and ABAP Platform: [3089413.xml](/FRUN_Policies/Note_3089413.xml)  
+Note [3594142](https://me.sap.com/notes/3594142) - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server): [33594142.xml](/FRUN_Policies/Note_3594142.xml)  
 
 ## Requirements
 None

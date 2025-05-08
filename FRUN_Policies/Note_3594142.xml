@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<targetsystem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" desc="Security note 3594142 - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server)" id="Note_3594142" multisql="Yes" version="0000" xsi:schemaLocation="csa_policy.xsd">
+  <!-- [p1-CVSS 10.0] EP-VC-INF 0003594142 - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server) (Version 0018) -->
+  <!-- Syntax rules: https://support.sap.com/en/alm/sap-focused-run/expert-portal/configuration-and-security-analytics/syntax-rules-and-policy-check-examples.html --> 
+  <configstore name="COMP_LEVEL" name_extended="" system_type="JAVA">
+    <checkitem desc="Validate note 3594142 for software component VCFRAMEWORK" id="VCFRAMEWORK" not_found="ignore">
+      <compliant>
+        COMPONENT = 'VCFRAMEWORK' and (
+                   ( VERSION = '7.50' and SP = '20' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '21' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '22' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '23' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '24' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '25' and PATCH &gt;= '2' )
+                or ( VERSION = '7.50' and SP = '26' and PATCH &gt;= '2' )
+                or ( VERSION = '7.50' and SP = '27' and PATCH &gt;= '2' )
+                or ( VERSION = '7.50' and SP = '28' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '29' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '30' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP = '31' and PATCH &gt;= '1' )
+                or ( VERSION = '7.50' and SP &gt;= '32' ) 
+        )
+      </compliant>
+      <noncompliant>
+        COMPONENT = 'VCFRAMEWORK' and (
+                   ( VERSION &lt; '7.50')
+                or ( VERSION = '7.50' and SP &lt; '20')
+                or ( VERSION = '7.50' and SP = '20' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '21' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '22' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '23' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '24' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '25' and PATCH &lt; '2' )
+                or ( VERSION = '7.50' and SP = '26' and PATCH &lt; '2' )
+                or ( VERSION = '7.50' and SP = '27' and PATCH &lt; '2' )
+                or ( VERSION = '7.50' and SP = '28' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '29' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '30' and PATCH &lt; '1' )
+                or ( VERSION = '7.50' and SP = '31' and PATCH &lt; '1' ) 
+        )
+      </noncompliant>
+    </checkitem>
+  </configstore>
+</targetsystem>
