@@ -17,11 +17,13 @@
 *&            Exception for rdisp/TRACE_HIDE_SEC_DATA
 *&            Additional output fields, is dynamic, restriction values, application component
 *&            Option use use and store ALV layouts
+*& 14.05.2025 Compare recommended value with actual unsubstituted value (value32)
+*&            S/4HANA 2025
 *&---------------------------------------------------------------------*
 
 REPORT rspfrecommended NO STANDARD PAGE HEADING MESSAGE-ID pf.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '20.02.2025 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '14.05.2025 FBT'.
 
 TYPE-POOLS: slis.
 
@@ -50,6 +52,16 @@ TYPES: BEGIN OF ts_outtab,
          version            TYPE instswprod-version,
          color              TYPE slis_t_specialcol_alv,
          profile            TYPE pfl_profilename,
+         VALUE11            TYPE SPFL_PARAMETER_VALUE,
+         VALUE21            TYPE SPFL_PARAMETER_VALUE,
+         VALUE31            TYPE SPFL_PARAMETER_VALUE,
+         VALUE32            TYPE SPFL_PARAMETER_VALUE,
+         VALUE33            TYPE SPFL_PARAMETER_VALUE,
+         VALUE34            TYPE SPFL_PARAMETER_VALUE,
+         VALUE44            TYPE SPFL_PARAMETER_VALUE,
+         VALUE13            TYPE SPFL_PARAMETER_VALUE,
+         VALUE23            TYPE SPFL_PARAMETER_VALUE,
+         VALUE24            TYPE SPFL_PARAMETER_VALUE,
        END OF ts_outtab,
        tt_outtab TYPE STANDARD TABLE OF ts_outtab.
 
@@ -135,15 +147,15 @@ DEFINE set_fieldcat.
   CLEAR: ls_fieldcat.
   ls_fieldcat-fieldname    = &1.
   ls_fieldcat-rollname     = &2.
-  ls_fieldcat-reptext_ddic =
-  ls_fieldcat-seltext_s    =
-  ls_fieldcat-seltext_m    =
-  ls_fieldcat-seltext_l    = &3.
+  ls_fieldcat-reptext_ddic = &4.
+  ls_fieldcat-seltext_s    = &3.
+  ls_fieldcat-seltext_m    = &4.
+  ls_fieldcat-seltext_l    = &4.
   ls_fieldcat-lowercase    = abap_true.
-  ls_fieldcat-key          = &4.
-  ls_fieldcat-key_sel      = &4.
-  ls_fieldcat-no_out       = &5.
-" ls_fieldcat-outputlen    = &5.
+  ls_fieldcat-key          = &5.
+  ls_fieldcat-key_sel      = &5.
+  ls_fieldcat-no_out       = &6.
+" ls_fieldcat-outputlen    = &7.
   APPEND ls_fieldcat TO it_fieldcat.
 
 END-OF-DEFINITION.
@@ -193,7 +205,7 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
     ls_outtab-note        = ls_recommended_value-note.
     ls_outtab-version     = ls_recommended_value-version.
 
-    "Retrieve parameter value
+    "Retrieve actual substituted parameter value
     CALL METHOD cl_spfl_profile_parameter=>get_value
       EXPORTING
         name  = ls_recommended_value-name
@@ -203,6 +215,28 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
         rc    = lv_rc.
     IF lv_rc <> 0.
       ls_outtab-actual = 'Value Undefined'(010).
+    ENDIF.
+    "Retrieve all values of a parameter
+    CALL METHOD cl_spfl_profile_parameter=>get_all_values
+      EXPORTING
+        name    = ls_recommended_value-name
+      IMPORTING
+        value11 = ls_outtab-value11 "static initialization
+        value21 = ls_outtab-value21 "<11> and DEFAULT.PFL
+        value31 = ls_outtab-value31 "<21> and pf=..-file
+        value32 = ls_outtab-value32 "<31> and argv, env
+        value33 = ls_outtab-value33 "<32> and $$ and $(..) substitution
+        value34 = ls_outtab-value34 "<33> and filename generation
+        value44 = ls_outtab-value44 "<44> shared memory
+        value13 = ls_outtab-value13 "<11> and replace all d p
+        value23 = ls_outtab-value23 "<21> and replace all d p
+        value24 = ls_outtab-value24 "<11> and replace all d p
+      RECEIVING
+        rc    = lv_rc.
+    IF lv_rc <> 0.
+      ls_outtab-value11 = 'Value Undefined'(010).
+    ELSE.
+      ls_outtab-actual = ls_outtab-value32. " Actual unsubstituted value
     ENDIF.
 
     "Retrieve default parameter value
@@ -356,18 +390,28 @@ FORM create_table TABLES it_fieldcat TYPE slis_t_fieldcat_alv
   ENDLOOP.
 
   CLEAR: it_fieldcat.
-  set_fieldcat: 'NAME'        'SPFL_PARAMETER_NAME'  'Parameter Name'(001)    abap_true  '',  " 50,
-                'RESULT'      'CHAR4'                'Result'(006)            abap_false '', " 20,
-                'ACTUAL'      'SPFL_PARAMETER_VALUE' 'Actual Value'(002)      abap_false '', " 20,
-                'RECOMMENDED' 'SPFL_PARAMETER_VALUE' 'Recommended Value'(003) abap_false '', " 20,
-                'DEFAULT'     'SPFL_PARAMETER_VALUE' 'Default Value'(005)     abap_false 'X', " 20,
-                'IS_DYNAMIC'  'SPFL_PARAMETER_VALUE' 'Dynamic'(dyn)           abap_false 'X', " 3,
-                'COMPONENT'  'SPFL_PARAMETER_VALUE' 'Application component'(cmp)     abap_false 'X', " 20,
-                'RESTRICTION_VALUES' 'SPFL_PARAMETER_VALUE' 'Restiction values'(res) abap_false 'X', " 20,
-                'PROFILE'     'PFL_PROFILENAME'      'Profile'(007)           abap_false '', " 20,
-                'NOTE'        'SPFL_NOTE_NUMBER'     'Related Note'(004)      abap_false '', " 20,
-                'VERSION'     'SC_VERSION'           'Version'(008)           abap_false ''. " 20
-
+  "             fieldname            rollname                ssssssssss        mmmmmmmmmmmmmmmmmmmmllllllllllllllllllll           key        no_out
+  set_fieldcat: 'NAME'               'SPFL_PARAMETER_NAME'  'Parameter'(s01)  'Parameter Name'(m01)                               abap_true  ' ', " 50,
+                'RESULT'             'CHAR4'                'Result'(s06)     'Result'(m06)                                       abap_false ' ', " 20,
+                'ACTUAL'             'SPFL_PARAMETER_VALUE' 'Actual'(s02)     'Actual unsubstituted value'(m02)                   abap_false ' ', " 20,
+                'RECOMMENDED'        'SPFL_PARAMETER_VALUE' 'Recommend.'(s03) 'Recommended Value'(m03)                            abap_false ' ', " 20,
+                'DEFAULT'            'SPFL_PARAMETER_VALUE' 'Default'(s05)    'Default Value'(m05)                                abap_false 'X', " 20,
+                'IS_DYNAMIC'         'SPFL_PARAMETER_VALUE' 'Dynamic'(s09)    'Dynamic'(m09)                                      abap_false 'X', " 3,
+                'COMPONENT'          'SPFL_PARAMETER_VALUE' 'Appl.Comp.'(s10) 'Application component'(m10)                        abap_false 'X', " 20,
+                'RESTRICTION_VALUES' 'SPFL_PARAMETER_VALUE' 'Restiction'(s11) 'Restiction values'(m11)                            abap_false 'X', " 20,
+                'PROFILE'            'PFL_PROFILENAME'      'Profile'(s07)    'Profile'(m07)                                      abap_false ' ', " 20,
+                'NOTE'               'SPFL_NOTE_NUMBER'     'Related'(s04)    'Related Note'(m04)                                 abap_false ' ', " 20,
+                'VERSION'            'SC_VERSION'           'Version'(s08)    'Version'(m08)                                      abap_false ' ', " 20,
+                'VALUE11'            'SPFL_PARAMETER_VALUE' 'Value 11'(s11)   'Value 11: static initialization'(m11)              abap_false 'X', " 20,
+                'VALUE21'            'SPFL_PARAMETER_VALUE' 'Value 21'(s21)   'Value 21: <11> and DEFAULT.PFL'(m21)               abap_false 'X', " 20,
+                'VALUE31'            'SPFL_PARAMETER_VALUE' 'Value 31'(s31)   'Value 31: <21> and pf=..-file'(m31)                abap_false 'X', " 20,
+                'VALUE32'            'SPFL_PARAMETER_VALUE' 'Value 32'(s32)   'Value 32: <31> and argv, env'(m32)                 abap_false 'X', " 20,  = Actual unsubstituted value
+                'VALUE33'            'SPFL_PARAMETER_VALUE' 'Value 33'(s33)   'Value 33: <32> and $$ and $(..) subst.'(m33)       abap_false 'X', " 20,
+                'VALUE34'            'SPFL_PARAMETER_VALUE' 'Value 34'(s34)   'Value 34: <33> and filename generation'(m34)       abap_false 'X', " 20,
+                'VALUE44'            'SPFL_PARAMETER_VALUE' 'Value 44'(s44)   'Value 44: <44> shared memory'(m44)                 abap_false 'X', " 20,
+                'VALUE13'            'SPFL_PARAMETER_VALUE' 'Value 13'(s13)   'Value 13: <11> and replace all d p'(m13)           abap_false 'X', " 20,
+                'VALUE23'            'SPFL_PARAMETER_VALUE' 'Value 23'(s23)   'Value 23: <21> and replace all d p'(m23)           abap_false 'X', " 20,
+                'VALUE24'            'SPFL_PARAMETER_VALUE' 'Value 23'(s24)   'Value 24: <11> and replace all d p'(m24)           abap_false 'X'. " 20.
 ENDFORM. "create_table
 
 
@@ -610,7 +654,7 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
     ls_recommended_value-note    = &4.
 
     READ TABLE lt_all_recommended_values WITH KEY name = ls_recommended_value-name TRANSPORTING NO FIELDS.
-    IF sy-subrc IS INITIAL.
+    IF sy-subrc = 0.
       "check if the recommended value match
     ELSE.
       " add recommended value
@@ -710,9 +754,16 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
   add_value 'ECS 2025' 'abap/ext_debugging_possible'             '2'     '2077333'.
   add_value 'ECS 2025' 'dbs/dba/ccms_maintenance'                '1'     ''.
   add_value 'ECS 2025' 'dbs/dba/ccms_security_level'             '1'     ''.
-  add_value 'ECS 2025' 'rdisp/TRACE_HIDE_SEC_DATA'               'ON'    '2012562'.
+  add_value 'ECS 2025' 'rdisp/TRACE_HIDE_SEC_DATA'               'ON'    '2012562'. " lower case value 'on' is allowed as well (see exception above)
   add_value 'ECS 2025' 'sapgui/user_scripting'                   'FALSE' '2715519'.
   add_value 'ECS 2025' 'snc/permit_insecure_start'               '0'     ''.
+
+  " S/4HANA 2025
+  add_value '2025' 'csi/enable'                                  '0'     '3155300'.
+  delete lt_all_recommended_values where name = 'icm/security_log'. "Changed recommendation in S/4HANA 2025
+  add_value '2025' 'icm/security_log'                            'LOGFILE=$(DIR_LOGGING)$(DIR_SEP)dev_icm_sec-%y-%m-%d%z,LEVEL=3,MAXFILES=7,MAXSIZEKB=50000,SWITCHTF=day,FORMAT=TABLE'     '3581719'.
+  add_value '2025' 'login/accept_sso2_ticket'                    '2'     '3584984'.
+  add_value '2025' 'ssl/client_ciphersuites'                     '1174:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH' '3346659'.
 
 ENDFORM.
 

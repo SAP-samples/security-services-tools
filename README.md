@@ -50,6 +50,7 @@ Updated 19.04.2023 Show long lines in a textedit control; Change recommendation 
 Updated 15.11.2023 Parameter added for S/4HANA 2023  
 Updated 17.01.2025 Parameter added for new entries in ECS note [3250501](https://me.sap.com/notes/3250501) version 27 from 17.01.2025  
 Updated 20.02.2025 Use different colors; Exception for rdisp/TRACE_HIDE_SEC_DATA  
+Updated 14.05.2025 Parameter added for S/4HANA 2023; Compare recommended value with actual unsubstituted value  
 
 - Report [`ZSHOW_GWMON_LOG`](/ABAP/basis/zshow_gwmon_log.prog.abap)  
 Show settings, and log and trace files of the RFC gateway  
