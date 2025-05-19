@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <targetsystem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" desc="Security note 3594142 - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server)" id="Note_3594142" multisql="Yes" version="0000" xsi:schemaLocation="csa_policy.xsd">
-  <!-- [p1-CVSS 10.0] EP-VC-INF 0003594142 - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server) (Version 0018) -->
-  <!-- Syntax rules: https://support.sap.com/en/alm/sap-focused-run/expert-portal/configuration-and-security-analytics/syntax-rules-and-policy-check-examples.html --> 
+  <!-- [p1-CVSS 10.0] EP-VC-INF 0003594142 - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server) (Version 0019) -->
+  <!-- Syntax rules: https://support.sap.com/en/alm/sap-focused-run/expert-portal/configuration-and-security-analytics/syntax-rules-and-policy-check-examples.html -->
   <configstore name="COMP_LEVEL" name_extended="" system_type="JAVA">
     <checkitem desc="Validate note 3594142 for software component VCFRAMEWORK" id="VCFRAMEWORK" not_found="ignore">
       <compliant>

@@ -189,8 +189,10 @@ Updated 10.07.2023 Updated Kernel prerequisites as described in note 3224161
 Updated 10.07.2023 Updated Note prerequisites for note 3287611 v9   
 
 - FRUN Policies for specific Security Notes  
-Note [3089413](https://me.sap.com/notes/3089413) - [CVE-2023-0014] Capture-replay vulnerability in SAP NetWeaver AS for ABAP and ABAP Platform: [3089413.xml](/FRUN_Policies/Note_3089413.xml)  
-Note [3594142](https://me.sap.com/notes/3594142) - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server): [33594142.xml](/FRUN_Policies/Note_3594142.xml)  
+Note [3089413](https://me.sap.com/notes/3089413) - [CVE-2023-0014] Capture-replay vulnerability in SAP NetWeaver AS for ABAP and ABAP Platform: [Note_3089413.xml](/FRUN_Policies/Note_3089413.xml)  
+Note [3594142](https://me.sap.com/notes/3594142) - [CVE-2025-31324] Missing Authorization check in SAP NetWeaver (Visual Composer development server): [Note_33594142.xml](/FRUN_Policies/Note_3594142.xml)  
+Note [3604119](https://me.sap.com/notes/3604119) - [CVE-2025-42999] Insecure Deserialization in SAP NetWeaver (Visual Composer development server): [Note_33604119.xml](/FRUN_Policies/Note_3604119.xml)  
+Instead of uploading the individual policy files for note [3594142](https://me.sap.com/notes/3594142) and [3604119](https://me.sap.com/notes/3604119) you can use following composite policy container: [CsaCont-SecNote_VCFRAMEWORK-[0000]](/FRUN_Policies/CsaCont-SecNote_VCFRAMEWORK-[0000].xml)  
 
 ## Requirements
 None
