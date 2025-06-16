@@ -16,10 +16,11 @@ Show installed software components and verify the age of the support packages
 - Report [`ZRFC_STATRECS_SUMMARY`](/ABAP/basis/zrfc_statrecs_summary.prog.abap)  
 Show Workload Statistic of RFC calls  
 See blog [How to get RFC call traces to build authorizations for S_RFC for free!](https://community.sap.com/t5/application-development-blog-posts/how-to-get-rfc-call-traces-to-build-authorizations-for-s-rfc-for-free/ba-p/12900590)  
-Standard transaction `STRFCTRACE` can replace this Z-report (see note [2080378](https://me.sap.com/notes/2080378))  
+Standard transaction `STRFCTRACE` can replace this Z-report partially (see note [2080378](https://me.sap.com/notes/2080378))  
 Updated 18.01.2023 Tooltip for column Logon Procedure (trusted, basic, no user)  
 Updated 14.09.2023 Show SNC status of outgoing destinations  
 Updated 15.09.2023 Show http connections, too  
+Updated 16.06.2025 Option to show entries with different local and remote users only  
 
 - Report [`ZSM04000_SNC`](/ABAP/basis/zsm04000_snc.prog.abap)  
 Show SNC status of active users on current application server  

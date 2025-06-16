@@ -1,6 +1,6 @@
 *&---------------------------------------------------------------------*
 *& Report  ZRFC_STATRECS_SUMMARY
-*& Show Workload Statistic of RFC calls
+*& Show Workload Statistic of RFC and http calls
 *&---------------------------------------------------------------------*
 *& created by:
 *& Frank Buchholz
@@ -43,11 +43,12 @@
 *& 14.09.2023 Show SNC status of outgoing destinations
 *&            Show http connections, too
 *& 15.09.2023 Optimization
+*& 16.06.2025 Option to show entries with different local and remote users only
 *&---------------------------------------------------------------------*
 
 REPORT  ZRFC_STATRECS_SUMMARY.
 
-constants: c_program_version(14) type c value '15.09.2023 FBT'.
+constants: c_program_version(14) type c value '16.06.2025 FBT'.
 
 * see function SWNC_COLLECTOR_GET_AGGREGATES
 * in include LSCSM_COLLECTORU04
@@ -147,6 +148,10 @@ selection-SCREEN BEGIN OF BLOCK bfil WITH FRAME TITLE bfil.
 selection-screen begin of line.
 selection-SCREEN comment 1(28) t_USER.
 SELECT-OPTIONS: s_USER   for sy-uname.
+selection-screen end of line.
+selection-screen begin of line.
+PARAMETERS P_USDIFF AS CHECKBOX.
+selection-SCREEN comment 3(40) t_USDIFF. "Different users only
 selection-screen end of line.
 * RFC Destination
 data: l_RFCDEST like RFCDES-RFCDEST.
@@ -312,6 +317,7 @@ initialization.
 
   bfil     = 'Filter Options'(t13).
   t_USER   = 'User'(t14).
+  t_USDIFF = 'Different local and remote users only'(t19).
   t_DEST   = 'Destination'(t15).
   t_FUNC   = 'RFC function'(t16).
   t_GROUP  = 'Function group'(t17).
@@ -634,6 +640,9 @@ FORM MAIN.
             AND ls_rfcclnt-LOCAL_DEST in s_DEST
             AND ls_rfcclnt-REMOT_DEST in s_DEST.
         endif.
+        if P_USDIFF = 'X'. "Different users only
+          check ls_rfcclnt-account <> ls_rfcclnt-userid.
+        endif.
 
         move-CORRESPONDING ls_rfcclnt to gs_result.
         PERFORM translate_tasktype using ls_rfcclnt-tasktype.
@@ -792,6 +801,9 @@ FORM MAIN.
             AND ls_rfcsrvr-LOCAL_DEST in s_DEST
             AND ls_rfcsrvr-REMOT_DEST in s_DEST.
         endif.
+        if P_USDIFF = 'X'. "Different users only
+          check ls_rfcsrvr-account <> ls_rfcsrvr-userid.
+        endif.
 
         move-CORRESPONDING ls_rfcsrvr to gs_result.
         clear gs_result-prog_name. "Not useful for RFC Server
@@ -945,6 +957,9 @@ FORM MAIN.
           check ls_rfcclntdest-TARGET     in s_DEST
             AND ls_rfcclntdest-LOCAL_DEST in s_DEST
             AND ls_rfcclntdest-REMOT_DEST in s_DEST.
+        endif.
+        if P_USDIFF = 'X'. "Different users only
+          check ls_rfcclntdest-account <> ls_rfcclntdest-userid.
         endif.
 
         move-CORRESPONDING ls_rfcclntdest to gs_result.
@@ -1120,6 +1135,9 @@ FORM MAIN.
           check ls_rfcsrvrdest-TARGET     in s_DEST
             AND ls_rfcsrvrdest-LOCAL_DEST in s_DEST
             AND ls_rfcsrvrdest-REMOT_DEST in s_DEST.
+        endif.
+        if P_USDIFF = 'X'. "Different users only
+          check ls_rfcsrvrdest-account <> ls_rfcsrvrdest-userid.
         endif.
 
         move-CORRESPONDING ls_rfcsrvrdest to gs_result.
