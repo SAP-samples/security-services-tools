@@ -770,7 +770,7 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
   add_value '2025' 'icm/security_log'                            'LOGFILE=$(DIR_LOGGING)$(DIR_SEP)dev_icm_sec-%y-%m-%d%z,LEVEL=3,MAXFILES=7,MAXSIZEKB=50000,SWITCHTF=day,FORMAT=TABLE'     '3581719'.
   add_value '2025' 'login/accept_sso2_ticket'                    '2'     '3584984'.
   " Changed recommendation in S/4HANA 2025 for ssl/ciphersuites
-  add_value '2025' 'ssl/ciphersuites'                            '1569:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH' '3198351'.
+  add_value '2025' 'ssl/ciphersuites'                            '1569:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH' '3346659'.
   add_value '2025' 'ssl/client_ciphersuites'                     '1174:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH' '3346659'.
 
 ENDFORM.
