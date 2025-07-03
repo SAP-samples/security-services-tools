@@ -19,11 +19,12 @@
 *&            Option use use and store ALV layouts
 *& 14.05.2025 Compare recommended value with actual unsubstituted value (value32)
 *&            S/4HANA 2025
+*& 03.07.2025 Changed value for parameter ssl/ciphersuites solved in S/4HANA 2025
 *&---------------------------------------------------------------------*
 
 REPORT rspfrecommended NO STANDARD PAGE HEADING MESSAGE-ID pf.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '14.05.2025 FBT'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '03.07.2025 FBT'.
 
 TYPE-POOLS: slis.
 
@@ -645,7 +646,9 @@ ENDFORM. "html_top_of_page
 
 
 FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recommended_value_t.
-  DATA ls_recommended_value TYPE spfl_recommended_value.
+  DATA:
+    ls_recommended_value  TYPE spfl_recommended_value,
+    ls_recommended_value2 TYPE spfl_recommended_value.
 
   DEFINE add_value. " version name value note
     ls_recommended_value-version = &1.
@@ -653,9 +656,12 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
     ls_recommended_value-value   = &3.
     ls_recommended_value-note    = &4.
 
-    READ TABLE lt_all_recommended_values WITH KEY name = ls_recommended_value-name TRANSPORTING NO FIELDS.
+    READ TABLE lt_all_recommended_values WITH KEY name = ls_recommended_value-name INTO ls_recommended_value2.
     IF sy-subrc = 0.
       "check if the recommended value match
+      if ls_recommended_value-value <> ls_recommended_value2-value.
+        MODIFY lt_all_recommended_values FROM ls_recommended_value INDEX sy-tabix.
+      endif.
     ELSE.
       " add recommended value
       APPEND ls_recommended_value TO lt_all_recommended_values.
@@ -760,9 +766,11 @@ FORM add_security_parameters CHANGING lt_all_recommended_values TYPE spfl_recomm
 
   " S/4HANA 2025
   add_value '2025' 'csi/enable'                                  '0'     '3155300'.
-  delete lt_all_recommended_values where name = 'icm/security_log'. "Changed recommendation in S/4HANA 2025
+  " Changed recommendation in S/4HANA 2025 for icm/security_log
   add_value '2025' 'icm/security_log'                            'LOGFILE=$(DIR_LOGGING)$(DIR_SEP)dev_icm_sec-%y-%m-%d%z,LEVEL=3,MAXFILES=7,MAXSIZEKB=50000,SWITCHTF=day,FORMAT=TABLE'     '3581719'.
   add_value '2025' 'login/accept_sso2_ticket'                    '2'     '3584984'.
+  " Changed recommendation in S/4HANA 2025 for ssl/ciphersuites
+  add_value '2025' 'ssl/ciphersuites'                            '1569:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH' '3198351'.
   add_value '2025' 'ssl/client_ciphersuites'                     '1174:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH' '3346659'.
 
 ENDFORM.
