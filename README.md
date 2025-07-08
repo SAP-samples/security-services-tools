@@ -109,6 +109,11 @@ Instead of reading table USR21, the report may should get the change documents f
 This is an extended version of the report provided by notes 3565944, 3577258 about a Memory Corruption vulnerability  
 16.04.2025 Initial version  
 
+- Report [`ZSHOW_DUMP_RFC_NO_AUTHORITY`](/ABAP/basis/zshow_dump_rfc_no_authority.prog.abap)  
+Show dumps for runtime error RFC_NO_AUTHORITY  
+This report is useful for troubleshooting missing authorizations for S_RFC, especially concerting SAP security note [3600840](https://me.sap.com/notes/notes/3600840)  
+08.07.2025 Initial version  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
