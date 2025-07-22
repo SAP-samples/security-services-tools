@@ -3,11 +3,12 @@
 *&---------------------------------------------------------------------*
 *&
 *& Show composite policies
-*&
+*& 27.04.2023 Initial version
+*& 22.07.2025 Value help added
 *&---------------------------------------------------------------------*
 REPORT zshow_composite_policies.
 
-CONSTANTS c_program_version(30) TYPE c VALUE '27.04.2023 FQ4'.
+CONSTANTS c_program_version(30) TYPE c VALUE '22.07.2025 FQ4'.
 
 TABLES sscrfields.
 
@@ -43,6 +44,8 @@ CLASS lcl_report DEFINITION.
     CLASS-METHODS:
 
       initialization,
+
+      f4_tsys,
 
       at_selection_screen,
 
@@ -97,6 +100,55 @@ CLASS lcl_report IMPLEMENTATION.
        SEPARATED BY space.
 
   ENDMETHOD. " initialization
+
+  METHOD f4_tsys.
+
+    TYPES:
+      BEGIN OF ts_f4_value,
+        pol_id      TYPE cova_tarsysid,
+        pol_desc    TYPE cova_tardesc,
+        "change_ts   TYPE timestamp,
+        change_user TYPE cova_taruser,
+      END OF ts_f4_value.
+
+    DATA:
+      f4_value     TYPE          ts_f4_value,
+      f4_value_tab TYPE TABLE OF ts_f4_value.
+
+    " Get data
+    SELECT *
+      FROM cova_cpolh     " View COVA_TARSYSV_DBV = merged tables COVA_TARSYSTEMS and COVA_TARSYSTEMS_SAP
+      INTO CORRESPONDING FIELDS OF TABLE @f4_value_tab
+      WHERE pol_version = '0000' " current version (>= 9000 for historic versions)
+      ORDER BY pol_id.
+
+    " Show value help
+    DATA(progname) = sy-repid.
+    DATA(dynnum)   = sy-dynnr.
+    DATA field TYPE dynfnam.
+    DATA stepl TYPE sy-stepl.
+    GET CURSOR FIELD field LINE stepl.
+    DATA return_tab TYPE TABLE OF ddshretval.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'POL_ID'
+        dynpprog        = progname
+        dynpnr          = dynnum
+        dynprofield     = field
+        stepl           = stepl
+        value_org       = 'S'
+      TABLES
+*       field_tab       = field_tab
+        value_tab       = f4_value_tab
+        return_tab      = return_tab " surprisingly required to get lower case values
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2.
+    IF sy-subrc <> 0.
+*   Implement suitable error handling here
+    ENDIF.
+
+  ENDMETHOD. " f4_TSYS
 
   METHOD at_selection_screen.
 
@@ -284,6 +336,12 @@ ENDCLASS.                    "lcl_report IMPLEMENTATION
 *----------------------------------------------------------------------*
 INITIALIZATION.
   lcl_report=>initialization( ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_tsys-low.
+  lcl_report=>f4_tsys( ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_tsys-high.
+  lcl_report=>f4_tsys( ).
 
 AT SELECTION-SCREEN.
   lcl_report=>at_selection_screen( ).
