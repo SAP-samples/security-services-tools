@@ -113,6 +113,7 @@ This is an extended version of the report provided by notes 3565944, 3577258 abo
 Show dumps for runtime error RFC_NO_AUTHORITY  
 This report is useful for troubleshooting missing authorizations for S_RFC, especially concerting SAP security note [3600840](https://me.sap.com/notes/notes/3600840)  
 08.07.2025 Initial version  
+09.07.2025 Slightly optimized  
 
 - Report [`ZSAP4ME_NOTE_SEARCH`](/ABAP/basis/zsap4me_note_search.prog.abap)  
 Construct an URL to search for notes in the SAP Support Portal.  

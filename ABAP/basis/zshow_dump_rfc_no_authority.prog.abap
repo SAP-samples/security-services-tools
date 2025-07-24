@@ -1,11 +1,15 @@
 *&---------------------------------------------------------------------*
 *& Report ZSHOW_DUMP_RFC_NO_AUTHORITY
 *&---------------------------------------------------------------------*
+*& Author: Frank Buchholz, SAP CoE Security Services
+*& Source: https://github.com/SAP-samples/security-services-tools
 *&
+*& 08.07.2025 Initial version
+*& 09.07.2025 Slightly optimized
 *&---------------------------------------------------------------------*
 REPORT zshow_dump_rfc_no_authority.
 
-CONSTANTS: c_program_version(30) TYPE c VALUE '08.07.2025 S44'.
+CONSTANTS: c_program_version(30) TYPE c VALUE '09.07.2025 S44'.
 
 *------------------------------------------------------------------------*
 * Selection screen
@@ -158,10 +162,17 @@ CLASS lcl_report DEFINITION.
         IMPORTING e_salv_function,
 
       on_double_click FOR EVENT double_click OF cl_salv_events_table
-        IMPORTING row column.
+        IMPORTING row column,
 
 *      on_single_click for event link_click of cl_salv_events_table
-*        importing row column.
+*        importing row column,
+
+      RS_TOOL_ACCESS
+        importing
+          object_name type any
+          object_type type string
+          .
+
 ENDCLASS.                    "lcl_report DEFINITION
 
 *----------------------------------------------------------------------*
@@ -490,146 +501,69 @@ CLASS lcl_report IMPLEMENTATION.
           ENDIF.
 
         WHEN 'R5'. " Function
-          " Call ABAP Workbench (with all required authorization checks)
-          CHECK ls_result-ap IS NOT INITIAL.
-          "EDITOR-CALL FOR REPORT ls_result-ap DISPLAY-MODE.
-          CALL FUNCTION 'RS_TOOL_ACCESS'
-            EXPORTING
-              operation           = 'SHOW'
-              object_name         = ls_result-r5
-              object_type         = 'FUNC'
-*             ENCLOSING_OBJECT    =
-*             POSITION            = ' '
-*             DEVCLASS            =
-*             INCLUDE             =
-*             VERSION             = ' '
-*             MONITOR_ACTIVATION  = 'X'
-*             WB_MANAGER          =
-*             IN_NEW_WINDOW       =
-*             WITH_OBJECTLIST     = ' '
-*             WITH_WORKLIST       = ' '
-*           IMPORTING
-*             NEW_NAME            =
-*             WB_TODO_REQUEST     =
-*           TABLES
-*             OBJLIST             =
-*           CHANGING
-*             P_REQUEST           = ' '
-            EXCEPTIONS
-              not_executed        = 1
-              invalid_object_type = 2
-              OTHERS              = 3.
-          IF sy-subrc <> 0.
-* Implement suitable error handling here
-          ENDIF.
+          RS_TOOL_ACCESS(
+            object_name = ls_result-r5
+            object_type = 'FUNC'
+          ).
 
         WHEN 'P3'. " Function
-          " Call ABAP Workbench (with all required authorization checks)
-          CHECK ls_result-ap IS NOT INITIAL.
-          "EDITOR-CALL FOR REPORT ls_result-ap DISPLAY-MODE.
-          CALL FUNCTION 'RS_TOOL_ACCESS'
-            EXPORTING
-              operation           = 'SHOW'
-              object_name         = ls_result-p3
-              object_type         = 'FUNC'
-*             ENCLOSING_OBJECT    =
-*             POSITION            = ' '
-*             DEVCLASS            =
-*             INCLUDE             =
-*             VERSION             = ' '
-*             MONITOR_ACTIVATION  = 'X'
-*             WB_MANAGER          =
-*             IN_NEW_WINDOW       =
-*             WITH_OBJECTLIST     = ' '
-*             WITH_WORKLIST       = ' '
-*           IMPORTING
-*             NEW_NAME            =
-*             WB_TODO_REQUEST     =
-*           TABLES
-*             OBJLIST             =
-*           CHANGING
-*             P_REQUEST           = ' '
-            EXCEPTIONS
-              not_executed        = 1
-              invalid_object_type = 2
-              OTHERS              = 3.
-          IF sy-subrc <> 0.
-* Implement suitable error handling here
-          ENDIF.
+          RS_TOOL_ACCESS(
+            object_name = ls_result-p3
+            object_type = 'FUNC'
+          ).
 
         WHEN 'AP'. " ABAP: Program
-          " Call ABAP Workbench (with all required authorization checks)
-          CHECK ls_result-ap IS NOT INITIAL.
-          "EDITOR-CALL FOR REPORT ls_result-ap DISPLAY-MODE.
-          CALL FUNCTION 'RS_TOOL_ACCESS'
-            EXPORTING
-              operation           = 'SHOW'
-              object_name         = ls_result-ap
-              object_type         = 'PROG'
-*             ENCLOSING_OBJECT    =
-*             POSITION            = ' '
-*             DEVCLASS            =
-*             INCLUDE             =
-*             VERSION             = ' '
-*             MONITOR_ACTIVATION  = 'X'
-*             WB_MANAGER          =
-*             IN_NEW_WINDOW       =
-*             WITH_OBJECTLIST     = ' '
-*             WITH_WORKLIST       = ' '
-*           IMPORTING
-*             NEW_NAME            =
-*             WB_TODO_REQUEST     =
-*           TABLES
-*             OBJLIST             =
-*           CHANGING
-*             P_REQUEST           = ' '
-            EXCEPTIONS
-              not_executed        = 1
-              invalid_object_type = 2
-              OTHERS              = 3.
-          IF sy-subrc <> 0.
-* Implement suitable error handling here
-          ENDIF.
+          RS_TOOL_ACCESS(
+            object_name = ls_result-ap
+            object_type = 'PROG'
+          ).
 
         WHEN 'S8'. " RFC: Calling Program
-          " Call ABAP Workbench (with all required authorization checks)
-          CHECK ls_result-s8 IS NOT INITIAL.
-          "EDITOR-CALL FOR REPORT ls_result-s8 DISPLAY-MODE.
-          CALL FUNCTION 'RS_TOOL_ACCESS'
-            EXPORTING
-              operation           = 'SHOW'
-              object_name         = ls_result-s8
-              object_type         = 'PROG'
-*             ENCLOSING_OBJECT    =
-*             POSITION            = ' '
-*             DEVCLASS            =
-*             INCLUDE             =
-*             VERSION             = ' '
-*             MONITOR_ACTIVATION  = 'X'
-*             WB_MANAGER          =
-*             IN_NEW_WINDOW       =
-*             WITH_OBJECTLIST     = ' '
-*             WITH_WORKLIST       = ' '
-*           IMPORTING
-*             NEW_NAME            =
-*             WB_TODO_REQUEST     =
-*           TABLES
-*             OBJLIST             =
-*           CHANGING
-*             P_REQUEST           = ' '
-            EXCEPTIONS
-              not_executed        = 1
-              invalid_object_type = 2
-              OTHERS              = 3.
-          IF sy-subrc <> 0.
-* Implement suitable error handling here
-          ENDIF.
-
+          RS_TOOL_ACCESS(
+            object_name = ls_result-s8
+            object_type = 'PROG'
+          ).
 
       ENDCASE.
     ENDIF.
 
   ENDMETHOD. " on_double_click
+
+  METHOD RS_TOOL_ACCESS.
+
+          CHECK object_name IS NOT INITIAL.
+          "EDITOR-CALL FOR REPORT object_name DISPLAY-MODE.
+          CALL FUNCTION 'RS_TOOL_ACCESS'
+            EXPORTING
+              operation           = 'SHOW'
+              object_name         = object_name
+              object_type         = object_type
+*             ENCLOSING_OBJECT    =
+*             POSITION            = ' '
+*             DEVCLASS            =
+*             INCLUDE             =
+*             VERSION             = ' '
+*             MONITOR_ACTIVATION  = 'X'
+*             WB_MANAGER          =
+*             IN_NEW_WINDOW       =
+*             WITH_OBJECTLIST     = ' '
+*             WITH_WORKLIST       = ' '
+*           IMPORTING
+*             NEW_NAME            =
+*             WB_TODO_REQUEST     =
+*           TABLES
+*             OBJLIST             =
+*           CHANGING
+*             P_REQUEST           = ' '
+            EXCEPTIONS
+              not_executed        = 1
+              invalid_object_type = 2
+              OTHERS              = 3.
+          IF sy-subrc <> 0.
+* Implement suitable error handling here
+          ENDIF.
+
+  ENDMETHOD.
 
   METHOD show_result.
     " Show ALV in demo mode
