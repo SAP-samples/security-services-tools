@@ -114,6 +114,13 @@ Show dumps for runtime error RFC_NO_AUTHORITY
 This report is useful for troubleshooting missing authorizations for S_RFC, especially concerting SAP security note [3600840](https://me.sap.com/notes/notes/3600840)  
 08.07.2025 Initial version  
 
+- Report [`ZSAP4ME_NOTE_SEARCH`](/ABAP/basis/zsap4me_note_search.prog.abap)  
+Construct an URL to search for notes in the SAP Support Portal.  
+The expert search for notes in the SAP Support Portal uses a new URL pattern since July 2025. This report constructs such URLs. Most selection fields are supported, including for example "Support Packages, greater than". Using this selection you can find ABAP correction notes, security notes, performance notes, etc. which most likely can be implemented in the system using the note assistant, transaction SNOTE.  
+The value help for Software Components and Support Packages show the currently installed software units.  
+Before calling the default browser, you get a popup showing the constructed URL.  
+20.07.2025 Initial version  
+
 ## SAP Solution Manager (SolMan)
 
 ### Security Optimization Service
